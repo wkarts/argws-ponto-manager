@@ -1,0 +1,229 @@
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from "vue";
+import {
+  deleteProfile,
+  getProfile,
+  listPermissionCatalog,
+  listProfiles,
+  saveProfile,
+  type GenericRecord
+} from "../services/crud";
+import { booleanLabel } from "../services/format";
+import { useSessionStore } from "../stores/session";
+
+const session = useSessionStore();
+const rows = ref<GenericRecord[]>([]);
+const permissions = ref<GenericRecord[]>([]);
+const loading = ref(false);
+const saving = ref(false);
+const error = ref("");
+const search = ref("");
+const onlyActive = ref(true);
+
+function defaultForm() {
+  return {
+    id: undefined as number | undefined,
+    nome: "",
+    descricao: "",
+    perfil_master: false,
+    ativo: true,
+    permission_keys: [] as string[]
+  };
+}
+
+const form = reactive(defaultForm());
+const canManage = computed(() => session.can("perfis:manage"));
+
+function resetForm() {
+  Object.assign(form, defaultForm());
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item));
+}
+
+async function load() {
+  loading.value = true;
+  error.value = "";
+  try {
+    rows.value = await listProfiles(session.sessionToken!, {
+      search: search.value,
+      onlyActive: onlyActive.value
+    });
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao carregar perfis.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function loadPermissions() {
+  permissions.value = await listPermissionCatalog(session.sessionToken!);
+}
+
+async function editRow(id: number) {
+  error.value = "";
+  try {
+    const record = await getProfile(session.sessionToken!, id);
+    Object.assign(form, defaultForm(), record, {
+      perfil_master: Number(record.perfil_master) === 1 || record.perfil_master === true,
+      ativo: Number(record.ativo) === 1 || record.ativo === true,
+      permission_keys: toStringArray(record.permission_keys)
+    });
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao carregar perfil.";
+  }
+}
+
+async function persist() {
+  if (!canManage.value) return;
+  saving.value = true;
+  error.value = "";
+  try {
+    await saveProfile(session.sessionToken!, { ...form });
+    await load();
+    resetForm();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao salvar perfil.";
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function removeRow(id: number) {
+  if (!canManage.value) return;
+  if (!confirm("Deseja excluir este perfil de acesso?")) return;
+  try {
+    await deleteProfile(session.sessionToken!, id);
+    await load();
+    if (Number(form.id) === id) resetForm();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao excluir perfil.";
+  }
+}
+
+onMounted(async () => {
+  try {
+    await Promise.all([loadPermissions(), load()]);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao inicializar perfis de acesso.";
+  }
+});
+</script>
+
+<template>
+  <div class="grid page-gap">
+    <div class="toolbar">
+      <div>
+        <h2>Perfis de acesso</h2>
+        <div class="muted-text">Monte grupos de permissão para operação, RH, auditoria e administração.</div>
+      </div>
+      <div class="actions">
+        <button class="secondary" :disabled="!canManage" @click="resetForm">Novo perfil</button>
+      </div>
+    </div>
+
+    <div v-if="!session.can('perfis:view')" class="alert error">Você não possui permissão para visualizar perfis.</div>
+    <div v-else class="grid page-gap">
+      <div v-if="error" class="alert error">{{ error }}</div>
+
+      <div class="card grid page-gap">
+        <div class="section-title">Dados do perfil</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Nome *</label>
+            <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Ex.: Operação RH" />
+          </div>
+          <div class="field checkbox-line top-gap-26"><input v-model="form.perfil_master" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil master</label></div>
+          <div class="field span-2">
+            <label>Descrição</label>
+            <textarea v-model="form.descricao" rows="3" :disabled="!canManage" placeholder="Escopo e finalidade do perfil"></textarea>
+          </div>
+          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil ativo</label></div>
+        </div>
+
+        <div class="section-title">Permissões</div>
+        <div class="permissions-grid">
+          <label v-for="permission in permissions" :key="String(permission.key)" class="permission-card">
+            <input
+              v-model="form.permission_keys"
+              class="checkbox-input"
+              type="checkbox"
+              :disabled="!canManage || form.perfil_master"
+              :value="String(permission.key)"
+            />
+            <div>
+              <strong>{{ permission.label }}</strong>
+              <div class="muted-row">{{ permission.key }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving || !canManage" @click="persist">
+            {{ saving ? "Salvando..." : form.id ? "Atualizar perfil" : "Salvar perfil" }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+
+      <div class="card grid page-gap">
+        <div class="toolbar">
+          <div>
+            <h3>Perfis cadastrados</h3>
+            <div class="muted-text">Cada perfil pode ser reutilizado em vários usuários.</div>
+          </div>
+          <div class="actions align-end">
+            <div class="field min-field">
+              <label>Buscar</label>
+              <input v-model="search" type="text" placeholder="Nome ou descrição" @keyup.enter="load" />
+            </div>
+            <div class="field checkbox-line compact-checkbox"><input v-model="onlyActive" class="checkbox-input" type="checkbox" /><label>Somente ativos</label></div>
+            <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Perfil</th>
+                <th>Descrição</th>
+                <th>Permissões</th>
+                <th>Usuários</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in rows" :key="Number(row.id)">
+                <td>{{ row.id }}</td>
+                <td>
+                  <strong>{{ row.nome }}</strong>
+                  <div class="pill-box top-gap-6">
+                    <span v-if="Number(row.perfil_master) === 1 || row.perfil_master === true" class="status-pill pill-master">MASTER</span>
+                  </div>
+                </td>
+                <td>{{ row.descricao || '-' }}</td>
+                <td>{{ row.total_permissoes || 0 }}</td>
+                <td>{{ row.total_usuarios || 0 }}</td>
+                <td>{{ booleanLabel(row.ativo) }}</td>
+                <td>
+                  <div class="table-actions">
+                    <button class="secondary small" @click="editRow(Number(row.id))">Editar</button>
+                    <button class="danger small" :disabled="!canManage" @click="removeRow(Number(row.id))">Excluir</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!rows.length">
+                <td colspan="7" class="empty-cell">Nenhum perfil encontrado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

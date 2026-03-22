@@ -1,0 +1,89 @@
+mod app_state;
+mod db;
+mod migrations;
+mod models;
+mod security;
+mod timecalc;
+
+mod commands {
+    pub mod access;
+    pub mod afd;
+    pub mod app;
+    pub mod auth;
+    pub mod banco_horas;
+    pub mod companies;
+    pub mod employees;
+    pub mod entities;
+    pub mod jornadas;
+    pub mod punches;
+    pub mod reports;
+    pub mod sync;
+    pub mod treatments;
+}
+
+use app_state::SharedState;
+
+pub fn run() {
+    tauri::Builder::default()
+        .manage(SharedState::new())
+        .setup(|app| {
+            let state = app.state::<SharedState>();
+            state.init().map_err(|err| -> Box<dyn std::error::Error> {
+                Box::new(std::io::Error::new(std::io::ErrorKind::Other, err))
+            })?;
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::app::app_bootstrap,
+            commands::auth::auth_login,
+            commands::auth::auth_restore,
+            commands::auth::auth_logout,
+            commands::auth::auth_change_password,
+            commands::access::permission_catalog,
+            commands::access::profile_list,
+            commands::access::profile_get,
+            commands::access::profile_save,
+            commands::access::profile_delete,
+            commands::access::user_list,
+            commands::access::user_get,
+            commands::access::user_save,
+            commands::access::user_delete,
+            commands::companies::company_list,
+            commands::companies::company_get,
+            commands::companies::company_save,
+            commands::companies::company_delete,
+            commands::employees::employee_list,
+            commands::employees::employee_get,
+            commands::employees::employee_save,
+            commands::employees::employee_delete,
+            commands::entities::entity_list,
+            commands::entities::entity_save,
+            commands::entities::entity_delete,
+            commands::entities::combo_list,
+            commands::jornadas::jornada_combo_list,
+            commands::jornadas::jornada_list,
+            commands::jornadas::jornada_get,
+            commands::jornadas::jornada_save,
+            commands::jornadas::jornada_delete,
+            commands::punches::batidas_list,
+            commands::punches::batida_save,
+            commands::punches::batida_delete,
+            commands::reports::apurar_periodo,
+            commands::reports::exportar_batidas_csv,
+            commands::afd::afd_import_list,
+            commands::afd::afd_import_file,
+            commands::banco_horas::banco_horas_list,
+            commands::banco_horas::banco_horas_processar_periodo,
+            commands::banco_horas::banco_horas_salvar_ajuste,
+            commands::treatments::ocorrencia_list,
+            commands::treatments::ocorrencia_save,
+            commands::treatments::ocorrencia_delete,
+            commands::treatments::ocorrencia_exportar_anexo,
+            commands::treatments::fechamento_list,
+            commands::treatments::fechamento_gerar_relatorio,
+            commands::sync::sync_queue_list,
+            commands::sync::sync_queue_mark_synced,
+        ])
+        .run(tauri::generate_context!())
+        .expect("erro ao executar a aplicação Tauri");
+}
