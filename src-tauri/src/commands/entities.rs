@@ -22,7 +22,17 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
     match entity {
         "empresas" => Some(EntityDefinition {
             table: "empresas",
-            fields: &["nome", "documento", "telefone", "email", "endereco", "bairro", "cidade", "estado", "ativo"],
+            fields: &[
+                "nome",
+                "documento",
+                "telefone",
+                "email",
+                "endereco",
+                "bairro",
+                "cidade",
+                "estado",
+                "ativo",
+            ],
             searchable: &["nome", "documento", "cidade"],
             required: &["nome"],
             label_column: "nome",
@@ -57,28 +67,57 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
         }),
         "horarios" => Some(EntityDefinition {
             table: "horarios",
-            fields: &["numero", "descricao", "entrada_1", "saida_1", "entrada_2", "saida_2", "carga_horaria_minutos", "ativo"],
+            fields: &[
+                "numero",
+                "descricao",
+                "entrada_1",
+                "saida_1",
+                "entrada_2",
+                "saida_2",
+                "carga_horaria_minutos",
+                "ativo",
+            ],
             searchable: &["descricao"],
             required: &["descricao"],
             label_column: "descricao",
         }),
         "escalas" => Some(EntityDefinition {
             table: "escalas",
-            fields: &["descricao", "horario_id", "dias_ativos", "tolerancia_minutos", "ativo"],
+            fields: &[
+                "descricao",
+                "horario_id",
+                "dias_ativos",
+                "tolerancia_minutos",
+                "ativo",
+            ],
             searchable: &["descricao", "dias_ativos"],
             required: &["descricao"],
             label_column: "descricao",
         }),
         "equipamentos" => Some(EntityDefinition {
             table: "equipamentos",
-            fields: &["empresa_id", "codigo", "descricao", "modelo", "ip", "porta", "ativo"],
+            fields: &[
+                "empresa_id",
+                "codigo",
+                "descricao",
+                "modelo",
+                "ip",
+                "porta",
+                "ativo",
+            ],
             searchable: &["codigo", "descricao", "modelo", "ip"],
             required: &["descricao"],
             label_column: "descricao",
         }),
         "eventos" => Some(EntityDefinition {
             table: "eventos",
-            fields: &["codigo", "descricao", "tipo", "impacta_banco_horas", "ativo"],
+            fields: &[
+                "codigo",
+                "descricao",
+                "tipo",
+                "impacta_banco_horas",
+                "ativo",
+            ],
             searchable: &["codigo", "descricao", "tipo"],
             required: &["descricao"],
             label_column: "descricao",
@@ -172,7 +211,11 @@ pub fn entity_list(
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
-    let mut sql = format!("SELECT id, {} FROM {}", definition.fields.join(", "), definition.table);
+    let mut sql = format!(
+        "SELECT id, {} FROM {}",
+        definition.fields.join(", "),
+        definition.table
+    );
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
     if !search.trim().is_empty() {
@@ -244,7 +287,10 @@ pub fn entity_save(
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let now = Utc::now().to_rfc3339();
-    let id = payload.get("id").and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())));
+    let id = payload.get("id").and_then(|v| {
+        v.as_i64()
+            .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+    });
 
     for required in definition.required {
         let raw = payload
@@ -287,7 +333,10 @@ pub fn entity_save(
             .collect::<Vec<_>>()
             .join(", ");
 
-        let sql = format!("UPDATE {} SET {} WHERE id = ?", definition.table, set_clause);
+        let sql = format!(
+            "UPDATE {} SET {} WHERE id = ?",
+            definition.table, set_clause
+        );
         let mut sql_values: Vec<rusqlite::types::Value> =
             values.iter().map(json_to_sql_value).collect();
         sql_values.push(rusqlite::types::Value::Text(now.clone()));

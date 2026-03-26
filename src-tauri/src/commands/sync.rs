@@ -1,10 +1,6 @@
 use tauri::State;
 
-use crate::{
-    app_state::SharedState,
-    db::open_connection,
-    models::SyncQueueItem,
-};
+use crate::{app_state::SharedState, db::open_connection, models::SyncQueueItem};
 
 #[tauri::command]
 pub fn sync_queue_list(state: State<'_, SharedState>) -> Result<Vec<SyncQueueItem>, String> {
@@ -38,10 +34,7 @@ pub fn sync_queue_list(state: State<'_, SharedState>) -> Result<Vec<SyncQueueIte
 }
 
 #[tauri::command]
-pub fn sync_queue_mark_synced(
-    state: State<'_, SharedState>,
-    id: i64,
-) -> Result<bool, String> {
+pub fn sync_queue_mark_synced(state: State<'_, SharedState>, id: i64) -> Result<bool, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 

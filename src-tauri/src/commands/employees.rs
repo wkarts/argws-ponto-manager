@@ -371,7 +371,11 @@ pub fn employee_save(
     }
 
     let empresa_exists: Option<i64> = conn
-        .query_row("SELECT id FROM empresas WHERE id = ?1 LIMIT 1", [empresa_id], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM empresas WHERE id = ?1 LIMIT 1",
+            [empresa_id],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao validar empresa do funcionário: {err}"))?;
 
@@ -392,9 +396,19 @@ pub fn employee_save(
         get_i64(&payload, "centro_custo_id"),
         "Centro de custo",
     )?;
-    validate_fk_exists(&conn, "horarios", get_i64(&payload, "horario_id"), "Horário")?;
+    validate_fk_exists(
+        &conn,
+        "horarios",
+        get_i64(&payload, "horario_id"),
+        "Horário",
+    )?;
     validate_fk_exists(&conn, "escalas", get_i64(&payload, "escala_id"), "Escala")?;
-    validate_fk_exists(&conn, "jornadas_trabalho", get_i64(&payload, "jornada_id"), "Jornada")?;
+    validate_fk_exists(
+        &conn,
+        "jornadas_trabalho",
+        get_i64(&payload, "jornada_id"),
+        "Jornada",
+    )?;
 
     let duplicate_matricula: Option<i64> = conn
         .query_row(
@@ -406,9 +420,7 @@ pub fn employee_save(
         .map_err(|err| format!("Falha ao validar matrícula: {err}"))?;
 
     if duplicate_matricula.is_some() {
-        return Err(
-            "Já existe funcionário com esta matrícula na empresa selecionada.".to_string(),
-        );
+        return Err("Já existe funcionário com esta matrícula na empresa selecionada.".to_string());
     }
 
     let duplicate_cpf: Option<i64> = conn
@@ -601,7 +613,11 @@ pub fn employee_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, S
     let conn = open_connection(&db_path)?;
 
     let punch_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar batidas do funcionário: {err}"))?;
 
     if punch_count > 0 {

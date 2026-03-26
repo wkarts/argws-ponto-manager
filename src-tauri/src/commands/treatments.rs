@@ -19,7 +19,11 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
         .and_then(|value| match value {
             Value::String(text) => Some(text.trim().to_string()),
             Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
             _ => None,
         })
         .filter(|value| !value.is_empty())
@@ -291,8 +295,20 @@ pub fn ocorrencia_save(
 
     let action_name = if id.is_some() { "update" } else { "create" };
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "ocorrencias_ponto", action_name, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "ocorrencias_ponto", action_name, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "ocorrencias_ponto",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "ocorrencias_ponto",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
@@ -316,10 +332,7 @@ pub fn ocorrencia_delete(state: State<'_, SharedState>, id: i64) -> Result<bool,
 }
 
 #[tauri::command]
-pub fn ocorrencia_exportar_anexo(
-    state: State<'_, SharedState>,
-    id: i64,
-) -> Result<String, String> {
+pub fn ocorrencia_exportar_anexo(state: State<'_, SharedState>, id: i64) -> Result<String, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
@@ -490,8 +503,14 @@ pub fn fechamento_gerar_relatorio(
         },
     )?;
 
-    let (funcionario_nome, empresa_id, empresa_nome, documento, matricula, jornada_nome):
-        (String, Option<i64>, String, String, String, String) = conn
+    let (funcionario_nome, empresa_id, empresa_nome, documento, matricula, jornada_nome): (
+        String,
+        Option<i64>,
+        String,
+        String,
+        String,
+        String,
+    ) = conn
         .query_row(
             "SELECT f.nome,
                     f.empresa_id,
@@ -767,7 +786,13 @@ pub fn fechamento_gerar_relatorio(
         .ok_or_else(|| "Fechamento gerado, mas não encontrado para retorno.".to_string())?;
 
     let payload_value = Value::Object(result.clone());
-    write_audit(&conn, "fechamentos_mensais", "generate", Some(fechamento_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "fechamentos_mensais",
+        "generate",
+        Some(fechamento_id),
+        &payload_value,
+    )?;
     enqueue_sync(
         &conn,
         "fechamentos_mensais",

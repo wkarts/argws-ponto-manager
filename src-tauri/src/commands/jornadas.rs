@@ -162,7 +162,7 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
                     (SELECT COUNT(*) FROM jornada_dias jd WHERE jd.jornada_id = jt.id) AS total_dias
              FROM jornadas_trabalho jt
              LEFT JOIN empresas e ON e.id = jt.empresa_id
-             ORDER BY jt.descricao ASC"
+             ORDER BY jt.descricao ASC",
         )
         .map_err(|err| format!("Falha ao preparar listagem de jornadas: {err}"))?;
 
@@ -313,8 +313,11 @@ pub fn jornada_save(
             ],
         )
         .map_err(|err| format!("Falha ao atualizar jornada: {err}"))?;
-        conn.execute("DELETE FROM jornada_dias WHERE jornada_id = ?1", [existing_id])
-            .map_err(|err| format!("Falha ao limpar dias anteriores da jornada: {err}"))?;
+        conn.execute(
+            "DELETE FROM jornada_dias WHERE jornada_id = ?1",
+            [existing_id],
+        )
+        .map_err(|err| format!("Falha ao limpar dias anteriores da jornada: {err}"))?;
         existing_id
     } else {
         conn.execute(
