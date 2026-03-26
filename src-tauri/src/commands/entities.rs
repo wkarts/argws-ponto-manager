@@ -350,8 +350,7 @@ pub fn entity_save(
         insert_columns.push("created_at".to_string());
         insert_columns.push("updated_at".to_string());
 
-        let placeholders = std::iter::repeat("?")
-            .take(insert_columns.len())
+        let placeholders = std::iter::repeat_n("?", insert_columns.len())
             .collect::<Vec<_>>()
             .join(", ");
 

@@ -230,7 +230,7 @@ pub fn resolve_schedule_for_employee(
 
 pub fn calculate_day(schedule: &ResolvedSchedule, batidas: &[String]) -> DailyCalculation {
     let mut worked_minutes = 0i64;
-    let mut inconsistente = batidas.len() % 2 != 0;
+    let mut inconsistente = !batidas.len().is_multiple_of(2);
     let mut mensagens: Vec<String> = Vec::new();
 
     let mut index = 0usize;

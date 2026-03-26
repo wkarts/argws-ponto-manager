@@ -73,6 +73,7 @@ pub fn write_audit(
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn simple_change_payload(record_id: Option<i64>, description: &str) -> Value {
     json!({
         "record_id": record_id,

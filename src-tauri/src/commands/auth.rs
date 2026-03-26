@@ -148,9 +148,10 @@ pub(crate) fn build_auth_user(
             )
             .map_err(|err| format!("Falha ao preparar permissões do usuário: {err}"))?;
 
-        let permission_rows = stmt_permissions
+        let mapped_rows = stmt_permissions
             .query_map([user_id], |row| row.get::<_, String>(0))
-            .map_err(|err| format!("Falha ao consultar permissões do usuário: {err}"))?
+            .map_err(|err| format!("Falha ao consultar permissões do usuário: {err}"))?;
+        let permission_rows = mapped_rows
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| format!("Falha ao mapear permissões do usuário: {err}"))?;
         permission_rows
@@ -186,7 +187,7 @@ pub(crate) fn require_session_by_token(
 
     let session = conn
         .query_row(
-            "SELECT us.usuario_id, u.master_user, u.administrador, u.ativo
+            "SELECT us.usuario_id, u.master_user, u.ativo
              FROM user_sessions us
              INNER JOIN usuarios u ON u.id = us.usuario_id
              WHERE us.session_token = ?1 AND us.expires_at > ?2
@@ -197,7 +198,6 @@ pub(crate) fn require_session_by_token(
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
                     row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
                 ))
             },
         )
@@ -205,7 +205,7 @@ pub(crate) fn require_session_by_token(
         .map_err(|err| format!("Falha ao validar sessão: {err}"))?
         .ok_or_else(|| "Sessão inválida ou expirada.".to_string())?;
 
-    if session.3 == 0 {
+    if session.2 == 0 {
         return Err("Usuário inativo.".to_string());
     }
 
@@ -218,7 +218,6 @@ pub(crate) fn require_session_by_token(
     Ok(SessionIdentity {
         user_id: session.0,
         master_user: session.1 == 1,
-        administrador: session.2 == 1,
     })
 }
 

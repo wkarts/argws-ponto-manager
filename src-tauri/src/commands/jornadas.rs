@@ -9,6 +9,17 @@ use crate::{
     models::ComboOption,
 };
 
+type JornadaDiaSql = (
+    i64,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i64,
+    i64,
+    i64,
+);
+
 fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
     payload
         .get(key)
@@ -74,21 +85,7 @@ fn get_id(payload: &Map<String, Value>) -> Option<i64> {
     })
 }
 
-fn day_payload_to_sql(
-    day: &Value,
-) -> Result<
-    (
-        i64,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        i64,
-        i64,
-        i64,
-    ),
-    String,
-> {
+fn day_payload_to_sql(day: &Value) -> Result<JornadaDiaSql, String> {
     let map = day
         .as_object()
         .ok_or_else(|| "Formato inválido dos dias da jornada.".to_string())?;

@@ -30,7 +30,7 @@ pub fn run() {
         .setup(|app| {
             let state = app.state::<SharedState>();
             state.init().map_err(|err| -> Box<dyn std::error::Error> {
-                Box::new(std::io::Error::new(std::io::ErrorKind::Other, err))
+                Box::new(std::io::Error::other(err))
             })?;
             Ok(())
         })

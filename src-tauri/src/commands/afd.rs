@@ -81,9 +81,10 @@ fn parse_legacy_datetime(data: &str, hora: &str) -> Option<String> {
     let date = NaiveDate::parse_from_str(data, "%d%m%Y").ok()?;
     let datetime = NaiveDateTime::parse_from_str(
         &format!(
-            "{} {}",
+            "{} {}:{}",
             date.format("%Y-%m-%d"),
-            format!("{}:{}", &hora[0..2], &hora[2..4])
+            &hora[0..2],
+            &hora[2..4]
         ),
         "%Y-%m-%d %H:%M",
     )

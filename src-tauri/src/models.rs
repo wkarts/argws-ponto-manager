@@ -30,7 +30,6 @@ pub struct AuthUser {
 pub struct SessionIdentity {
     pub user_id: i64,
     pub master_user: bool,
-    pub administrador: bool,
 }
 
 #[derive(Debug, Deserialize)]
