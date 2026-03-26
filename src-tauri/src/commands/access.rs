@@ -42,7 +42,7 @@ fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
             } else {
                 0
             }
-        },
+        }
         Some(Value::String(text)) => {
             if matches!(
                 text.trim().to_lowercase().as_str(),
@@ -52,14 +52,14 @@ fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
             } else {
                 0
             }
-        },
+        }
         _ => {
             if default {
                 1
             } else {
                 0
             }
-        },
+        }
     }
 }
 
@@ -275,7 +275,8 @@ pub fn profile_save(
     let id = get_id(&payload);
     let now = Utc::now().to_rfc3339();
 
-    let nome = get_string(&payload, "nome").ok_or_else(|| "Informe o nome do perfil.".to_string())?;
+    let nome =
+        get_string(&payload, "nome").ok_or_else(|| "Informe o nome do perfil.".to_string())?;
     let descricao = get_string(&payload, "descricao");
     let perfil_master = get_bool(&payload, "perfil_master", false);
     let ativo = get_bool(&payload, "ativo", true);
@@ -325,10 +326,17 @@ pub fn profile_save(
         conn.last_insert_rowid()
     };
 
-    conn.execute("DELETE FROM perfis_permissoes WHERE perfil_id = ?1", [record_id])
-        .map_err(|err| format!("Falha ao limpar permissões do perfil: {err}"))?;
+    conn.execute(
+        "DELETE FROM perfis_permissoes WHERE perfil_id = ?1",
+        [record_id],
+    )
+    .map_err(|err| format!("Falha ao limpar permissões do perfil: {err}"))?;
 
-    let permission_rows = if perfil_master == 1 { all_permission_keys() } else { permission_keys };
+    let permission_rows = if perfil_master == 1 {
+        all_permission_keys()
+    } else {
+        permission_keys
+    };
     for key in permission_rows {
         conn.execute(
             "INSERT INTO perfis_permissoes (perfil_id, permissao_chave, created_at) VALUES (?1, ?2, ?3)",
@@ -344,11 +352,23 @@ pub fn profile_save(
         "perfil_master": perfil_master,
         "ativo": ativo,
     });
-    enqueue_sync(&conn, "perfis_acesso", if id.is_some() { "update" } else { "insert" }, Some(record_id), &payload_json)?;
-    write_audit(&conn, "perfis_acesso", if id.is_some() { "update" } else { "insert" }, Some(record_id), &json!({
-        "actor_id": actor_id,
-        "payload": payload_json
-    }))?;
+    enqueue_sync(
+        &conn,
+        "perfis_acesso",
+        if id.is_some() { "update" } else { "insert" },
+        Some(record_id),
+        &payload_json,
+    )?;
+    write_audit(
+        &conn,
+        "perfis_acesso",
+        if id.is_some() { "update" } else { "insert" },
+        Some(record_id),
+        &json!({
+            "actor_id": actor_id,
+            "payload": payload_json
+        }),
+    )?;
 
     profile_get(state, session_token, record_id)
 }
@@ -372,7 +392,9 @@ pub fn profile_delete(
         .map_err(|err| format!("Falha ao validar vínculo do perfil: {err}"))?;
 
     if linked_users > 0 {
-        return Err("Não é possível excluir o perfil porque existem usuários vinculados a ele.".to_string());
+        return Err(
+            "Não é possível excluir o perfil porque existem usuários vinculados a ele.".to_string(),
+        );
     }
 
     conn.execute("DELETE FROM perfis_permissoes WHERE perfil_id = ?1", [id])
@@ -385,7 +407,13 @@ pub fn profile_delete(
         return Err("Perfil não encontrado.".to_string());
     }
 
-    write_audit(&conn, "perfis_acesso", "delete", Some(id), &json!({ "actor_id": actor_id }))?;
+    write_audit(
+        &conn,
+        "perfis_acesso",
+        "delete",
+        Some(id),
+        &json!({ "actor_id": actor_id }),
+    )?;
     Ok(true)
 }
 
@@ -482,7 +510,9 @@ pub fn user_get(
         .ok_or_else(|| "Usuário não encontrado.".to_string())?;
 
     let profile_ids = conn
-        .prepare("SELECT perfil_id FROM usuarios_perfis WHERE usuario_id = ?1 ORDER BY perfil_id ASC")
+        .prepare(
+            "SELECT perfil_id FROM usuarios_perfis WHERE usuario_id = ?1 ORDER BY perfil_id ASC",
+        )
         .map_err(|err| format!("Falha ao preparar perfis do usuário: {err}"))?
         .query_map([id], |row| row.get::<_, i64>(0))
         .map_err(|err| format!("Falha ao consultar perfis do usuário: {err}"))?
@@ -520,8 +550,11 @@ pub fn user_save(
     let id = get_id(&payload);
     let now = Utc::now().to_rfc3339();
 
-    let nome = get_string(&payload, "nome").ok_or_else(|| "Informe o nome do usuário.".to_string())?;
-    let login = normalize_login(&get_string(&payload, "login").ok_or_else(|| "Informe o login do usuário.".to_string())?);
+    let nome =
+        get_string(&payload, "nome").ok_or_else(|| "Informe o nome do usuário.".to_string())?;
+    let login = normalize_login(
+        &get_string(&payload, "login").ok_or_else(|| "Informe o login do usuário.".to_string())?,
+    );
     let email = get_string(&payload, "email");
     let telefone = get_string(&payload, "telefone");
     let cargo = get_string(&payload, "cargo");
@@ -546,7 +579,9 @@ pub fn user_save(
 
     if let Some(existing_id) = id {
         if existing_id == actor_id && ativo == 0 {
-            return Err("O usuário master logado não pode ser inativado nesta operação.".to_string());
+            return Err(
+                "O usuário master logado não pode ser inativado nesta operação.".to_string(),
+            );
         }
     }
 
@@ -574,7 +609,11 @@ pub fn user_save(
 
     for perfil_id in &profile_ids {
         let exists: Option<i64> = conn
-            .query_row("SELECT id FROM perfis_acesso WHERE id = ?1 LIMIT 1", [perfil_id], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM perfis_acesso WHERE id = ?1 LIMIT 1",
+                [perfil_id],
+                |row| row.get(0),
+            )
             .optional()
             .map_err(|err| format!("Falha ao validar perfil do usuário: {err}"))?;
         if exists.is_none() {
@@ -584,7 +623,11 @@ pub fn user_save(
 
     for empresa_id in &empresa_ids {
         let exists: Option<i64> = conn
-            .query_row("SELECT id FROM empresas WHERE id = ?1 LIMIT 1", [empresa_id], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM empresas WHERE id = ?1 LIMIT 1",
+                [empresa_id],
+                |row| row.get(0),
+            )
             .optional()
             .map_err(|err| format!("Falha ao validar empresa do usuário: {err}"))?;
         if exists.is_none() {
@@ -647,7 +690,8 @@ pub fn user_save(
         }
         existing_id
     } else {
-        let raw_password = password.ok_or_else(|| "Informe a senha do novo usuário.".to_string())?;
+        let raw_password =
+            password.ok_or_else(|| "Informe a senha do novo usuário.".to_string())?;
         if raw_password.trim().len() < 6 {
             return Err("A senha deve conter ao menos 6 caracteres.".to_string());
         }
@@ -676,10 +720,16 @@ pub fn user_save(
         conn.last_insert_rowid()
     };
 
-    conn.execute("DELETE FROM usuarios_perfis WHERE usuario_id = ?1", [record_id])
-        .map_err(|err| format!("Falha ao limpar perfis do usuário: {err}"))?;
-    conn.execute("DELETE FROM usuarios_empresas WHERE usuario_id = ?1", [record_id])
-        .map_err(|err| format!("Falha ao limpar empresas do usuário: {err}"))?;
+    conn.execute(
+        "DELETE FROM usuarios_perfis WHERE usuario_id = ?1",
+        [record_id],
+    )
+    .map_err(|err| format!("Falha ao limpar perfis do usuário: {err}"))?;
+    conn.execute(
+        "DELETE FROM usuarios_empresas WHERE usuario_id = ?1",
+        [record_id],
+    )
+    .map_err(|err| format!("Falha ao limpar empresas do usuário: {err}"))?;
 
     for perfil_id in profile_ids {
         conn.execute(
@@ -705,11 +755,23 @@ pub fn user_save(
         "administrador": administrador,
         "ativo": ativo,
     });
-    enqueue_sync(&conn, "usuarios", if id.is_some() { "update" } else { "insert" }, Some(record_id), &payload_json)?;
-    write_audit(&conn, "usuarios", if id.is_some() { "update" } else { "insert" }, Some(record_id), &json!({
-        "actor_id": actor_id,
-        "payload": payload_json
-    }))?;
+    enqueue_sync(
+        &conn,
+        "usuarios",
+        if id.is_some() { "update" } else { "insert" },
+        Some(record_id),
+        &payload_json,
+    )?;
+    write_audit(
+        &conn,
+        "usuarios",
+        if id.is_some() { "update" } else { "insert" },
+        Some(record_id),
+        &json!({
+            "actor_id": actor_id,
+            "payload": payload_json
+        }),
+    )?;
 
     user_get(state, session_token, record_id)
 }
@@ -729,10 +791,18 @@ pub fn user_delete(
     }
 
     let master_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM usuarios WHERE master_user = 1 AND ativo = 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM usuarios WHERE master_user = 1 AND ativo = 1",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao validar usuários master: {err}"))?;
     let target_is_master: i64 = conn
-        .query_row("SELECT COALESCE(master_user, 0) FROM usuarios WHERE id = ?1 LIMIT 1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COALESCE(master_user, 0) FROM usuarios WHERE id = ?1 LIMIT 1",
+            [id],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao validar usuário alvo: {err}"))?
         .unwrap_or(0);
@@ -751,6 +821,12 @@ pub fn user_delete(
         return Err("Usuário não encontrado.".to_string());
     }
 
-    write_audit(&conn, "usuarios", "delete", Some(id), &json!({ "actor_id": actor_id }))?;
+    write_audit(
+        &conn,
+        "usuarios",
+        "delete",
+        Some(id),
+        &json!({ "actor_id": actor_id }),
+    )?;
     Ok(true)
 }

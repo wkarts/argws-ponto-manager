@@ -61,7 +61,10 @@ pub(crate) fn all_permission_keys() -> Vec<String> {
     keys
 }
 
-pub(crate) fn build_auth_user(conn: &rusqlite::Connection, user_id: i64) -> Result<AuthUser, String> {
+pub(crate) fn build_auth_user(
+    conn: &rusqlite::Connection,
+    user_id: i64,
+) -> Result<AuthUser, String> {
     let base = conn
         .query_row(
             "SELECT id, nome, login, email, telefone, cargo, administrador, master_user, senha_provisoria, ativo
@@ -119,13 +122,18 @@ pub(crate) fn build_auth_user(conn: &rusqlite::Connection, user_id: i64) -> Resu
         .map_err(|err| format!("Falha ao preparar empresas do usuário: {err}"))?;
 
     let company_rows = stmt_companies
-        .query_map([user_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))
+        .query_map([user_id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|err| format!("Falha ao consultar empresas do usuário: {err}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("Falha ao mapear empresas do usuário: {err}"))?;
 
     let company_ids = company_rows.iter().map(|item| item.0).collect::<Vec<_>>();
-    let company_names = company_rows.into_iter().map(|item| item.1).collect::<Vec<_>>();
+    let company_names = company_rows
+        .into_iter()
+        .map(|item| item.1)
+        .collect::<Vec<_>>();
 
     let permission_keys = if base.7 == 1 {
         all_permission_keys()
@@ -339,14 +347,14 @@ pub fn auth_restore(
 }
 
 #[tauri::command]
-pub fn auth_logout(
-    state: State<'_, SharedState>,
-    session_token: String,
-) -> Result<bool, String> {
+pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Result<bool, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    conn.execute("DELETE FROM user_sessions WHERE session_token = ?1", [session_token])
-        .map_err(|err| format!("Falha ao encerrar sessão: {err}"))?;
+    conn.execute(
+        "DELETE FROM user_sessions WHERE session_token = ?1",
+        [session_token],
+    )
+    .map_err(|err| format!("Falha ao encerrar sessão: {err}"))?;
     Ok(true)
 }
 

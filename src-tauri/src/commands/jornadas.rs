@@ -15,7 +15,11 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
         .and_then(|value| match value {
             Value::String(text) => Some(text.trim().to_string()),
             Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
             _ => None,
         })
         .filter(|value| !value.is_empty())
@@ -31,10 +35,34 @@ fn get_i64(payload: &Map<String, Value>, key: &str) -> Option<i64> {
 
 fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
     match payload.get(key) {
-        Some(Value::Bool(flag)) => if *flag { 1 } else { 0 },
-        Some(Value::Number(number)) => if number.as_i64().unwrap_or(0) != 0 { 1 } else { 0 },
-        Some(Value::String(text)) => if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") { 1 } else { 0 },
-        _ => if default { 1 } else { 0 },
+        Some(Value::Bool(flag)) => {
+            if *flag {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::Number(number)) => {
+            if number.as_i64().unwrap_or(0) != 0 {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::String(text)) => {
+            if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") {
+                1
+            } else {
+                0
+            }
+        }
+        _ => {
+            if default {
+                1
+            } else {
+                0
+            }
+        }
     }
 }
 
@@ -46,12 +74,27 @@ fn get_id(payload: &Map<String, Value>) -> Option<i64> {
     })
 }
 
-fn day_payload_to_sql(day: &Value) -> Result<(i64, Option<String>, Option<String>, Option<String>, Option<String>, i64, i64, i64), String> {
+fn day_payload_to_sql(
+    day: &Value,
+) -> Result<
+    (
+        i64,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        i64,
+        i64,
+    ),
+    String,
+> {
     let map = day
         .as_object()
         .ok_or_else(|| "Formato inválido dos dias da jornada.".to_string())?;
 
-    let dia_semana = get_i64(map, "dia_semana").ok_or_else(|| "Dia da semana não informado na jornada.".to_string())?;
+    let dia_semana = get_i64(map, "dia_semana")
+        .ok_or_else(|| "Dia da semana não informado na jornada.".to_string())?;
     if !(1..=7).contains(&dia_semana) {
         return Err("Dia da semana deve estar entre 1 e 7.".to_string());
     }
@@ -73,7 +116,9 @@ pub fn jornada_combo_list(state: State<'_, SharedState>) -> Result<Vec<ComboOpti
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let mut stmt = conn
-        .prepare("SELECT id, descricao FROM jornadas_trabalho WHERE ativo = 1 ORDER BY descricao ASC")
+        .prepare(
+            "SELECT id, descricao FROM jornadas_trabalho WHERE ativo = 1 ORDER BY descricao ASC",
+        )
         .map_err(|err| format!("Falha ao preparar combo de jornadas: {err}"))?;
 
     let rows = stmt
@@ -176,22 +221,35 @@ pub fn jornada_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String,
         .query_map([id], row_to_json_map)
         .map_err(|err| format!("Falha ao consultar dias da jornada: {err}"))?;
     let dias: Result<Vec<_>, _> = dias.collect();
-    item.insert("dias".to_string(), Value::Array(dias.map_err(|err| format!("Falha ao mapear dias da jornada: {err}"))?.into_iter().map(Value::Object).collect()));
+    item.insert(
+        "dias".to_string(),
+        Value::Array(
+            dias.map_err(|err| format!("Falha ao mapear dias da jornada: {err}"))?
+                .into_iter()
+                .map(Value::Object)
+                .collect(),
+        ),
+    );
 
     Ok(item)
 }
 
 #[tauri::command]
-pub fn jornada_save(state: State<'_, SharedState>, payload: Map<String, Value>) -> Result<Map<String, Value>, String> {
+pub fn jornada_save(
+    state: State<'_, SharedState>,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let now = Utc::now().to_rfc3339();
     let id = get_id(&payload);
 
-    let descricao = get_string(&payload, "descricao").ok_or_else(|| "Informe a descrição da jornada.".to_string())?;
+    let descricao = get_string(&payload, "descricao")
+        .ok_or_else(|| "Informe a descrição da jornada.".to_string())?;
     let empresa_id = get_i64(&payload, "empresa_id");
     let tipo_jornada = get_string(&payload, "tipo_jornada").unwrap_or_else(|| "fixa".to_string());
-    let modo_tratamento_afd = get_string(&payload, "modo_tratamento_afd").unwrap_or_else(|| "auto".to_string());
+    let modo_tratamento_afd =
+        get_string(&payload, "modo_tratamento_afd").unwrap_or_else(|| "auto".to_string());
     let dias_raw = payload.get("dias").cloned().unwrap_or(Value::Array(vec![]));
     let dias_array = dias_raw
         .as_array()
@@ -292,21 +350,53 @@ pub fn jornada_save(state: State<'_, SharedState>, payload: Map<String, Value>) 
     };
 
     for day in dias_array {
-        let (dia_semana, entrada_1, saida_1, entrada_2, saida_2, carga_prevista_minutos, intervalo_minutos, folga) = day_payload_to_sql(day)?;
+        let (
+            dia_semana,
+            entrada_1,
+            saida_1,
+            entrada_2,
+            saida_2,
+            carga_prevista_minutos,
+            intervalo_minutos,
+            folga,
+        ) = day_payload_to_sql(day)?;
         conn.execute(
             "INSERT INTO jornada_dias (
                 jornada_id, dia_semana, entrada_1, saida_1, entrada_2, saida_2,
                 carga_prevista_minutos, intervalo_minutos, folga, created_at, updated_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
-            params![record_id, dia_semana, entrada_1, saida_1, entrada_2, saida_2, carga_prevista_minutos, intervalo_minutos, folga, now],
+            params![
+                record_id,
+                dia_semana,
+                entrada_1,
+                saida_1,
+                entrada_2,
+                saida_2,
+                carga_prevista_minutos,
+                intervalo_minutos,
+                folga,
+                now
+            ],
         )
         .map_err(|err| format!("Falha ao gravar dia da jornada: {err}"))?;
     }
 
     let saved = jornada_get(state, record_id)?;
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "jornadas_trabalho", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "jornadas_trabalho", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "jornadas_trabalho",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "jornadas_trabalho",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
@@ -317,19 +407,31 @@ pub fn jornada_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, St
     let conn = open_connection(&db_path)?;
 
     let employee_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM funcionarios WHERE jornada_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM funcionarios WHERE jornada_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar uso da jornada: {err}"))?;
 
     if employee_count > 0 {
-        return Err("Não é possível excluir a jornada porque existem funcionários vinculados.".to_string());
+        return Err(
+            "Não é possível excluir a jornada porque existem funcionários vinculados.".to_string(),
+        );
     }
 
     let bank_hours_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM banco_horas_lancamentos WHERE jornada_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM banco_horas_lancamentos WHERE jornada_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar lançamentos da jornada: {err}"))?;
 
     if bank_hours_count > 0 {
-        return Err("Não é possível excluir a jornada porque existem lançamentos de banco de horas vinculados.".to_string());
+        return Err(
+            "Não é possível excluir a jornada porque existem lançamentos de banco de horas vinculados.".to_string(),
+        );
     }
 
     let affected = conn

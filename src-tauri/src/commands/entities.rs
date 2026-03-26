@@ -167,7 +167,8 @@ pub fn entity_list(
     entity: String,
     search: String,
 ) -> Result<Vec<Map<String, Value>>, String> {
-    let definition = entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
@@ -206,7 +207,8 @@ pub fn combo_list(
     state: State<'_, SharedState>,
     entity: String,
 ) -> Result<Vec<ComboOption>, String> {
-    let definition = entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let sql = format!(
@@ -237,7 +239,8 @@ pub fn entity_save(
     entity: String,
     payload: Map<String, Value>,
 ) -> Result<Map<String, Value>, String> {
-    let definition = entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let now = Utc::now().to_rfc3339();
@@ -285,7 +288,8 @@ pub fn entity_save(
             .join(", ");
 
         let sql = format!("UPDATE {} SET {} WHERE id = ?", definition.table, set_clause);
-        let mut sql_values: Vec<rusqlite::types::Value> = values.iter().map(json_to_sql_value).collect();
+        let mut sql_values: Vec<rusqlite::types::Value> =
+            values.iter().map(json_to_sql_value).collect();
         sql_values.push(rusqlite::types::Value::Text(now.clone()));
         sql_values.push(rusqlite::types::Value::Integer(existing_id));
 
@@ -309,7 +313,8 @@ pub fn entity_save(
             placeholders
         );
 
-        let mut sql_values: Vec<rusqlite::types::Value> = values.iter().map(json_to_sql_value).collect();
+        let mut sql_values: Vec<rusqlite::types::Value> =
+            values.iter().map(json_to_sql_value).collect();
         sql_values.push(rusqlite::types::Value::Text(now.clone()));
         sql_values.push(rusqlite::types::Value::Text(now.clone()));
 
@@ -318,11 +323,20 @@ pub fn entity_save(
         conn.last_insert_rowid()
     };
 
-    let select_sql = format!("SELECT id, {} FROM {} WHERE id = ?1", definition.fields.join(", "), definition.table);
+    let select_sql = format!(
+        "SELECT id, {} FROM {} WHERE id = ?1",
+        definition.fields.join(", "),
+        definition.table
+    );
     let saved = conn
         .query_row(&select_sql, [record_id], row_to_json_map)
         .optional()
-        .map_err(|err| format!("Falha ao reler registro salvo em {}: {err}", definition.table))?
+        .map_err(|err| {
+            format!(
+                "Falha ao reler registro salvo em {}: {err}",
+                definition.table
+            )
+        })?
         .ok_or_else(|| "Registro salvo não encontrado.".to_string())?;
 
     let action_name = if id.is_some() { "update" } else { "create" };
@@ -339,7 +353,8 @@ pub fn entity_delete(
     entity: String,
     id: i64,
 ) -> Result<bool, String> {
-    let definition = entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
