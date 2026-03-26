@@ -14,7 +14,11 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
         .and_then(|value| match value {
             Value::String(text) => Some(text.trim().to_string()),
             Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
             _ => None,
         })
         .filter(|value| !value.is_empty())
@@ -23,16 +27,32 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
 fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
     match payload.get(key) {
         Some(Value::Bool(flag)) => {
-            if *flag { 1 } else { 0 }
+            if *flag {
+                1
+            } else {
+                0
+            }
         }
         Some(Value::Number(number)) => {
-            if number.as_i64().unwrap_or(0) != 0 { 1 } else { 0 }
+            if number.as_i64().unwrap_or(0) != 0 {
+                1
+            } else {
+                0
+            }
         }
         Some(Value::String(text)) => {
-            if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") { 1 } else { 0 }
+            if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") {
+                1
+            } else {
+                0
+            }
         }
         _ => {
-            if default { 1 } else { 0 }
+            if default {
+                1
+            } else {
+                0
+            }
         }
     }
 }
@@ -58,7 +78,9 @@ fn only_digits(value: &str) -> String {
 }
 
 fn normalize_upper_uf(value: Option<String>) -> Option<String> {
-    value.map(|text| text.to_uppercase()).filter(|text| !text.is_empty())
+    value
+        .map(|text| text.to_uppercase())
+        .filter(|text| !text.is_empty())
 }
 
 fn validate_email(email: &str) -> bool {
@@ -83,14 +105,24 @@ fn is_valid_cpf(value: &str) -> bool {
 
     let nums: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
 
-    let sum1: u32 = nums.iter().take(9).enumerate().map(|(idx, n)| n * (10 - idx as u32)).sum();
+    let sum1: u32 = nums
+        .iter()
+        .take(9)
+        .enumerate()
+        .map(|(idx, n)| n * (10 - idx as u32))
+        .sum();
     let rem1 = sum1 % 11;
     let dv1 = if rem1 < 2 { 0 } else { 11 - rem1 };
     if nums[9] != dv1 {
         return false;
     }
 
-    let sum2: u32 = nums.iter().take(10).enumerate().map(|(idx, n)| n * (11 - idx as u32)).sum();
+    let sum2: u32 = nums
+        .iter()
+        .take(10)
+        .enumerate()
+        .map(|(idx, n)| n * (11 - idx as u32))
+        .sum();
     let rem2 = sum2 % 11;
     let dv2 = if rem2 < 2 { 0 } else { 11 - rem2 };
     nums[10] == dv2
@@ -109,9 +141,18 @@ fn is_valid_pis(value: &str) -> bool {
 
     let nums: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
     let weights = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    let sum: u32 = nums.iter().take(10).zip(weights.iter()).map(|(n, w)| n * w).sum();
+    let sum: u32 = nums
+        .iter()
+        .take(10)
+        .zip(weights.iter())
+        .map(|(n, w)| n * w)
+        .sum();
     let remainder = 11 - (sum % 11);
-    let check_digit = if remainder == 10 || remainder == 11 { 0 } else { remainder };
+    let check_digit = if remainder == 10 || remainder == 11 {
+        0
+    } else {
+        remainder
+    };
     nums[10] == check_digit
 }
 
@@ -166,7 +207,12 @@ fn employee_select_sql() -> &'static str {
      LEFT JOIN jornadas_trabalho jt ON jt.id = f.jornada_id"
 }
 
-fn validate_fk_exists(conn: &rusqlite::Connection, table: &str, id: Option<i64>, description: &str) -> Result<(), String> {
+fn validate_fk_exists(
+    conn: &rusqlite::Connection,
+    table: &str,
+    id: Option<i64>,
+    description: &str,
+) -> Result<(), String> {
     if let Some(record_id) = id {
         let sql = format!("SELECT id FROM {table} WHERE id = ?1 LIMIT 1");
         let exists: Option<i64> = conn
@@ -197,14 +243,24 @@ pub fn employee_list(
     let mut values: Vec<rusqlite::types::Value> = Vec::new();
 
     if !search.is_empty() {
-        sql.push_str(" AND (f.nome LIKE ? OR f.nome_social LIKE ? OR f.matricula LIKE ? OR f.documento LIKE ? OR e.nome LIKE ?)");
+        sql.push_str(
+            " AND (f.nome LIKE ? OR f.nome_social LIKE ? OR f.matricula LIKE ? OR f.documento LIKE ? OR e.nome LIKE ?)",
+        );
         let wildcard = format!("%{}%", search);
         let numeric_search = only_digits(&search);
         let doc_wildcard = format!("%{}%", numeric_search);
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
-        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() { wildcard.clone() } else { doc_wildcard.clone() }));
-        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() { wildcard.clone() } else { doc_wildcard }));
+        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() {
+            wildcard.clone()
+        } else {
+            doc_wildcard.clone()
+        }));
+        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() {
+            wildcard.clone()
+        } else {
+            doc_wildcard
+        }));
         values.push(rusqlite::types::Value::Text(wildcard));
     }
 
@@ -253,12 +309,17 @@ pub fn employee_save(
     let now = Utc::now().to_rfc3339();
     let id = get_id(&payload);
 
-    let empresa_id = get_i64(&payload, "empresa_id").ok_or_else(|| "Selecione a empresa do funcionário.".to_string())?;
-    let matricula = get_string(&payload, "matricula").ok_or_else(|| "Informe a matrícula do funcionário.".to_string())?;
-    let nome = get_string(&payload, "nome").ok_or_else(|| "Informe o nome do funcionário.".to_string())?;
-    let documento_raw = get_string(&payload, "documento").ok_or_else(|| "Informe o CPF do funcionário.".to_string())?;
+    let empresa_id = get_i64(&payload, "empresa_id")
+        .ok_or_else(|| "Selecione a empresa do funcionário.".to_string())?;
+    let matricula = get_string(&payload, "matricula")
+        .ok_or_else(|| "Informe a matrícula do funcionário.".to_string())?;
+    let nome =
+        get_string(&payload, "nome").ok_or_else(|| "Informe o nome do funcionário.".to_string())?;
+    let documento_raw = get_string(&payload, "documento")
+        .ok_or_else(|| "Informe o CPF do funcionário.".to_string())?;
     let documento = only_digits(&documento_raw);
-    let data_admissao = get_string(&payload, "data_admissao").ok_or_else(|| "Informe a data de admissão.".to_string())?;
+    let data_admissao = get_string(&payload, "data_admissao")
+        .ok_or_else(|| "Informe a data de admissão.".to_string())?;
 
     if !is_valid_cpf(&documento) {
         return Err("CPF do funcionário é inválido.".to_string());
@@ -282,7 +343,9 @@ pub fn employee_save(
         }
 
         if value < data_admissao.as_str() {
-            return Err("Data de desligamento não pode ser menor que a data de admissão.".to_string());
+            return Err(
+                "Data de desligamento não pode ser menor que a data de admissão.".to_string(),
+            );
         }
     }
 
@@ -308,7 +371,11 @@ pub fn employee_save(
     }
 
     let empresa_exists: Option<i64> = conn
-        .query_row("SELECT id FROM empresas WHERE id = ?1 LIMIT 1", [empresa_id], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM empresas WHERE id = ?1 LIMIT 1",
+            [empresa_id],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao validar empresa do funcionário: {err}"))?;
 
@@ -316,12 +383,32 @@ pub fn employee_save(
         return Err("A empresa informada para o funcionário não existe.".to_string());
     }
 
-    validate_fk_exists(&conn, "departamentos", get_i64(&payload, "departamento_id"), "Departamento")?;
+    validate_fk_exists(
+        &conn,
+        "departamentos",
+        get_i64(&payload, "departamento_id"),
+        "Departamento",
+    )?;
     validate_fk_exists(&conn, "funcoes", get_i64(&payload, "funcao_id"), "Função")?;
-    validate_fk_exists(&conn, "centro_custos", get_i64(&payload, "centro_custo_id"), "Centro de custo")?;
-    validate_fk_exists(&conn, "horarios", get_i64(&payload, "horario_id"), "Horário")?;
+    validate_fk_exists(
+        &conn,
+        "centro_custos",
+        get_i64(&payload, "centro_custo_id"),
+        "Centro de custo",
+    )?;
+    validate_fk_exists(
+        &conn,
+        "horarios",
+        get_i64(&payload, "horario_id"),
+        "Horário",
+    )?;
     validate_fk_exists(&conn, "escalas", get_i64(&payload, "escala_id"), "Escala")?;
-    validate_fk_exists(&conn, "jornadas_trabalho", get_i64(&payload, "jornada_id"), "Jornada")?;
+    validate_fk_exists(
+        &conn,
+        "jornadas_trabalho",
+        get_i64(&payload, "jornada_id"),
+        "Jornada",
+    )?;
 
     let duplicate_matricula: Option<i64> = conn
         .query_row(
@@ -502,8 +589,20 @@ pub fn employee_save(
         .ok_or_else(|| "Funcionário salvo não encontrado.".to_string())?;
 
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "funcionarios", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "funcionarios", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "funcionarios",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "funcionarios",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
@@ -514,19 +613,31 @@ pub fn employee_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, S
     let conn = open_connection(&db_path)?;
 
     let punch_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar batidas do funcionário: {err}"))?;
 
     if punch_count > 0 {
-        return Err("Não é possível excluir o funcionário porque existem batidas vinculadas.".to_string());
+        return Err(
+            "Não é possível excluir o funcionário porque existem batidas vinculadas.".to_string(),
+        );
     }
 
     let bank_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM banco_horas_lancamentos WHERE funcionario_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM banco_horas_lancamentos WHERE funcionario_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar banco de horas do funcionário: {err}"))?;
 
     if bank_count > 0 {
-        return Err("Não é possível excluir o funcionário porque existem lançamentos de banco de horas vinculados.".to_string());
+        return Err(
+            "Não é possível excluir o funcionário porque existem lançamentos de banco de horas vinculados.".to_string(),
+        );
     }
 
     let affected = conn

@@ -500,3 +500,40 @@ tbody td {
     grid-template-columns: 1fr;
   }
 }
+
+
+.muted-light {
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 13px;
+}
+
+.brand-box {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.brand-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  flex: 0 0 auto;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+}
+
+.brand-copy h1 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.login-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.login-logo {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+}

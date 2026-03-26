@@ -603,7 +603,11 @@ fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
     }
 
     let admin_exists: Option<i64> = conn
-        .query_row("SELECT id FROM usuarios WHERE login = 'admin' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM usuarios WHERE login = 'admin' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar admin inicial: {err}"))?;
 
@@ -641,7 +645,11 @@ fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
 
 fn ensure_access_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let admin_id: i64 = conn
-        .query_row("SELECT id FROM usuarios WHERE login = 'admin' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM usuarios WHERE login = 'admin' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao localizar usuário admin: {err}"))?;
 
     conn.execute(
@@ -653,7 +661,11 @@ fn ensure_access_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Stri
     .map_err(|err| format!("Falha ao promover usuário admin a master: {err}"))?;
 
     let perfil_master_id: i64 = match conn
-        .query_row("SELECT id FROM perfis_acesso WHERE LOWER(nome) = 'master' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM perfis_acesso WHERE LOWER(nome) = 'master' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao consultar perfil master: {err}"))?
     {
@@ -675,8 +687,11 @@ fn ensure_access_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Stri
     )
     .map_err(|err| format!("Falha ao atualizar perfil master: {err}"))?;
 
-    conn.execute("DELETE FROM perfis_permissoes WHERE perfil_id = ?1", [perfil_master_id])
-        .map_err(|err| format!("Falha ao limpar permissões do perfil master: {err}"))?;
+    conn.execute(
+        "DELETE FROM perfis_permissoes WHERE perfil_id = ?1",
+        [perfil_master_id],
+    )
+    .map_err(|err| format!("Falha ao limpar permissões do perfil master: {err}"))?;
 
     for key in access_permission_keys() {
         conn.execute(
@@ -753,7 +768,13 @@ fn access_permission_keys() -> Vec<&'static str> {
     ]
 }
 
-fn ensure_simple_seed(conn: &rusqlite::Connection, table: &str, field: &str, value: &str, now: &str) -> Result<(), String> {
+fn ensure_simple_seed(
+    conn: &rusqlite::Connection,
+    table: &str,
+    field: &str,
+    value: &str,
+    now: &str,
+) -> Result<(), String> {
     let sql_check = format!("SELECT id FROM {} WHERE {} = ?1 LIMIT 1", table, field);
     let exists: Option<i64> = conn
         .query_row(&sql_check, params![value], |row| row.get(0))
@@ -774,7 +795,11 @@ fn ensure_simple_seed(conn: &rusqlite::Connection, table: &str, field: &str, val
 
 fn ensure_center_cost_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM centro_custos WHERE codigo = 'ADM' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM centro_custos WHERE codigo = 'ADM' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar centro de custo inicial: {err}"))?;
     if exists.is_none() {
@@ -789,7 +814,11 @@ fn ensure_center_cost_seed(conn: &rusqlite::Connection, now: &str) -> Result<(),
 
 fn ensure_horario_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM horarios WHERE descricao = 'Comercial 08h-18h' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM horarios WHERE descricao = 'Comercial 08h-18h' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar horário inicial: {err}"))?;
     if exists.is_none() {
@@ -805,7 +834,11 @@ fn ensure_horario_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Str
 
 fn ensure_escala_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM escalas WHERE descricao = 'Escala Segunda a Sexta' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM escalas WHERE descricao = 'Escala Segunda a Sexta' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar escala inicial: {err}"))?;
     if exists.is_none() {
@@ -821,7 +854,11 @@ fn ensure_escala_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Stri
 
 fn ensure_jornada_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM jornadas_trabalho WHERE descricao = 'Jornada Comercial Padrão' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM jornadas_trabalho WHERE descricao = 'Jornada Comercial Padrão' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar jornada inicial: {err}"))?;
 
@@ -864,7 +901,11 @@ fn ensure_jornada_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Str
 
 fn ensure_equipamento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM equipamentos WHERE descricao = 'REP Demo' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM equipamentos WHERE descricao = 'REP Demo' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar equipamento inicial: {err}"))?;
     if exists.is_none() {
@@ -880,7 +921,11 @@ fn ensure_equipamento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(),
 
 fn ensure_evento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM eventos WHERE descricao = 'Hora extra 50%' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM eventos WHERE descricao = 'Hora extra 50%' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar evento inicial: {err}"))?;
     if exists.is_none() {
@@ -904,7 +949,11 @@ fn ensure_justificativa_seed(conn: &rusqlite::Connection, now: &str) -> Result<(
 
     for (descricao, abono) in defaults {
         let exists: Option<i64> = conn
-            .query_row("SELECT id FROM justificativas WHERE descricao = ?1 LIMIT 1", params![descricao], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM justificativas WHERE descricao = ?1 LIMIT 1",
+                params![descricao],
+                |row| row.get(0),
+            )
             .optional()
             .map_err(|err| format!("Falha ao verificar justificativa inicial: {err}"))?;
         if exists.is_none() {
@@ -921,7 +970,11 @@ fn ensure_justificativa_seed(conn: &rusqlite::Connection, now: &str) -> Result<(
 
 fn ensure_funcionario_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM funcionarios WHERE nome = 'Funcionário Demo' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM funcionarios WHERE nome = 'Funcionário Demo' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar funcionário inicial: {err}"))?;
     if exists.is_none() {

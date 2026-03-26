@@ -1,6 +1,6 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use rusqlite::{params, OptionalExtension};
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use tauri::State;
 
@@ -46,7 +46,9 @@ fn slice_ascii(line: &str, start: usize, end: usize) -> String {
     let bytes = line.as_bytes();
     let start_idx = start.saturating_sub(1).min(bytes.len());
     let end_idx = end.min(bytes.len());
-    String::from_utf8_lossy(&bytes[start_idx..end_idx]).trim().to_string()
+    String::from_utf8_lossy(&bytes[start_idx..end_idx])
+        .trim()
+        .to_string()
 }
 
 fn detect_layout(lines: &[String]) -> AfdLayout {
@@ -62,7 +64,11 @@ fn detect_layout(lines: &[String]) -> AfdLayout {
             let tipo = slice_ascii(line, 10, 10);
             let data = slice_ascii(line, 11, 18);
             let hora = slice_ascii(line, 19, 22);
-            if tipo == "3" && data.len() == 8 && hora.len() == 4 && data.chars().all(|c| c.is_ascii_digit()) {
+            if tipo == "3"
+                && data.len() == 8
+                && hora.len() == 4
+                && data.chars().all(|c| c.is_ascii_digit())
+            {
                 return AfdLayout::Portaria1510;
             }
         }
@@ -74,7 +80,12 @@ fn detect_layout(lines: &[String]) -> AfdLayout {
 fn parse_legacy_datetime(data: &str, hora: &str) -> Option<String> {
     let date = NaiveDate::parse_from_str(data, "%d%m%Y").ok()?;
     let datetime = NaiveDateTime::parse_from_str(
-        &format!("{} {}", date.format("%Y-%m-%d"), format!("{}:{}", &hora[0..2], &hora[2..4])),
+        &format!(
+            "{} {}:{}",
+            date.format("%Y-%m-%d"),
+            &hora[0..2],
+            &hora[2..4]
+        ),
         "%Y-%m-%d %H:%M",
     )
     .ok()?;
@@ -104,7 +115,12 @@ fn normalize_datetime_671(value: &str) -> Option<String> {
     if value.len() < 16 {
         return None;
     }
-    Some(value.replace("-0300", "").replace("-0200", "").replace("+0000", ""))
+    Some(
+        value
+            .replace("-0300", "")
+            .replace("-0200", "")
+            .replace("+0000", ""),
+    )
 }
 
 fn parse_mark_line_671(line: &str) -> Option<ParsedMark> {
@@ -146,7 +162,12 @@ fn parse_marks(layout: AfdLayout, lines: &[String]) -> Vec<ParsedMark> {
         .collect()
 }
 
-fn employee_id_from_key(conn: &rusqlite::Connection, empresa_id: Option<i64>, layout: AfdLayout, raw_key: &str) -> Result<Option<i64>, String> {
+fn employee_id_from_key(
+    conn: &rusqlite::Connection,
+    empresa_id: Option<i64>,
+    layout: AfdLayout,
+    raw_key: &str,
+) -> Result<Option<i64>, String> {
     let digits = only_digits(raw_key);
     if digits.is_empty() {
         return Ok(None);
@@ -173,9 +194,11 @@ fn employee_id_from_key(conn: &rusqlite::Connection, empresa_id: Option<i64>, la
         }
     };
 
-    conn.query_row(sql, params![empresa_id, preferred_key, digits], |row| row.get(0))
-        .optional()
-        .map_err(|err| format!("Falha ao localizar funcionário para marcação AFD: {err}"))
+    conn.query_row(sql, params![empresa_id, preferred_key, digits], |row| {
+        row.get(0)
+    })
+    .optional()
+    .map_err(|err| format!("Falha ao localizar funcionário para marcação AFD: {err}"))
 }
 
 fn datetime_to_date_time(value: &str) -> Option<(String, String)> {
@@ -213,17 +236,22 @@ pub fn afd_import_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, 
              FROM afd_importacoes ai
              LEFT JOIN empresas e ON e.id = ai.empresa_id
              LEFT JOIN equipamentos eq ON eq.id = ai.equipamento_id
-             ORDER BY ai.id DESC"
+             ORDER BY ai.id DESC",
         )
         .map_err(|err| format!("Falha ao preparar listagem de importações AFD: {err}"))?;
 
-    let rows = stmt.query_map([], row_to_json_map).map_err(|err| format!("Falha ao consultar importações AFD: {err}"))?;
+    let rows = stmt
+        .query_map([], row_to_json_map)
+        .map_err(|err| format!("Falha ao consultar importações AFD: {err}"))?;
     let rows: Result<Vec<_>, _> = rows.collect();
     rows.map_err(|err| format!("Falha ao mapear importações AFD: {err}"))
 }
 
 #[tauri::command]
-pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest) -> Result<AfdImportResponse, String> {
+pub fn afd_import_file(
+    state: State<'_, SharedState>,
+    payload: AfdImportRequest,
+) -> Result<AfdImportResponse, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let now = chrono::Utc::now().to_rfc3339();
@@ -238,7 +266,10 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
         return Err("O arquivo AFD está vazio.".to_string());
     }
 
-    let forced = payload.mode.unwrap_or_else(|| "auto".to_string()).to_lowercase();
+    let forced = payload
+        .mode
+        .unwrap_or_else(|| "auto".to_string())
+        .to_lowercase();
     let layout = match forced.as_str() {
         "1510" => AfdLayout::Portaria1510,
         "671" => AfdLayout::Portaria671,
@@ -254,8 +285,12 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
     hasher.update(payload.content.as_bytes());
     let hash = format!("{:x}", hasher.finalize());
 
-    let period_start = parsed_marks.first().map(|item| item.data_hora_marcacao.clone());
-    let period_end = parsed_marks.last().map(|item| item.data_hora_marcacao.clone());
+    let period_start = parsed_marks
+        .first()
+        .map(|item| item.data_hora_marcacao.clone());
+    let period_end = parsed_marks
+        .last()
+        .map(|item| item.data_hora_marcacao.clone());
 
     conn.execute(
         "INSERT INTO afd_importacoes (
@@ -268,7 +303,11 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
             payload.equipamento_id,
             payload.file_name,
             layout.as_str(),
-            if forced == "auto" { format!("auto:{}", layout.as_str()) } else { forced.clone() },
+            if forced == "auto" {
+                format!("auto:{}", layout.as_str())
+            } else {
+                forced.clone()
+            },
             period_start,
             period_end,
             i64::try_from(lines.len()).unwrap_or(0),
@@ -284,10 +323,14 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
 
     let mut total_processadas = 0usize;
     let mut total_descartadas = 0usize;
-    let mut mensagens = vec![format!("Layout identificado para tratamento: Portaria {}.", layout.as_str())];
+    let mut mensagens = vec![format!(
+        "Layout identificado para tratamento: Portaria {}.",
+        layout.as_str()
+    )];
 
     for mark in &parsed_marks {
-        let funcionario_id = employee_id_from_key(&conn, payload.empresa_id, layout, &mark.chave_trabalhador)?;
+        let funcionario_id =
+            employee_id_from_key(&conn, payload.empresa_id, layout, &mark.chave_trabalhador)?;
         let (data_referencia, hora) = datetime_to_date_time(&mark.data_hora_marcacao)
             .ok_or_else(|| "Falha ao converter data/hora de marcação do AFD.".to_string())?;
 
@@ -303,7 +346,11 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
 
             if let Some(existing_id) = duplicate {
                 total_descartadas += 1;
-                ("duplicada".to_string(), "Marcação já existente no banco local.".to_string(), Some(existing_id))
+                (
+                    "duplicada".to_string(),
+                    "Marcação já existente no banco local.".to_string(),
+                    Some(existing_id),
+                )
             } else {
                 conn.execute(
                     "INSERT INTO batidas (
@@ -325,11 +372,22 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
                 )
                 .map_err(|err| format!("Falha ao inserir batida importada do AFD: {err}"))?;
                 total_processadas += 1;
-                ("importada".to_string(), "Marcação importada com sucesso.".to_string(), Some(conn.last_insert_rowid()))
+                (
+                    "importada".to_string(),
+                    "Marcação importada com sucesso.".to_string(),
+                    Some(conn.last_insert_rowid()),
+                )
             }
         } else {
             total_descartadas += 1;
-            ("sem_funcionario".to_string(), format!("Nenhum funcionário localizado para a chave {}.", mark.chave_trabalhador), None)
+            (
+                "sem_funcionario".to_string(),
+                format!(
+                    "Nenhum funcionário localizado para a chave {}.",
+                    mark.chave_trabalhador
+                ),
+                None,
+            )
         };
 
         conn.execute(
@@ -388,8 +446,20 @@ pub fn afd_import_file(state: State<'_, SharedState>, payload: AfdImportRequest)
         "total_processadas": total_processadas,
         "total_descartadas": total_descartadas,
     });
-    write_audit(&conn, "afd_importacoes", "create", Some(importacao_id), &payload_value)?;
-    enqueue_sync(&conn, "afd_importacoes", "create", Some(importacao_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "afd_importacoes",
+        "create",
+        Some(importacao_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "afd_importacoes",
+        "create",
+        Some(importacao_id),
+        &payload_value,
+    )?;
 
     if matches!(layout, AfdLayout::Portaria1510) {
         mensagens.push("Suporte aplicado ao AFD legado da Portaria 1.510/2009 com chave principal por PIS e compatibilidade para marcas já tratadas no banco local.".to_string());

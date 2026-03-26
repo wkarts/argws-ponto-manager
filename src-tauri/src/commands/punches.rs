@@ -29,17 +29,42 @@ fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
 }
 
 fn parse_id(payload: &Map<String, Value>, field: &str) -> Option<i64> {
-    payload
-        .get(field)
-        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+    payload.get(field).and_then(|v| {
+        v.as_i64()
+            .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+    })
 }
 
 fn parse_bool(payload: &Map<String, Value>, field: &str, default: bool) -> i64 {
     match payload.get(field) {
-        Some(Value::Bool(v)) => if *v { 1 } else { 0 },
-        Some(Value::Number(v)) => if v.as_i64().unwrap_or(0) != 0 { 1 } else { 0 },
-        Some(Value::String(v)) => if matches!(v.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") { 1 } else { 0 },
-        _ => if default { 1 } else { 0 },
+        Some(Value::Bool(v)) => {
+            if *v {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::Number(v)) => {
+            if v.as_i64().unwrap_or(0) != 0 {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::String(v)) => {
+            if matches!(v.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") {
+                1
+            } else {
+                0
+            }
+        }
+        _ => {
+            if default {
+                1
+            } else {
+                0
+            }
+        }
     }
 }
 
@@ -137,10 +162,13 @@ pub fn batida_save(
     let validado = parse_bool(&payload, "validado", true);
     let id = parse_id(&payload, "id");
 
-    let origem_value = payload
-        .get("origem")
-        .cloned()
-        .unwrap_or_else(|| Value::String(if manual_ajuste == 1 { "ajuste_manual".to_string() } else { "manual".to_string() }));
+    let origem_value = payload.get("origem").cloned().unwrap_or_else(|| {
+        Value::String(if manual_ajuste == 1 {
+            "ajuste_manual".to_string()
+        } else {
+            "manual".to_string()
+        })
+    });
 
     let values = vec![
         rusqlite::types::Value::Integer(funcionario_id),
@@ -159,7 +187,11 @@ pub fn batida_save(
         json_to_sql_value(payload.get("nsr").unwrap_or(&Value::Null)),
         json_to_sql_value(&origem_value),
         json_to_sql_value(payload.get("observacao").unwrap_or(&Value::Null)),
-        json_to_sql_value(payload.get("tipo").unwrap_or(&Value::String("entrada".to_string()))),
+        json_to_sql_value(
+            payload
+                .get("tipo")
+                .unwrap_or(&Value::String("entrada".to_string())),
+        ),
     ];
 
     let record_id = if let Some(existing_id) = id {
@@ -223,8 +255,20 @@ pub fn batida_save(
 
     let action_name = if id.is_some() { "update" } else { "create" };
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "batidas", action_name, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "batidas", action_name, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "batidas",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "batidas",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }

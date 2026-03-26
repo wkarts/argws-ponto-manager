@@ -14,7 +14,11 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
         .and_then(|value| match value {
             Value::String(text) => Some(text.trim().to_string()),
             Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
             _ => None,
         })
         .filter(|value| !value.is_empty())
@@ -22,10 +26,34 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
 
 fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
     match payload.get(key) {
-        Some(Value::Bool(flag)) => if *flag { 1 } else { 0 },
-        Some(Value::Number(number)) => if number.as_i64().unwrap_or(0) != 0 { 1 } else { 0 },
-        Some(Value::String(text)) => if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") { 1 } else { 0 },
-        _ => if default { 1 } else { 0 },
+        Some(Value::Bool(flag)) => {
+            if *flag {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::Number(number)) => {
+            if number.as_i64().unwrap_or(0) != 0 {
+                1
+            } else {
+                0
+            }
+        }
+        Some(Value::String(text)) => {
+            if matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM") {
+                1
+            } else {
+                0
+            }
+        }
+        _ => {
+            if default {
+                1
+            } else {
+                0
+            }
+        }
     }
 }
 
@@ -42,7 +70,9 @@ fn only_digits(value: &str) -> String {
 }
 
 fn normalize_upper_uf(value: Option<String>) -> Option<String> {
-    value.map(|text| text.to_uppercase()).filter(|text| !text.is_empty())
+    value
+        .map(|text| text.to_uppercase())
+        .filter(|text| !text.is_empty())
 }
 
 fn validate_email(email: &str) -> bool {
@@ -63,14 +93,24 @@ fn is_valid_cpf(value: &str) -> bool {
 
     let nums: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
 
-    let sum1: u32 = nums.iter().take(9).enumerate().map(|(idx, n)| n * (10 - idx as u32)).sum();
+    let sum1: u32 = nums
+        .iter()
+        .take(9)
+        .enumerate()
+        .map(|(idx, n)| n * (10 - idx as u32))
+        .sum();
     let rem1 = sum1 % 11;
     let dv1 = if rem1 < 2 { 0 } else { 11 - rem1 };
     if nums[9] != dv1 {
         return false;
     }
 
-    let sum2: u32 = nums.iter().take(10).enumerate().map(|(idx, n)| n * (11 - idx as u32)).sum();
+    let sum2: u32 = nums
+        .iter()
+        .take(10)
+        .enumerate()
+        .map(|(idx, n)| n * (11 - idx as u32))
+        .sum();
     let rem2 = sum2 % 11;
     let dv2 = if rem2 < 2 { 0 } else { 11 - rem2 };
     nums[10] == dv2
@@ -91,14 +131,24 @@ fn is_valid_cnpj(value: &str) -> bool {
     let weights1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     let weights2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
 
-    let sum1: u32 = nums.iter().take(12).zip(weights1.iter()).map(|(n, w)| n * w).sum();
+    let sum1: u32 = nums
+        .iter()
+        .take(12)
+        .zip(weights1.iter())
+        .map(|(n, w)| n * w)
+        .sum();
     let rem1 = sum1 % 11;
     let dv1 = if rem1 < 2 { 0 } else { 11 - rem1 };
     if nums[12] != dv1 {
         return false;
     }
 
-    let sum2: u32 = nums.iter().take(13).zip(weights2.iter()).map(|(n, w)| n * w).sum();
+    let sum2: u32 = nums
+        .iter()
+        .take(13)
+        .zip(weights2.iter())
+        .map(|(n, w)| n * w)
+        .sum();
     let rem2 = sum2 % 11;
     let dv2 = if rem2 < 2 { 0 } else { 11 - rem2 };
     nums[13] == dv2
@@ -134,12 +184,20 @@ pub fn company_list(
     let mut values: Vec<rusqlite::types::Value> = Vec::new();
 
     if !search.is_empty() {
-        sql.push_str(" AND (nome LIKE ? OR nome_fantasia LIKE ? OR documento LIKE ? OR cidade LIKE ?)");
+        sql.push_str(
+            " AND (nome LIKE ? OR nome_fantasia LIKE ? OR documento LIKE ? OR cidade LIKE ?)",
+        );
         let wildcard = format!("%{}%", search);
         let doc_wildcard = format!("%{}%", only_digits(&search));
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
-        values.push(rusqlite::types::Value::Text(if only_digits(&search).is_empty() { wildcard.clone() } else { doc_wildcard }));
+        values.push(rusqlite::types::Value::Text(
+            if only_digits(&search).is_empty() {
+                wildcard.clone()
+            } else {
+                doc_wildcard
+            },
+        ));
         values.push(rusqlite::types::Value::Text(wildcard));
     }
 
@@ -183,8 +241,10 @@ pub fn company_save(
     let id = get_id(&payload);
     let now = Utc::now().to_rfc3339();
 
-    let nome = get_string(&payload, "nome").ok_or_else(|| "Informe a razão social da empresa.".to_string())?;
-    let documento_raw = get_string(&payload, "documento").ok_or_else(|| "Informe o CNPJ/CPF da empresa usuária.".to_string())?;
+    let nome = get_string(&payload, "nome")
+        .ok_or_else(|| "Informe a razão social da empresa.".to_string())?;
+    let documento_raw = get_string(&payload, "documento")
+        .ok_or_else(|| "Informe o CNPJ/CPF da empresa usuária.".to_string())?;
     let documento = only_digits(&documento_raw);
 
     if !validate_company_document(&documento) {
@@ -219,11 +279,13 @@ pub fn company_save(
     }
 
     let nome_fantasia = get_string(&payload, "nome_fantasia");
-    let inscricao_estadual = get_string(&payload, "inscricao_estadual").map(|value| only_digits(&value));
+    let inscricao_estadual =
+        get_string(&payload, "inscricao_estadual").map(|value| only_digits(&value));
     let inscricao_municipal = get_string(&payload, "inscricao_municipal");
     let telefone = get_string(&payload, "telefone").map(|value| only_digits(&value));
     let responsavel_nome = get_string(&payload, "responsavel_nome");
-    let responsavel_telefone = get_string(&payload, "responsavel_telefone").map(|value| only_digits(&value));
+    let responsavel_telefone =
+        get_string(&payload, "responsavel_telefone").map(|value| only_digits(&value));
     let cep = get_string(&payload, "cep").map(|value| only_digits(&value));
     let endereco = get_string(&payload, "endereco");
     let numero = get_string(&payload, "numero");
@@ -325,8 +387,20 @@ pub fn company_save(
         .ok_or_else(|| "Empresa salva não encontrada.".to_string())?;
 
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "empresas", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "empresas", if id.is_some() { "update" } else { "create" }, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "empresas",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "empresas",
+        if id.is_some() { "update" } else { "create" },
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
@@ -337,19 +411,31 @@ pub fn company_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, St
     let conn = open_connection(&db_path)?;
 
     let employee_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM funcionarios WHERE empresa_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM funcionarios WHERE empresa_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar vínculos da empresa: {err}"))?;
 
     if employee_count > 0 {
-        return Err("Não é possível excluir a empresa porque existem funcionários vinculados.".to_string());
+        return Err(
+            "Não é possível excluir a empresa porque existem funcionários vinculados.".to_string(),
+        );
     }
 
     let equipment_count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM equipamentos WHERE empresa_id = ?1", [id], |row| row.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM equipamentos WHERE empresa_id = ?1",
+            [id],
+            |row| row.get(0),
+        )
         .map_err(|err| format!("Falha ao verificar equipamentos da empresa: {err}"))?;
 
     if equipment_count > 0 {
-        return Err("Não é possível excluir a empresa porque existem equipamentos vinculados.".to_string());
+        return Err(
+            "Não é possível excluir a empresa porque existem equipamentos vinculados.".to_string(),
+        );
     }
 
     let affected = conn

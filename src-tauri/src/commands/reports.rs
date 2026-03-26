@@ -252,7 +252,8 @@ pub fn apurar_periodo_internal(
         .map_err(|err| format!("Falha ao executar funcionários da apuração: {err}"))?;
 
     let funcionarios: Result<Vec<_>, _> = funcionario_rows.collect();
-    let funcionarios = funcionarios.map_err(|err| format!("Falha ao mapear funcionários da apuração: {err}"))?;
+    let funcionarios =
+        funcionarios.map_err(|err| format!("Falha ao mapear funcionários da apuração: {err}"))?;
 
     let mut rows: Vec<ApuracaoDia> = Vec::new();
     let mut total_esperado = 0i64;
@@ -275,11 +276,14 @@ pub fn apurar_periodo_internal(
                 .map_err(|err| format!("Falha ao preparar batidas da apuração: {err}"))?;
 
             let punches = punch_stmt
-                .query_map(params![funcionario.id, current_date], |row| row.get::<_, String>(0))
+                .query_map(params![funcionario.id, current_date], |row| {
+                    row.get::<_, String>(0)
+                })
                 .map_err(|err| format!("Falha ao executar batidas da apuração: {err}"))?;
 
             let batidas: Result<Vec<_>, _> = punches.collect();
-            let batidas = batidas.map_err(|err| format!("Falha ao mapear batidas da apuração: {err}"))?;
+            let batidas =
+                batidas.map_err(|err| format!("Falha ao mapear batidas da apuração: {err}"))?;
 
             let schedule = resolve_schedule_for_employee(conn, funcionario.id, &current_date)?;
             let mut calc = calculate_day(&schedule, &batidas);
@@ -295,7 +299,8 @@ pub fn apurar_periodo_internal(
                 calc.atraso_minutes = 0;
                 calc.saida_antecipada_minutos = 0;
                 calc.inconsistente = false;
-                calc.mensagens.push("Dia abonado por justificativa/atestado.".to_string());
+                calc.mensagens
+                    .push("Dia abonado por justificativa/atestado.".to_string());
             } else if occurrence_data.minutos_abonados > 0 && calc.saldo_minutes < 0 {
                 let deficit = calc.saldo_minutes.abs();
                 let compensado = occurrence_data.minutos_abonados.min(deficit);
@@ -305,11 +310,13 @@ pub fn apurar_periodo_internal(
                     calc.atraso_minutes = 0;
                     calc.saida_antecipada_minutos = 0;
                 }
-                calc.mensagens.push(format!("Abono parcial aplicado: {} minuto(s).", compensado));
+                calc.mensagens
+                    .push(format!("Abono parcial aplicado: {} minuto(s).", compensado));
             }
 
             if has_manual_adjustment(conn, funcionario.id, &current_date)? {
-                calc.mensagens.push("Contém batida lançada/ajustada manualmente.".to_string());
+                calc.mensagens
+                    .push("Contém batida lançada/ajustada manualmente.".to_string());
             }
 
             if calc.expected_minutes > 0
@@ -319,7 +326,8 @@ pub fn apurar_periodo_internal(
                 || (schedule.is_day_off && !batidas.is_empty())
             {
                 if schedule.is_day_off && !batidas.is_empty() {
-                    calc.mensagens.push("Batidas registradas em dia configurado como folga.".to_string());
+                    calc.mensagens
+                        .push("Batidas registradas em dia configurado como folga.".to_string());
                 }
 
                 total_esperado += calc.expected_minutes;
@@ -341,7 +349,7 @@ pub fn apurar_periodo_internal(
                     horario_esperado_minutos: calc.expected_minutes,
                     trabalhado_minutos: calc.worked_minutes,
                     saldo_minutos: calc.saldo_minutes,
-                    atraso_minutos: calc.atraso_minutos,
+                    atraso_minutos: calc.atraso_minutes,
                     extra_minutos: calc.extra_minutes,
                     saida_antecipada_minutos: calc.saida_antecipada_minutos,
                     mensagens: calc.mensagens,

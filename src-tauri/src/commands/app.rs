@@ -14,16 +14,46 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
     let conn = open_connection(&db_path)?;
 
     let mut payload = BTreeMap::new();
-    payload.insert("db_path".to_string(), Value::String(db_path.to_string_lossy().to_string()));
-    payload.insert("empresas".to_string(), Value::from(count_table(&conn, "empresas")?));
-    payload.insert("usuarios".to_string(), Value::from(count_table(&conn, "usuarios")?));
-    payload.insert("funcionarios".to_string(), Value::from(count_table(&conn, "funcionarios")?));
-    payload.insert("equipamentos".to_string(), Value::from(count_table(&conn, "equipamentos")?));
-    payload.insert("horarios".to_string(), Value::from(count_table(&conn, "horarios")?));
-    payload.insert("batidas".to_string(), Value::from(count_table(&conn, "batidas")?));
-    payload.insert("jornadas".to_string(), Value::from(count_table(&conn, "jornadas_trabalho")?));
-    payload.insert("afd_importacoes".to_string(), Value::from(count_table(&conn, "afd_importacoes")?));
-    payload.insert("banco_horas".to_string(), Value::from(count_table(&conn, "banco_horas_lancamentos")?));
+    payload.insert(
+        "db_path".to_string(),
+        Value::String(db_path.to_string_lossy().to_string()),
+    );
+    payload.insert(
+        "empresas".to_string(),
+        Value::from(count_table(&conn, "empresas")?),
+    );
+    payload.insert(
+        "usuarios".to_string(),
+        Value::from(count_table(&conn, "usuarios")?),
+    );
+    payload.insert(
+        "funcionarios".to_string(),
+        Value::from(count_table(&conn, "funcionarios")?),
+    );
+    payload.insert(
+        "equipamentos".to_string(),
+        Value::from(count_table(&conn, "equipamentos")?),
+    );
+    payload.insert(
+        "horarios".to_string(),
+        Value::from(count_table(&conn, "horarios")?),
+    );
+    payload.insert(
+        "batidas".to_string(),
+        Value::from(count_table(&conn, "batidas")?),
+    );
+    payload.insert(
+        "jornadas".to_string(),
+        Value::from(count_table(&conn, "jornadas_trabalho")?),
+    );
+    payload.insert(
+        "afd_importacoes".to_string(),
+        Value::from(count_table(&conn, "afd_importacoes")?),
+    );
+    payload.insert(
+        "banco_horas".to_string(),
+        Value::from(count_table(&conn, "banco_horas_lancamentos")?),
+    );
     payload.insert(
         "sync_pendente".to_string(),
         Value::from(

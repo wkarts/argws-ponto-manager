@@ -5,13 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:web",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
     "tauri:build:debug": "tauri build --debug",
-    "tauri:bundle:mac": "tauri bundle --bundles app,dmg"
+    "tauri:bundle:mac": "tauri bundle --bundles app,dmg",
+    "build:web": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "ci:version": "node ./scripts/ci/check-version-sync.mjs",
+    "ci:pr-title": "node ./scripts/ci/validate-pr-title.mjs",
+    "lint:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --all --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --all-targets --all-features",
+    "release:ci": "node ./scripts/release/run-semantic-release.mjs",
+    "release:dry": "semantic-release --dry-run"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -23,6 +31,12 @@
     "@tauri-apps/cli": "^2.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "typescript": "^5.7.3",
-    "vite": "^5.4.14"
-  }
+    "vite": "^5.4.14",
+    "vue-tsc": "^2.2.12",
+    "semantic-release": "^25.0.3",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.1.0",
+    "@semantic-release/git": "^10.0.1"
+  },
+  "license": "UNLICENSED"
 }

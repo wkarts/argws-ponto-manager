@@ -41,14 +41,25 @@ pub fn parse_iso_date(date: &str) -> Result<NaiveDate, String> {
         .map_err(|err| format!("Data inválida ({date}): {err}"))
 }
 
-fn derive_minutes_from_pairs(entrada_1: Option<&str>, saida_1: Option<&str>, entrada_2: Option<&str>, saida_2: Option<&str>) -> i64 {
+fn derive_minutes_from_pairs(
+    entrada_1: Option<&str>,
+    saida_1: Option<&str>,
+    entrada_2: Option<&str>,
+    saida_2: Option<&str>,
+) -> i64 {
     let mut total = 0i64;
-    if let (Some(start), Some(end)) = (entrada_1.and_then(parse_hhmm_minutes), saida_1.and_then(parse_hhmm_minutes)) {
+    if let (Some(start), Some(end)) = (
+        entrada_1.and_then(parse_hhmm_minutes),
+        saida_1.and_then(parse_hhmm_minutes),
+    ) {
         if end >= start {
             total += end - start;
         }
     }
-    if let (Some(start), Some(end)) = (entrada_2.and_then(parse_hhmm_minutes), saida_2.and_then(parse_hhmm_minutes)) {
+    if let (Some(start), Some(end)) = (
+        entrada_2.and_then(parse_hhmm_minutes),
+        saida_2.and_then(parse_hhmm_minutes),
+    ) {
         if end >= start {
             total += end - start;
         }
@@ -101,7 +112,7 @@ pub fn resolve_schedule_for_employee(
              LEFT JOIN jornada_dias jd ON jd.jornada_id = f.jornada_id AND jd.dia_semana = ?1
              LEFT JOIN horarios h ON h.id = f.horario_id
              LEFT JOIN escalas es ON es.id = f.escala_id
-             WHERE f.id = ?2 LIMIT 1"
+             WHERE f.id = ?2 LIMIT 1",
         )
         .map_err(|err| format!("Falha ao preparar consulta de jornada do funcionário: {err}"))?;
 
@@ -199,7 +210,11 @@ pub fn resolve_schedule_for_employee(
     Ok(ResolvedSchedule {
         jornada_id: None,
         jornada_nome: horario_nome.unwrap_or_else(|| "Horário padrão".to_string()),
-        tipo_jornada: if active { "horario".to_string() } else { "folga".to_string() },
+        tipo_jornada: if active {
+            "horario".to_string()
+        } else {
+            "folga".to_string()
+        },
         tolerancia_entrada_minutos: 5,
         tolerancia_saida_minutos: 5,
         tolerancia_intervalo_minutos: 5,
@@ -215,7 +230,7 @@ pub fn resolve_schedule_for_employee(
 
 pub fn calculate_day(schedule: &ResolvedSchedule, batidas: &[String]) -> DailyCalculation {
     let mut worked_minutes = 0i64;
-    let mut inconsistente = batidas.len() % 2 != 0;
+    let mut inconsistente = !batidas.len().is_multiple_of(2);
     let mut mensagens: Vec<String> = Vec::new();
 
     let mut index = 0usize;
@@ -299,7 +314,7 @@ pub fn calculate_day(schedule: &ResolvedSchedule, batidas: &[String]) -> DailyCa
         expected_minutes: schedule.expected_minutes,
         worked_minutes,
         saldo_minutes,
-        atraso_minutos,
+        atraso_minutes: atraso_minutos,
         extra_minutes,
         saida_antecipada_minutos,
         inconsistente,

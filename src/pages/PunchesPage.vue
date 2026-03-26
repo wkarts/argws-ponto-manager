@@ -9,6 +9,13 @@ const rows = ref<Record<string, unknown>[]>([]);
 const message = ref("");
 const error = ref("");
 
+function textValue(value: unknown): string | number | readonly string[] | null | undefined {
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  return value == null ? undefined : String(value);
+}
+
+
 const filters = reactive({
   funcionarioId: "",
   dataInicial: "",
@@ -182,7 +189,7 @@ onMounted(async () => {
             </div>
             <div class="field">
               <label>Observação</label>
-              <textarea v-model="form.observacao" rows="2" />
+              <textarea :value="textValue(form.observacao)" rows="2" @input="form.observacao = ($event.target as HTMLTextAreaElement).value" />
             </div>
           </div>
 

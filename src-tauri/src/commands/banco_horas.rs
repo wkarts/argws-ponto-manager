@@ -6,7 +6,10 @@ use tauri::State;
 use crate::{
     app_state::SharedState,
     db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
-    models::{ApuracaoRequest, BancoHorasAjusteRequest, BancoHorasProcessRequest, BancoHorasProcessResponse},
+    models::{
+        ApuracaoRequest, BancoHorasAjusteRequest, BancoHorasProcessRequest,
+        BancoHorasProcessResponse,
+    },
     timecalc::resolve_schedule_for_employee,
 };
 
@@ -38,7 +41,7 @@ pub fn banco_horas_list(
          FROM banco_horas_lancamentos bh
          INNER JOIN funcionarios f ON f.id = bh.funcionario_id
          LEFT JOIN jornadas_trabalho jt ON jt.id = bh.jornada_id
-         WHERE 1 = 1"
+         WHERE 1 = 1",
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
 
@@ -64,9 +67,14 @@ pub fn banco_horas_list(
     }
 
     sql.push_str(" ORDER BY bh.data_referencia DESC, f.nome ASC, bh.id DESC");
-    let mut stmt = conn.prepare(&sql).map_err(|err| format!("Falha ao preparar listagem do banco de horas: {err}"))?;
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|err| format!("Falha ao preparar listagem do banco de horas: {err}"))?;
     let rows = stmt
-        .query_map(rusqlite::params_from_iter(params_vec.iter()), row_to_json_map)
+        .query_map(
+            rusqlite::params_from_iter(params_vec.iter()),
+            row_to_json_map,
+        )
         .map_err(|err| format!("Falha ao consultar banco de horas: {err}"))?;
     let rows: Result<Vec<_>, _> = rows.collect();
     rows.map_err(|err| format!("Falha ao mapear banco de horas: {err}"))
@@ -98,9 +106,15 @@ pub fn banco_horas_processar_periodo(
                 AND data_referencia >= ?1
                 AND data_referencia <= ?2
                 AND (?3 IS NULL OR funcionario_id = ?3)",
-            params![payload.data_inicial, payload.data_final, payload.funcionario_id],
+            params![
+                payload.data_inicial,
+                payload.data_final,
+                payload.funcionario_id
+            ],
         )
-        .map_err(|err| format!("Falha ao limpar lançamentos anteriores do banco de horas: {err}"))?;
+        .map_err(|err| {
+            format!("Falha ao limpar lançamentos anteriores do banco de horas: {err}")
+        })?;
     }
 
     let mut dias_processados = 0usize;
@@ -155,8 +169,20 @@ pub fn banco_horas_processar_periodo(
         "dias_processados": response.dias_processados,
         "saldo_liquido_minutos": response.saldo_liquido_minutos,
     });
-    write_audit(&conn, "banco_horas_lancamentos", "process", None, &payload_value)?;
-    enqueue_sync(&conn, "banco_horas_lancamentos", "process", None, &payload_value)?;
+    write_audit(
+        &conn,
+        "banco_horas_lancamentos",
+        "process",
+        None,
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "banco_horas_lancamentos",
+        "process",
+        None,
+        &payload_value,
+    )?;
 
     Ok(response)
 }
@@ -171,11 +197,17 @@ pub fn banco_horas_salvar_ajuste(
     let now = Utc::now().to_rfc3339();
 
     let funcionario_exists: Option<i64> = conn
-        .query_row("SELECT id FROM funcionarios WHERE id = ?1 LIMIT 1", [payload.funcionario_id], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM funcionarios WHERE id = ?1 LIMIT 1",
+            [payload.funcionario_id],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao validar funcionário do ajuste: {err}"))?;
     if funcionario_exists.is_none() {
-        return Err("Funcionário informado para o ajuste de banco de horas não existe.".to_string());
+        return Err(
+            "Funcionário informado para o ajuste de banco de horas não existe.".to_string(),
+        );
     }
 
     let classificacao = if payload.minutos > 0 {
@@ -232,8 +264,20 @@ pub fn banco_horas_salvar_ajuste(
         .ok_or_else(|| "Ajuste salvo não encontrado.".to_string())?;
 
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "banco_horas_lancamentos", "create", Some(id), &payload_value)?;
-    enqueue_sync(&conn, "banco_horas_lancamentos", "create", Some(id), &payload_value)?;
+    write_audit(
+        &conn,
+        "banco_horas_lancamentos",
+        "create",
+        Some(id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "banco_horas_lancamentos",
+        "create",
+        Some(id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
