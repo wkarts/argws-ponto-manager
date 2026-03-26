@@ -864,7 +864,11 @@ fn ensure_jornada_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Str
 
 fn ensure_equipamento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM equipamentos WHERE descricao = 'REP Demo' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM equipamentos WHERE descricao = 'REP Demo' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar equipamento inicial: {err}"))?;
     if exists.is_none() {
@@ -880,7 +884,11 @@ fn ensure_equipamento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(),
 
 fn ensure_evento_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM eventos WHERE descricao = 'Hora extra 50%' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM eventos WHERE descricao = 'Hora extra 50%' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar evento inicial: {err}"))?;
     if exists.is_none() {
@@ -904,7 +912,11 @@ fn ensure_justificativa_seed(conn: &rusqlite::Connection, now: &str) -> Result<(
 
     for (descricao, abono) in defaults {
         let exists: Option<i64> = conn
-            .query_row("SELECT id FROM justificativas WHERE descricao = ?1 LIMIT 1", params![descricao], |row| row.get(0))
+            .query_row(
+                "SELECT id FROM justificativas WHERE descricao = ?1 LIMIT 1",
+                params![descricao],
+                |row| row.get(0),
+            )
             .optional()
             .map_err(|err| format!("Falha ao verificar justificativa inicial: {err}"))?;
         if exists.is_none() {
@@ -921,7 +933,11 @@ fn ensure_justificativa_seed(conn: &rusqlite::Connection, now: &str) -> Result<(
 
 fn ensure_funcionario_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), String> {
     let exists: Option<i64> = conn
-        .query_row("SELECT id FROM funcionarios WHERE nome = 'Funcionário Demo' LIMIT 1", [], |row| row.get(0))
+        .query_row(
+            "SELECT id FROM funcionarios WHERE nome = 'Funcionário Demo' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao verificar funcionário inicial: {err}"))?;
     if exists.is_none() {

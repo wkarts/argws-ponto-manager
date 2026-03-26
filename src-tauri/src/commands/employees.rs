@@ -141,9 +141,18 @@ fn is_valid_pis(value: &str) -> bool {
 
     let nums: Vec<u32> = digits.chars().filter_map(|c| c.to_digit(10)).collect();
     let weights = [3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    let sum: u32 = nums.iter().take(10).zip(weights.iter()).map(|(n, w)| n * w).sum();
+    let sum: u32 = nums
+        .iter()
+        .take(10)
+        .zip(weights.iter())
+        .map(|(n, w)| n * w)
+        .sum();
     let remainder = 11 - (sum % 11);
-    let check_digit = if remainder == 10 || remainder == 11 { 0 } else { remainder };
+    let check_digit = if remainder == 10 || remainder == 11 {
+        0
+    } else {
+        remainder
+    };
     nums[10] == check_digit
 }
 
@@ -242,20 +251,16 @@ pub fn employee_list(
         let doc_wildcard = format!("%{}%", numeric_search);
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
         values.push(rusqlite::types::Value::Text(wildcard.clone()));
-        values.push(rusqlite::types::Value::Text(
-            if numeric_search.is_empty() {
-                wildcard.clone()
-            } else {
-                doc_wildcard.clone()
-            },
-        ));
-        values.push(rusqlite::types::Value::Text(
-            if numeric_search.is_empty() {
-                wildcard.clone()
-            } else {
-                doc_wildcard
-            },
-        ));
+        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() {
+            wildcard.clone()
+        } else {
+            doc_wildcard.clone()
+        }));
+        values.push(rusqlite::types::Value::Text(if numeric_search.is_empty() {
+            wildcard.clone()
+        } else {
+            doc_wildcard
+        }));
         values.push(rusqlite::types::Value::Text(wildcard));
     }
 
