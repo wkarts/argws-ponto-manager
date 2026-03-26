@@ -279,6 +279,22 @@ export async function getLicensingStatus(empresaId?: number | null): Promise<Gen
   return invokeCommand<GenericRecord>("licensing_status", { empresa_id: empresaId ?? null });
 }
 
+export async function loadLicensingSettings(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_load_settings");
+}
+
+export async function saveLicensingSettings(payload: GenericRecord): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_save_settings", { payload });
+}
+
+export async function getLicensingDeviceInfo(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_device_info");
+}
+
+export async function checkLicensingRuntime(empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_check_runtime", { empresa_id: empresaId ?? null });
+}
+
 export async function startTrialLicense(empresaId?: number | null): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("licensing_start_trial", { empresa_id: empresaId ?? null });
 }

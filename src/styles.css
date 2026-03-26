@@ -229,3 +229,25 @@ tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top;
   .kpi span { font-size: 22px; }
   .clock-time { font-size: 18px; }
 }
+
+
+.licensing-page .licensing-grid {
+  align-items: start;
+}
+
+.licensing-header {
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.licensing-form-grid {
+  gap: 0.875rem 1rem;
+}
+
+.licensing-checkboxes {
+  margin-top: 0.25rem;
+}
+
+.actions.wrap {
+  flex-wrap: wrap;
+}

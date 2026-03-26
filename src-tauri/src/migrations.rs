@@ -409,6 +409,29 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS app_settings (
+            chave TEXT PRIMARY KEY,
+            valor TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS local_licenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER NOT NULL,
+            cnpj TEXT NOT NULL,
+            license_kind TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            issued_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            fingerprint TEXT,
+            payload_encrypted TEXT,
+            integrity_hash TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+        );
+
         CREATE TABLE IF NOT EXISTS configuracoes (
             nome TEXT PRIMARY KEY,
             valor TEXT,
