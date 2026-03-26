@@ -148,9 +148,10 @@ Este projeto foi configurado com **ad-hoc signing** (`bundle.macOS.signingIdenti
 
 Foi incluído:
 
-- `.github/workflows/build-desktop.yml`
+- `.github/workflows/ci.yml`
+- `.github/workflows/release.yml`
 
-Esse workflow usa `tauri-apps/tauri-action`, conforme o guia oficial do Tauri para GitHub Actions, para gerar artefatos de Linux, Windows e macOS. citeturn277492view0
+Esses workflows passam a cobrir validação contínua e release de executáveis com `tauri-apps/tauri-action`, conforme o guia oficial do Tauri para GitHub Actions, gerando artefatos para Linux, Windows e macOS. citeturn277492view0
 
 ## Scripts úteis
 
@@ -164,3 +165,51 @@ npm run tauri:bundle:mac
 ## Observação importante sobre macOS sem assinatura Apple
 
 Você pediu explicitamente para **não distribuir via loja** e **não depender de assinatura Apple**. O projeto foi configurado para **compilar e empacotar** no macOS sem certificado Apple usando assinatura ad-hoc. Isso ajuda principalmente em Apple Silicon, mas não elimina os avisos e liberações manuais do sistema operacional ao abrir uma aplicação baixada da Internet. citeturn642469view1
+
+## Estrutura de build e release aplicada
+
+A aplicação agora segue a mesma linha de construção de executáveis usada no projeto Integra, adaptada para Vue 3 + Tauri:
+
+- validação de versão sincronizada entre `VERSION`, `package.json`, `src-tauri/Cargo.toml` e `src-tauri/tauri.conf.json`
+- workflow de **CI** com:
+  - validação de título de PR
+  - typecheck frontend
+  - build web
+  - `cargo fmt`
+  - `cargo clippy`
+  - `cargo test`
+- workflow de **Release** com:
+  - semantic release
+  - atualização automática de versão
+  - geração de tag `vX.Y.Z`
+  - build/publicação de binários Tauri para Linux, Windows e macOS
+- suporte a **macOS com assinatura ad-hoc** (`signingIdentity = "-"`), sem dependência de App Store
+
+### Arquivos adicionados para a esteira
+
+```text
+VERSION
+CHANGELOG.md
+release.config.mjs
+rust-toolchain.toml
+scripts/ci/check-version-sync.mjs
+scripts/ci/validate-pr-title.mjs
+scripts/release/prepare-release.mjs
+scripts/release/run-semantic-release.mjs
+.github/workflows/ci.yml
+.github/workflows/release.yml
+src/vite-env.d.ts
+```
+
+### Scripts novos
+
+```bash
+npm run build:web
+npm run typecheck
+npm run ci:version
+npm run ci:pr-title
+npm run lint:rust
+npm run test:rust
+npm run release:ci
+npm run release:dry
+```
