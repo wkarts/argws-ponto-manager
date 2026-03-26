@@ -22,6 +22,7 @@ mod commands {
 }
 
 use app_state::SharedState;
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()

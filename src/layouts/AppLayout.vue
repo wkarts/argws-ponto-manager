@@ -3,6 +3,7 @@ import { computed } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
 import { entityConfigs } from "../config/entities";
 import { useSessionStore } from "../stores/session";
+import logoMark from "../assets/branding/logo-mark.png";
 
 const session = useSessionStore();
 const router = useRouter();
@@ -32,8 +33,11 @@ async function logout() {
   <div class="page-shell">
     <aside class="sidebar">
       <div class="brand-box">
-        <h1>Pontos Desktop</h1>
-        <div class="muted-light">Rust + Tauri + Vue + SQLite</div>
+        <img :src="logoMark" alt="Ponto Manager" class="brand-mark" />
+        <div class="brand-copy">
+          <h1>Ponto Manager</h1>
+          <div class="muted-light">controle de jornada • Rust + Tauri + Vue + SQLite</div>
+        </div>
       </div>
 
       <div class="menu-group">

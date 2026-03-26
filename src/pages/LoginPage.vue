@@ -2,6 +2,7 @@
 import { reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "../stores/session";
+import logoLight from "../assets/branding/logo-light.png";
 
 const router = useRouter();
 const session = useSessionStore();
@@ -30,7 +31,10 @@ async function submit() {
 <template>
   <div class="login-page">
     <div class="login-box">
-      <div class="badge">Pontos Desktop</div>
+      <div class="login-brand">
+        <img :src="logoLight" alt="Ponto Manager" class="login-logo" />
+      </div>
+      <div class="badge">Ponto Manager</div>
       <h1>Acesso ao sistema</h1>
       <p class="muted">
         Estrutura com sessão persistente local, usuário master e perfis de acesso.<br />

@@ -349,7 +349,7 @@ pub fn apurar_periodo_internal(
                     horario_esperado_minutos: calc.expected_minutes,
                     trabalhado_minutos: calc.worked_minutes,
                     saldo_minutos: calc.saldo_minutes,
-                    atraso_minutos: calc.atraso_minutos,
+                    atraso_minutos: calc.atraso_minutes,
                     extra_minutos: calc.extra_minutes,
                     saida_antecipada_minutos: calc.saida_antecipada_minutos,
                     mensagens: calc.mensagens,

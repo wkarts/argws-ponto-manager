@@ -148,11 +148,12 @@ pub(crate) fn build_auth_user(
             )
             .map_err(|err| format!("Falha ao preparar permissões do usuário: {err}"))?;
 
-        stmt_permissions
+        let permission_rows = stmt_permissions
             .query_map([user_id], |row| row.get::<_, String>(0))
             .map_err(|err| format!("Falha ao consultar permissões do usuário: {err}"))?
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| format!("Falha ao mapear permissões do usuário: {err}"))?
+            .map_err(|err| format!("Falha ao mapear permissões do usuário: {err}"))?;
+        permission_rows
     };
 
     Ok(AuthUser {
