@@ -497,6 +497,7 @@ pub fn fechamento_gerar_relatorio(
     let apuracao = apurar_periodo_internal(
         &conn,
         &ApuracaoRequest {
+            empresa_id: None,
             funcionario_id: Some(funcionario_id),
             data_inicial: Some(inicio.format("%Y-%m-%d").to_string()),
             data_final: Some(fim.format("%Y-%m-%d").to_string()),
