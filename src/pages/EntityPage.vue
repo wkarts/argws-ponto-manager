@@ -17,6 +17,16 @@ const error = ref("");
 const form = reactive<Record<string, unknown>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 
+function inputValue(value: unknown): string | number | readonly string[] | null | undefined {
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  return value == null ? undefined : String(value);
+}
+
+function onTextareaInput(key: string, event: Event) {
+  form[key] = (event.target as HTMLTextAreaElement).value;
+}
+
 function defaultFieldValue(field: EntityField): unknown {
   if (field.type === "checkbox") return true;
   return "";
@@ -160,9 +170,10 @@ watch(
             <textarea
               v-if="field.type === 'textarea'"
               :id="field.key"
-              v-model="form[field.key]"
+              :value="inputValue(form[field.key])"
               rows="3"
               :placeholder="field.placeholder"
+              @input="onTextareaInput(field.key, $event)"
             />
 
             <input

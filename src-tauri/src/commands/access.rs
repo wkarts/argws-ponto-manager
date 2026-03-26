@@ -17,7 +17,11 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
         .and_then(|value| match value {
             Value::String(text) => Some(text.trim().to_string()),
             Value::Number(number) => Some(number.to_string()),
-            Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
             _ => None,
         })
         .filter(|value| !value.is_empty())
@@ -25,16 +29,37 @@ fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
 
 fn get_bool(payload: &Map<String, Value>, key: &str, default: bool) -> i64 {
     match payload.get(key) {
-        Some(Value::Bool(flag)) => if *flag { 1 } else { 0 },
-        Some(Value::Number(number)) => if number.as_i64().unwrap_or(0) != 0 { 1 } else { 0 },
-        Some(Value::String(text)) => {
-            if matches!(text.trim().to_lowercase().as_str(), "1" | "true" | "sim" | "yes") {
+        Some(Value::Bool(flag)) => {
+            if *flag {
                 1
             } else {
                 0
             }
         }
-        _ => if default { 1 } else { 0 },
+        Some(Value::Number(number)) => {
+            if number.as_i64().unwrap_or(0) != 0 {
+                1
+            } else {
+                0
+            }
+        },
+        Some(Value::String(text)) => {
+            if matches!(
+                text.trim().to_lowercase().as_str(),
+                "1" | "true" | "sim" | "yes"
+            ) {
+                1
+            } else {
+                0
+            }
+        },
+        _ => {
+            if default {
+                1
+            } else {
+                0
+            }
+        },
     }
 }
 
