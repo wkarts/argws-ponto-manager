@@ -36,7 +36,10 @@ fn export_company_line(brand: &str, row: &Map<String, Value>) -> String {
 
 fn export_employee_line(brand: &str, row: &Map<String, Value>) -> String {
     let prefix = brand_header(brand);
-    let empresa_id = row.get("empresa_id").and_then(Value::as_i64).unwrap_or_default();
+    let empresa_id = row
+        .get("empresa_id")
+        .and_then(Value::as_i64)
+        .unwrap_or_default();
     let matricula = row.get("matricula").and_then(Value::as_str).unwrap_or("");
     let nome = row.get("nome").and_then(Value::as_str).unwrap_or("");
     let cpf = row.get("documento").and_then(Value::as_str).unwrap_or("");
@@ -102,7 +105,14 @@ pub fn rep_export_empresa_txt(
     let mut response = Map::new();
     response.insert("brand".to_string(), Value::from(brand.to_lowercase()));
     response.insert("empresa_id".to_string(), Value::from(empresa_id));
-    response.insert("file_name".to_string(), Value::from(format!("rep_empresa_{}_{}.txt", brand.to_lowercase(), empresa_id)));
+    response.insert(
+        "file_name".to_string(),
+        Value::from(format!(
+            "rep_empresa_{}_{}.txt",
+            brand.to_lowercase(),
+            empresa_id
+        )),
+    );
     response.insert("content".to_string(), Value::from(content));
     Ok(response)
 }
@@ -117,7 +127,11 @@ pub fn rep_export_funcionarios_txt(
     let conn = open_connection(&db_path)?;
 
     let empresa_nome: String = conn
-        .query_row("SELECT nome FROM empresas WHERE id = ?1 LIMIT 1", [empresa_id], |row| row.get(0))
+        .query_row(
+            "SELECT nome FROM empresas WHERE id = ?1 LIMIT 1",
+            [empresa_id],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao consultar empresa do REP: {err}"))?
         .ok_or_else(|| "Empresa não encontrada para exportação REP.".to_string())?;
@@ -137,7 +151,11 @@ pub fn rep_export_funcionarios_txt(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("Falha ao mapear funcionários para exportação REP: {err}"))?;
 
-    let mut lines = vec![format!("{}|EMPRESA|{}", brand_header(&brand.to_lowercase()), empresa_nome.replace('|', " "))];
+    let mut lines = vec![format!(
+        "{}|EMPRESA|{}",
+        brand_header(&brand.to_lowercase()),
+        empresa_nome.replace('|', " ")
+    )];
     for row in &rows {
         lines.push(export_employee_line(&brand.to_lowercase(), row));
     }
@@ -148,7 +166,11 @@ pub fn rep_export_funcionarios_txt(
     response.insert("total".to_string(), Value::from(rows.len() as i64));
     response.insert(
         "file_name".to_string(),
-        Value::from(format!("rep_funcionarios_{}_{}.txt", brand.to_lowercase(), empresa_id)),
+        Value::from(format!(
+            "rep_funcionarios_{}_{}.txt",
+            brand.to_lowercase(),
+            empresa_id
+        )),
     );
     response.insert("content".to_string(), Value::from(lines.join("\r\n")));
     Ok(response)

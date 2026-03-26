@@ -12,10 +12,10 @@ mod commands {
     pub mod auth;
     pub mod banco_horas;
     pub mod companies;
-    pub mod licensing;
     pub mod employees;
     pub mod entities;
     pub mod jornadas;
+    pub mod licensing;
     pub mod punches;
     pub mod rep;
     pub mod reports;

@@ -27,8 +27,14 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
     let conn = open_connection(&db_path)?;
 
     let mut payload = BTreeMap::new();
-    payload.insert("db_path".to_string(), Value::String(db_path.to_string_lossy().to_string()));
-    payload.insert("data_dir".to_string(), Value::String(data_dir.to_string_lossy().to_string()));
+    payload.insert(
+        "db_path".to_string(),
+        Value::String(db_path.to_string_lossy().to_string()),
+    );
+    payload.insert(
+        "data_dir".to_string(),
+        Value::String(data_dir.to_string_lossy().to_string()),
+    );
     payload.insert(
         "exports_dir".to_string(),
         Value::String(export_dir_for(&data_dir).to_string_lossy().to_string()),
@@ -53,7 +59,10 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
         "horarios".to_string(),
         Value::from(count_table(&conn, "horarios")?),
     );
-    payload.insert("batidas".to_string(), Value::from(count_table(&conn, "batidas")?));
+    payload.insert(
+        "batidas".to_string(),
+        Value::from(count_table(&conn, "batidas")?),
+    );
     payload.insert(
         "jornadas".to_string(),
         Value::from(count_table(&conn, "jornadas_trabalho")?),
@@ -114,7 +123,10 @@ pub fn system_info(state: State<'_, SharedState>) -> Result<BTreeMap<String, Val
     let data_dir = state.data_dir()?;
     let bootstrap_path = SharedState::bootstrap_config_path()?;
     let mut payload = app_meta()?;
-    payload.insert("db_path".to_string(), Value::String(db_path.to_string_lossy().to_string()));
+    payload.insert(
+        "db_path".to_string(),
+        Value::String(db_path.to_string_lossy().to_string()),
+    );
     payload.insert(
         "data_dir".to_string(),
         Value::String(data_dir.to_string_lossy().to_string()),

@@ -61,7 +61,8 @@ pub fn decrypt_text(seed: &str, cipher: &str) -> Result<String, String> {
         .enumerate()
         .map(|(idx, byte)| byte ^ secret[idx % secret.len()])
         .collect::<Vec<_>>();
-    String::from_utf8(plain).map_err(|err| format!("Falha ao reconstruir texto criptografado: {err}"))
+    String::from_utf8(plain)
+        .map_err(|err| format!("Falha ao reconstruir texto criptografado: {err}"))
 }
 
 pub fn integrity_hash(seed: &str, payload: &str) -> String {

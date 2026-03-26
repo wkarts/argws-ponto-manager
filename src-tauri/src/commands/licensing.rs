@@ -16,7 +16,10 @@ use crate::{
 
 const LICENSE_SETTINGS_KEY: &str = "licensing_settings";
 
-fn company_seed(conn: &rusqlite::Connection, empresa_id: Option<i64>) -> Result<(i64, String, String, Option<String>), String> {
+fn company_seed(
+    conn: &rusqlite::Connection,
+    empresa_id: Option<i64>,
+) -> Result<(i64, String, String, Option<String>), String> {
     let result = if let Some(empresa_id) = empresa_id {
         conn.query_row(
             "SELECT id, COALESCE(documento, ''), COALESCE(nome, ''), email FROM empresas WHERE id = ?1 LIMIT 1",
@@ -39,18 +42,33 @@ fn company_seed(conn: &rusqlite::Connection, empresa_id: Option<i64>) -> Result<
 
 fn default_license_settings() -> Map<String, Value> {
     let mut map = Map::new();
-    map.insert("service_url".to_string(), Value::from(LicenseConfig::default().base_url));
+    map.insert(
+        "service_url".to_string(),
+        Value::from(LicenseConfig::default().base_url),
+    );
     map.insert("company_name".to_string(), Value::from(""));
     map.insert("company_document".to_string(), Value::from(""));
     map.insert("company_email".to_string(), Value::from(""));
-    map.insert("station_name".to_string(), Value::from(default_device_name()));
+    map.insert(
+        "station_name".to_string(),
+        Value::from(default_device_name()),
+    );
     map.insert("machine_key".to_string(), Value::from(machine_key()));
     map.insert("app_instance".to_string(), Value::from("ponto-manager"));
     map.insert("auto_register_machine".to_string(), Value::from(true));
     map.insert("auto_register_requested_licenses".to_string(), Value::Null);
-    map.insert("auto_register_validation_mode".to_string(), Value::from("standard"));
-    map.insert("auto_register_interface_mode".to_string(), Value::from("interactive"));
-    map.insert("auto_register_device_identifier".to_string(), Value::from(""));
+    map.insert(
+        "auto_register_validation_mode".to_string(),
+        Value::from("standard"),
+    );
+    map.insert(
+        "auto_register_interface_mode".to_string(),
+        Value::from("interactive"),
+    );
+    map.insert(
+        "auto_register_device_identifier".to_string(),
+        Value::from(""),
+    );
     map.insert("licensing_disabled".to_string(), Value::from(false));
     map
 }
@@ -76,7 +94,10 @@ fn load_settings_from_db(conn: &rusqlite::Connection) -> Result<Map<String, Valu
     Ok(result)
 }
 
-fn save_settings_to_db(conn: &rusqlite::Connection, settings: &Map<String, Value>) -> Result<(), String> {
+fn save_settings_to_db(
+    conn: &rusqlite::Connection,
+    settings: &Map<String, Value>,
+) -> Result<(), String> {
     let raw = Value::Object(settings.clone()).to_string();
     conn.execute(
         "INSERT INTO configuracoes (nome, valor, updated_at) VALUES (?1, ?2, datetime('now'))
@@ -91,21 +112,35 @@ fn get_bool(map: &Map<String, Value>, key: &str, default: bool) -> bool {
     match map.get(key) {
         Some(Value::Bool(flag)) => *flag,
         Some(Value::Number(number)) => number.as_i64().unwrap_or(0) != 0,
-        Some(Value::String(text)) => matches!(text.trim().to_lowercase().as_str(), "1" | "true" | "sim" | "yes"),
+        Some(Value::String(text)) => matches!(
+            text.trim().to_lowercase().as_str(),
+            "1" | "true" | "sim" | "yes"
+        ),
         _ => default,
     }
 }
 
 fn get_string(map: &Map<String, Value>, key: &str) -> Option<String> {
-    map.get(key).and_then(|value| match value {
-        Value::String(text) => Some(text.trim().to_string()),
-        Value::Number(number) => Some(number.to_string()),
-        Value::Bool(flag) => Some(if *flag { "1".to_string() } else { "0".to_string() }),
-        _ => None,
-    }).filter(|v| !v.is_empty())
+    map.get(key)
+        .and_then(|value| match value {
+            Value::String(text) => Some(text.trim().to_string()),
+            Value::Number(number) => Some(number.to_string()),
+            Value::Bool(flag) => Some(if *flag {
+                "1".to_string()
+            } else {
+                "0".to_string()
+            }),
+            _ => None,
+        })
+        .filter(|v| !v.is_empty())
 }
 
-fn build_check_input(settings: &Map<String, Value>, empresa_documento: String, empresa_nome: String, empresa_email: Option<String>) -> LicenseCheckInput {
+fn build_check_input(
+    settings: &Map<String, Value>,
+    empresa_documento: String,
+    empresa_nome: String,
+    empresa_email: Option<String>,
+) -> LicenseCheckInput {
     let mut input = LicenseCheckInput {
         company_document: get_string(settings, "company_document").unwrap_or(empresa_documento),
         company_name: get_string(settings, "company_name").or_else(|| Some(empresa_nome.clone())),
@@ -114,7 +149,9 @@ fn build_check_input(settings: &Map<String, Value>, empresa_documento: String, e
         app_id: "argws-ponto-manager".to_string(),
         app_name: "Ponto Manager".to_string(),
         app_version: env!("CARGO_PKG_VERSION").to_string(),
-        app_slug: Some(get_string(settings, "app_instance").unwrap_or_else(|| "ponto-manager".to_string())),
+        app_slug: Some(
+            get_string(settings, "app_instance").unwrap_or_else(|| "ponto-manager".to_string()),
+        ),
         device_key: None,
         device_name: None,
         station_name: get_string(settings, "station_name"),
@@ -150,14 +187,19 @@ fn build_check_input(settings: &Map<String, Value>, empresa_documento: String, e
 }
 
 fn map_requested_licenses(settings: &Map<String, Value>) -> Option<u32> {
-    settings.get("auto_register_requested_licenses").and_then(|value| match value {
-        Value::Number(number) => number.as_u64().map(|v| v as u32),
-        Value::String(text) => text.trim().parse::<u32>().ok(),
-        _ => None,
-    })
+    settings
+        .get("auto_register_requested_licenses")
+        .and_then(|value| match value {
+            Value::Number(number) => number.as_u64().map(|v| v as u32),
+            Value::String(text) => text.trim().parse::<u32>().ok(),
+            _ => None,
+        })
 }
 
-fn trial_license_row(conn: &rusqlite::Connection, empresa_id: i64) -> Result<Option<Map<String, Value>>, String> {
+fn trial_license_row(
+    conn: &rusqlite::Connection,
+    empresa_id: i64,
+) -> Result<Option<Map<String, Value>>, String> {
     conn.query_row(
         "SELECT id, empresa_id, cnpj, license_kind, status, issued_at, expires_at, fingerprint, payload_encrypted, integrity_hash, created_at, updated_at
          FROM local_licenses WHERE empresa_id = ?1 LIMIT 1",
@@ -169,26 +211,46 @@ fn trial_license_row(conn: &rusqlite::Connection, empresa_id: i64) -> Result<Opt
 }
 
 fn attach_decrypted_payload(mut row: Map<String, Value>, cnpj: &str) -> Map<String, Value> {
-    let encrypted = row.get("payload_encrypted").and_then(Value::as_str).unwrap_or("");
-    let decrypted = if encrypted.is_empty() { None } else { decrypt_text(cnpj, encrypted).ok() };
-    row.insert("payload_decrypted".to_string(), decrypted.map(Value::from).unwrap_or(Value::Null));
-    row.insert("is_trial".to_string(), Value::from(row.get("license_kind").and_then(Value::as_str) == Some("trial")));
+    let encrypted = row
+        .get("payload_encrypted")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let decrypted = if encrypted.is_empty() {
+        None
+    } else {
+        decrypt_text(cnpj, encrypted).ok()
+    };
+    row.insert(
+        "payload_decrypted".to_string(),
+        decrypted.map(Value::from).unwrap_or(Value::Null),
+    );
+    row.insert(
+        "is_trial".to_string(),
+        Value::from(row.get("license_kind").and_then(Value::as_str) == Some("trial")),
+    );
     row
 }
 
 #[tauri::command]
-pub fn licensing_load_settings(state: State<'_, SharedState>) -> Result<Map<String, Value>, String> {
+pub fn licensing_load_settings(
+    state: State<'_, SharedState>,
+) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     load_settings_from_db(&conn)
 }
 
 #[tauri::command]
-pub fn licensing_save_settings(state: State<'_, SharedState>, payload: Map<String, Value>) -> Result<Map<String, Value>, String> {
+pub fn licensing_save_settings(
+    state: State<'_, SharedState>,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let mut settings = default_license_settings();
-    for (k, v) in payload { settings.insert(k, v); }
+    for (k, v) in payload {
+        settings.insert(k, v);
+    }
     save_settings_to_db(&conn, &settings)?;
     let value = Value::Object(settings.clone());
     write_audit(&conn, "licensing_settings", "update", None, &value)?;
@@ -198,7 +260,8 @@ pub fn licensing_save_settings(state: State<'_, SharedState>, payload: Map<Strin
 #[tauri::command]
 pub fn licensing_device_info() -> Result<Map<String, Value>, String> {
     let info = collect_device_metadata();
-    let value = serde_json::to_value(info).map_err(|err| format!("Falha ao serializar informações do dispositivo: {err}"))?;
+    let value = serde_json::to_value(info)
+        .map_err(|err| format!("Falha ao serializar informações do dispositivo: {err}"))?;
     match value {
         Value::Object(mut map) => {
             map.insert("device_key".to_string(), Value::from(machine_key()));
@@ -216,17 +279,24 @@ pub async fn licensing_check_runtime(
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let settings = load_settings_from_db(&conn)?;
-    let (empresa_id_resolved, documento, empresa_nome, empresa_email) = company_seed(&conn, empresa_id)?;
+    let (empresa_id_resolved, documento, empresa_nome, empresa_email) =
+        company_seed(&conn, empresa_id)?;
 
     let mut result = Map::new();
     result.insert("empresa_id".to_string(), Value::from(empresa_id_resolved));
-    result.insert("empresa_nome".to_string(), Value::from(empresa_nome.clone()));
+    result.insert(
+        "empresa_nome".to_string(),
+        Value::from(empresa_nome.clone()),
+    );
     result.insert("cnpj".to_string(), Value::from(documento.clone()));
     result.insert("machine_key".to_string(), Value::from(machine_key()));
     result.insert("settings".to_string(), Value::Object(settings.clone()));
 
     if let Some(local) = trial_license_row(&conn, empresa_id_resolved)? {
-        result.insert("local_license".to_string(), Value::Object(attach_decrypted_payload(local, &documento)));
+        result.insert(
+            "local_license".to_string(),
+            Value::Object(attach_decrypted_payload(local, &documento)),
+        );
     } else {
         result.insert("local_license".to_string(), Value::Null);
     }
@@ -234,14 +304,17 @@ pub async fn licensing_check_runtime(
     if get_bool(&settings, "licensing_disabled", false) {
         result.insert("mode".to_string(), Value::from("disabled"));
         result.insert("allowed".to_string(), Value::from(true));
-        result.insert("decision".to_string(), json!({
-            "allowed": true,
-            "decision": "allowed",
-            "reason_code": "LICENSING_DISABLED",
-            "step": "settings",
-            "message": "Licenciamento desabilitado na configuração da aplicação.",
-            "source": "settings"
-        }));
+        result.insert(
+            "decision".to_string(),
+            json!({
+                "allowed": true,
+                "decision": "allowed",
+                "reason_code": "LICENSING_DISABLED",
+                "step": "settings",
+                "message": "Licenciamento desabilitado na configuração da aplicação.",
+                "source": "settings"
+            }),
+        );
         return Ok(result);
     }
 
@@ -255,7 +328,8 @@ pub async fn licensing_check_runtime(
     }
     let service = GenericLicenseService::new(config);
     let decision: LicenseDecision = service.check(input).await.map_err(|err| err.to_string())?;
-    let decision_value = serde_json::to_value(&decision).map_err(|err| format!("Falha ao serializar decisão de licença: {err}"))?;
+    let decision_value = serde_json::to_value(&decision)
+        .map_err(|err| format!("Falha ao serializar decisão de licença: {err}"))?;
     result.insert("mode".to_string(), Value::from("generic-license-tauri"));
     result.insert("allowed".to_string(), Value::from(decision.allowed));
     result.insert("decision".to_string(), decision_value);
@@ -280,7 +354,10 @@ pub fn licensing_status(
     result.insert("settings".to_string(), Value::Object(settings));
 
     if let Some(row) = trial_license_row(&conn, empresa_id_resolved)? {
-        result.insert("license".to_string(), Value::Object(attach_decrypted_payload(row, &documento)));
+        result.insert(
+            "license".to_string(),
+            Value::Object(attach_decrypted_payload(row, &documento)),
+        );
     } else {
         result.insert("license".to_string(), Value::Null);
     }
@@ -351,7 +428,19 @@ pub fn licensing_start_trial(
         .map_err(|err| format!("Falha ao reler licença salva: {err}"))?;
 
     let payload_value = Value::Object(saved.clone());
-    write_audit(&conn, "local_licenses", "create_trial", Some(id), &payload_value)?;
-    enqueue_sync(&conn, "local_licenses", "create_trial", Some(id), &payload_value)?;
+    write_audit(
+        &conn,
+        "local_licenses",
+        "create_trial",
+        Some(id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "local_licenses",
+        "create_trial",
+        Some(id),
+        &payload_value,
+    )?;
     Ok(attach_decrypted_payload(saved, &documento))
 }
