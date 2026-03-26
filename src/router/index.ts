@@ -15,6 +15,12 @@ import LoginPage from "../pages/LoginPage.vue";
 import PunchesPage from "../pages/PunchesPage.vue";
 import ApuracaoPage from "../pages/ApuracaoPage.vue";
 import SyncQueuePage from "../pages/SyncQueuePage.vue";
+import SystemPage from "../pages/SystemPage.vue";
+import LicensingPage from "../pages/LicensingPage.vue";
+import ReportsCenterPage from "../pages/ReportsCenterPage.vue";
+import RepExportPage from "../pages/RepExportPage.vue";
+import PunchBatchPage from "../pages/PunchBatchPage.vue";
+import AboutPage from "../pages/AboutPage.vue";
 import { entityConfigs } from "../config/entities";
 import { useSessionStore } from "../stores/session";
 
@@ -57,7 +63,13 @@ const routes: RouteRecordRaw[] = [
       ...genericEntityRoutes,
       { path: "batidas", component: PunchesPage, meta: { permission: "batidas:view" } },
       { path: "apuracao", component: ApuracaoPage, meta: { permission: "apuracao:view" } },
-      { path: "sync-queue", component: SyncQueuePage, meta: { permission: "sync:view" } }
+      { path: "sync-queue", component: SyncQueuePage, meta: { permission: "sync:view" } },
+      { path: "sistema", component: SystemPage, meta: { permission: "config:view" } },
+      { path: "licenciamento", component: LicensingPage, meta: { permission: "config:view" } },
+      { path: "relatorios", component: ReportsCenterPage, meta: { permission: "relatorios:export" } },
+      { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
+      { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
+      { path: "sobre", component: AboutPage }
     ]
   }
 ];

@@ -8,8 +8,8 @@ const router = useRouter();
 const session = useSessionStore();
 
 const form = reactive({
-  login: "admin",
-  senha: "admin123"
+  login: "",
+  senha: ""
 });
 
 const error = ref("");
@@ -37,8 +37,7 @@ async function submit() {
       <div class="badge">Ponto Manager</div>
       <h1>Acesso ao sistema</h1>
       <p class="muted">
-        Estrutura com sessão persistente local, usuário master e perfis de acesso.<br />
-        <strong>admin</strong> / <strong>admin123</strong>
+        Entre com seu login e senha. Informações de usuário padrão ficam apenas na documentação técnica, não na interface.
       </p>
 
       <form class="grid" @submit.prevent="submit">

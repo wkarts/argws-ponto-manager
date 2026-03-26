@@ -1,66 +1,50 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { getBootstrap, listSyncQueue, type SyncQueueItem } from "../services/crud";
 import { formatMinutes } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const stats = ref<Record<string, unknown>>({});
 const queue = ref<SyncQueueItem[]>([]);
 
-onMounted(async () => {
+async function load() {
   stats.value = await getBootstrap();
   queue.value = await listSyncQueue();
-});
+}
+
+onMounted(load);
+watch(() => session.activeCompanyId, load);
 </script>
 
 <template>
   <div class="grid page-gap">
     <div class="toolbar">
       <div>
-        <h2 style="margin: 0;">Dashboard</h2>
-        <div class="muted">Visão geral do sistema local.</div>
+        <h2>Dashboard</h2>
+        <div class="muted">Visão geral local. Informações técnicas como caminho do banco foram movidas para Sistema e parâmetros.</div>
       </div>
+      <div class="status-pill pill-secondary">Empresa ativa: {{ session.activeCompanyName }}</div>
     </div>
 
     <div class="kpis">
-      <div class="kpi">
-        <strong>Empresas</strong>
-        <span>{{ stats.empresas || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>Funcionários</strong>
-        <span>{{ stats.funcionarios || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>Batidas</strong>
-        <span>{{ stats.batidas || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>Jornadas</strong>
-        <span>{{ stats.jornadas || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>AFD importados</strong>
-        <span>{{ stats.afd_importacoes || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>Banco de horas</strong>
-        <span>{{ stats.banco_horas || 0 }}</span>
-      </div>
-      <div class="kpi">
-        <strong>Sync pendente</strong>
-        <span>{{ stats.sync_pendente || 0 }}</span>
-      </div>
+      <div class="kpi"><strong>Empresas</strong><span>{{ stats.empresas || 0 }}</span></div>
+      <div class="kpi"><strong>Funcionários</strong><span>{{ stats.funcionarios || 0 }}</span></div>
+      <div class="kpi"><strong>Batidas</strong><span>{{ stats.batidas || 0 }}</span></div>
+      <div class="kpi"><strong>Jornadas</strong><span>{{ stats.jornadas || 0 }}</span></div>
+      <div class="kpi"><strong>AFD importados</strong><span>{{ stats.afd_importacoes || 0 }}</span></div>
+      <div class="kpi"><strong>Banco de horas</strong><span>{{ stats.banco_horas || 0 }}</span></div>
+      <div class="kpi"><strong>Sync pendente</strong><span>{{ stats.sync_pendente || 0 }}</span></div>
     </div>
 
     <div class="grid columns-2 mobile-columns-1">
       <div class="card">
         <h3 style="margin-top: 0;">Resumo operacional</h3>
         <ul class="summary-list">
-          <li><strong>Banco:</strong> {{ stats.db_path }}</li>
           <li><strong>Usuários:</strong> {{ stats.usuarios || 0 }}</li>
           <li><strong>Equipamentos:</strong> {{ stats.equipamentos || 0 }}</li>
           <li><strong>Horários:</strong> {{ stats.horarios || 0 }}</li>
-          <li><strong>Última carga diária padrão:</strong> {{ formatMinutes(Number(stats.carga_padrao_minutos || 0)) }}</li>
+          <li><strong>Carga diária padrão:</strong> {{ formatMinutes(Number(stats.carga_padrao_minutos || 0)) }}</li>
         </ul>
       </div>
 

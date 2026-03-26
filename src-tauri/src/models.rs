@@ -34,6 +34,8 @@ pub struct SessionIdentity {
 
 #[derive(Debug, Deserialize)]
 pub struct PunchFilters {
+    #[serde(rename = "empresaId")]
+    pub empresa_id: Option<i64>,
     #[serde(rename = "funcionarioId")]
     pub funcionario_id: Option<i64>,
     #[serde(rename = "dataInicial")]
@@ -50,6 +52,8 @@ pub struct ComboOption {
 
 #[derive(Debug, Deserialize)]
 pub struct ApuracaoRequest {
+    #[serde(rename = "empresaId")]
+    pub empresa_id: Option<i64>,
     #[serde(rename = "funcionarioId")]
     pub funcionario_id: Option<i64>,
     #[serde(rename = "dataInicial")]
@@ -127,6 +131,8 @@ pub struct AfdImportResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct BancoHorasProcessRequest {
+    #[serde(rename = "empresaId")]
+    pub empresa_id: Option<i64>,
     #[serde(rename = "funcionarioId")]
     pub funcionario_id: Option<i64>,
     #[serde(rename = "dataInicial")]

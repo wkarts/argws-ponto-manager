@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
-import { comboList, gerarFechamentoRelatorio, listFechamentos, type ComboOption } from "../services/crud";
+import { onMounted, reactive, ref, watch } from "vue";
+import { gerarFechamentoRelatorio, listEmployees, listFechamentos, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const funcionarioOptions = ref<ComboOption[]>([]);
 const rows = ref<Record<string, unknown>[]>([]);
 const message = ref("");
@@ -16,7 +18,9 @@ const form = reactive({
 });
 
 async function loadCombos() {
-  funcionarioOptions.value = await comboList("funcionarios");
+  const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+  funcionarioOptions.value = rows.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
+  if (!form.funcionarioId && funcionarioOptions.value.length) form.funcionarioId = String(funcionarioOptions.value[0].id);
 }
 
 async function load() {
@@ -45,6 +49,8 @@ async function gerar() {
     loading.value = false;
   }
 }
+
+watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
 
 onMounted(async () => {
   await loadCombos();

@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { comboList, importAfdFile, listAfdImports, type ComboOption, type GenericRecord } from "../services/crud";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
 const companyOptions = ref<ComboOption[]>([]);
 const equipmentOptions = ref<ComboOption[]>([]);
@@ -32,6 +34,7 @@ async function loadCombos() {
   const [empresas, equipamentos] = await Promise.all([comboList("empresas"), comboList("equipamentos")]);
   companyOptions.value = empresas;
   equipmentOptions.value = equipamentos;
+  empresaId.value = String(session.activeCompanyId || empresaId.value || "");
 }
 
 async function load() {
@@ -74,7 +77,10 @@ async function processImport() {
   }
 }
 
+watch(() => session.activeCompanyId, (value) => { empresaId.value = String(value || ""); });
+
 onMounted(async () => {
+  empresaId.value = String(session.activeCompanyId || "");
   await loadCombos();
   await load();
 });

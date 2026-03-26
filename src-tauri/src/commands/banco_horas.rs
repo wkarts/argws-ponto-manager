@@ -45,6 +45,13 @@ pub fn banco_horas_list(
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
 
+    if let Some(Value::Number(number)) = filters.get("empresaId") {
+        if let Some(empresa_id) = number.as_i64() {
+            sql.push_str(" AND f.empresa_id = ?");
+            params_vec.push(rusqlite::types::Value::Integer(empresa_id));
+        }
+    }
+
     if let Some(Value::Number(number)) = filters.get("funcionarioId") {
         if let Some(funcionario_id) = number.as_i64() {
             sql.push_str(" AND bh.funcionario_id = ?");
@@ -93,6 +100,7 @@ pub fn banco_horas_processar_periodo(
     let apuracao = apurar_periodo_internal(
         &conn,
         &ApuracaoRequest {
+            empresa_id: payload.empresa_id,
             funcionario_id: payload.funcionario_id,
             data_inicial: Some(payload.data_inicial.clone()),
             data_final: Some(payload.data_final.clone()),

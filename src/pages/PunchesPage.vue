@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
-import { comboList, deleteBatida, exportBatidasCsv, listBatidas, saveBatida, type ComboOption } from "../services/crud";
+import { onMounted, reactive, ref, watch } from "vue";
+import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const funcionarioOptions = ref<ComboOption[]>([]);
 const equipamentoOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
@@ -53,14 +55,18 @@ function resetForm() {
 }
 
 async function loadCombos() {
-  funcionarioOptions.value = await comboList("funcionarios");
+  const employees = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+  funcionarioOptions.value = employees.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
   equipamentoOptions.value = await comboList("equipamentos");
   justificativaOptions.value = await comboList("justificativas");
+  if (!filters.funcionarioId && funcionarioOptions.value.length) filters.funcionarioId = String(funcionarioOptions.value[0].id);
+  if (!form.funcionario_id && session.activeCompanyId && funcionarioOptions.value.length) form.funcionario_id = funcionarioOptions.value[0].id;
 }
 
 async function load() {
   error.value = "";
   rows.value = await listBatidas({
+    empresaId: session.activeCompanyId ?? null,
     funcionarioId: filters.funcionarioId || null,
     dataInicial: filters.dataInicial || null,
     dataFinal: filters.dataFinal || null
@@ -94,6 +100,7 @@ async function exportar() {
   error.value = "";
   try {
     const filePath = await exportBatidasCsv({
+      empresaId: session.activeCompanyId ?? null,
       funcionarioId: filters.funcionarioId || null,
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
@@ -103,6 +110,8 @@ async function exportar() {
     error.value = err instanceof Error ? err.message : "Falha ao exportar CSV.";
   }
 }
+
+watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
 
 onMounted(async () => {
   await loadCombos();

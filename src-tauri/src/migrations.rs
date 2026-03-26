@@ -543,6 +543,9 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_perfis ON usuarios_perfis(usuario_id, perfil_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_empresas ON usuarios_empresas(usuario_id, empresa_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_user_sessions_token ON user_sessions(session_token);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_local_licenses_empresa ON local_licenses(empresa_id);
+        CREATE INDEX IF NOT EXISTS idx_local_licenses_cnpj ON local_licenses(cnpj);
+        CREATE INDEX IF NOT EXISTS idx_app_settings_chave ON app_settings(chave);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_nome ON funcionarios(nome);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_documento ON funcionarios(documento);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_pis ON funcionarios(pis);

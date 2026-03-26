@@ -40,6 +40,11 @@ fn build_punch_query(filters: &PunchFilters) -> (String, Vec<rusqlite::types::Va
 
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
+    if let Some(empresa_id) = filters.empresa_id {
+        sql.push_str(" AND f.empresa_id = ?");
+        params.push(rusqlite::types::Value::Integer(empresa_id));
+    }
+
     if let Some(funcionario_id) = filters.funcionario_id {
         sql.push_str(" AND b.funcionario_id = ?");
         params.push(rusqlite::types::Value::Integer(funcionario_id));
@@ -232,6 +237,10 @@ pub fn apurar_periodo_internal(
          WHERE f.ativo = 1",
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
+    if let Some(empresa_id) = payload.empresa_id {
+        funcionarios_sql.push_str(" AND f.empresa_id = ?");
+        params_vec.push(rusqlite::types::Value::Integer(empresa_id));
+    }
     if let Some(funcionario_id) = payload.funcionario_id {
         funcionarios_sql.push_str(" AND f.id = ?");
         params_vec.push(rusqlite::types::Value::Integer(funcionario_id));

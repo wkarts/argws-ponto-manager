@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import {
   comboJornadas,
   comboList,
@@ -11,7 +11,9 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { booleanLabel, formatCpf, formatPhone, formatPis } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
 const loading = ref(false);
 const saving = ref(false);
@@ -101,7 +103,7 @@ async function load() {
   try {
     rows.value = await listEmployees({
       search: search.value,
-      empresaId: filterEmpresaId.value,
+      empresaId: filterEmpresaId.value ?? session.activeCompanyId ?? null,
       onlyActive: onlyActive.value
     });
   } catch (err) {
@@ -157,7 +159,15 @@ async function removeRow(id: number) {
   }
 }
 
+watch(() => session.activeCompanyId, (value) => {
+  filterEmpresaId.value = value ?? null;
+  if (!form.empresa_id && value) form.empresa_id = String(value);
+  load();
+});
+
 onMounted(async () => {
+  filterEmpresaId.value = session.activeCompanyId ?? null;
+  if (!form.empresa_id && session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
   try {
     await loadOptions();
     await load();

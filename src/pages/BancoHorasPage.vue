@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import {
   comboJornadas,
-  comboList,
+  listEmployees,
   listBancoHoras,
   processBancoHoras,
   saveBancoHorasAjuste,
@@ -11,7 +11,9 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { formatMinutes } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
 const employeeOptions = ref<ComboOption[]>([]);
 const jornadaOptions = ref<ComboOption[]>([]);
@@ -36,9 +38,10 @@ const ajuste = reactive({
 });
 
 async function loadCombos() {
-  const [employees, jornadas] = await Promise.all([comboList("funcionarios"), comboJornadas()]);
-  employeeOptions.value = employees;
+  const [employees, jornadas] = await Promise.all([listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true }), comboJornadas()]);
+  employeeOptions.value = employees.map((item) => ({ id: Number(item.id), label: String(item.nome || item.label || item.id) }));
   jornadaOptions.value = jornadas;
+  if (!filters.funcionarioId && employeeOptions.value.length) { filters.funcionarioId = String(employeeOptions.value[0].id); }
 }
 
 async function load() {
@@ -46,6 +49,7 @@ async function load() {
   error.value = "";
   try {
     rows.value = await listBancoHoras({
+      empresaId: session.activeCompanyId ?? null,
       funcionarioId: filters.funcionarioId ? Number(filters.funcionarioId) : null,
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
@@ -62,6 +66,7 @@ async function processar() {
   error.value = "";
   try {
     result.value = await processBancoHoras({
+      empresaId: session.activeCompanyId ?? null,
       funcionarioId: filters.funcionarioId ? Number(filters.funcionarioId) : null,
       dataInicial: filters.dataInicial,
       dataFinal: filters.dataFinal,
@@ -96,6 +101,8 @@ async function salvarAjuste() {
     saving.value = false;
   }
 }
+
+watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
 
 onMounted(async () => {
   await loadCombos();
