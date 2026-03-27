@@ -19,8 +19,8 @@ mod commands {
     pub mod punches;
     pub mod rep;
     pub mod reports;
-    pub mod sync;
     pub mod support;
+    pub mod sync;
     pub mod treatments;
 }
 

@@ -6,6 +6,11 @@ import "./styles.css";
 import { useSessionStore } from "./stores/session";
 import { logAppError, logAppInfo } from "./services/logger";
 
+function resolveComponentName(instance: unknown): string | null {
+  const raw = instance as { type?: { name?: string }; $options?: { name?: string } } | null;
+  return raw?.type?.name ?? raw?.$options?.name ?? null;
+}
+
 async function bootstrap() {
   const app = createApp(App);
   const pinia = createPinia();
@@ -15,7 +20,7 @@ async function bootstrap() {
   app.config.errorHandler = (error, instance, info) => {
     logAppError("vue", "Erro global capturado pelo Vue.", {
       info,
-      component: instance?.type,
+      component: resolveComponentName(instance),
       error: error instanceof Error ? error.message : String(error),
     });
     console.error(error);

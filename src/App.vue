@@ -4,11 +4,16 @@ import { logAppError } from "./services/logger";
 
 const fatalError = ref("");
 
+function resolveComponentName(instance: unknown): string | null {
+  const raw = instance as { type?: { name?: string }; $options?: { name?: string } } | null;
+  return raw?.type?.name ?? raw?.$options?.name ?? null;
+}
+
 onErrorCaptured((error, instance, info) => {
   fatalError.value = error instanceof Error ? error.message : "Falha inesperada na interface.";
   logAppError("vue", "Erro capturado no componente raiz.", {
     info,
-    component: instance?.type,
+    component: resolveComponentName(instance),
     error: fatalError.value,
   });
   return false;

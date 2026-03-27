@@ -10,7 +10,7 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{enqueue_sync, open_connection, row_to_json_map, write_audit, write_app_log},
+    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit},
     security::{decrypt_text, encrypt_text, integrity_hash, machine_key},
 };
 
@@ -109,7 +109,6 @@ fn save_settings_to_db(
     .map_err(|err| format!("Falha ao salvar configuração de licenciamento: {err}"))?;
     Ok(())
 }
-
 
 fn mask_protected_settings(settings: &Map<String, Value>) -> Map<String, Value> {
     let mut masked = settings.clone();
@@ -285,7 +284,9 @@ pub fn licensing_save_settings(
     let conn = open_connection(&db_path)?;
     let identity = require_session_by_token(&conn, &session_token)?;
     if !identity.master_user {
-        return Err("Apenas usuário master pode alterar configurações de licenciamento.".to_string());
+        return Err(
+            "Apenas usuário master pode alterar configurações de licenciamento.".to_string(),
+        );
     }
     require_admin_unlock(&conn, identity.user_id, &admin_unlock_token, "licensing")?;
     let mut settings = default_license_settings();
@@ -295,7 +296,16 @@ pub fn licensing_save_settings(
     save_settings_to_db(&conn, &settings)?;
     let value = Value::Object(settings.clone());
     write_audit(&conn, "licensing_settings", "update", None, &value)?;
-    let _ = write_app_log(&conn, &data_dir, "warning", "licensing", "Configurações sensíveis de licenciamento atualizadas.", Some("backend"), None, Some(&json!({"usuario_id": identity.user_id})));
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        "warning",
+        "licensing",
+        "Configurações sensíveis de licenciamento atualizadas.",
+        Some("backend"),
+        None,
+        Some(&json!({"usuario_id": identity.user_id})),
+    );
     Ok(settings)
 }
 
@@ -341,7 +351,10 @@ pub async fn licensing_check_runtime(
     );
     result.insert("cnpj".to_string(), Value::from(documento.clone()));
     result.insert("machine_key".to_string(), Value::from(machine_key()));
-    result.insert("settings".to_string(), Value::Object(mask_protected_settings(&settings)));
+    result.insert(
+        "settings".to_string(),
+        Value::Object(mask_protected_settings(&settings)),
+    );
 
     if let Some(local) = trial_license_row(&conn, empresa_id_resolved)? {
         result.insert(
@@ -405,7 +418,10 @@ pub fn licensing_status(
     result.insert("empresa_nome".to_string(), Value::from(empresa_nome));
     result.insert("cnpj".to_string(), Value::from(documento.clone()));
     result.insert("machine_key".to_string(), Value::from(machine_key()));
-    result.insert("settings".to_string(), Value::Object(mask_protected_settings(&settings)));
+    result.insert(
+        "settings".to_string(),
+        Value::Object(mask_protected_settings(&settings)),
+    );
 
     if let Some(row) = trial_license_row(&conn, empresa_id_resolved)? {
         result.insert(

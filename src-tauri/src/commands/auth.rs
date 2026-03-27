@@ -355,7 +355,7 @@ pub fn auth_restore(
                 message: "Sessão inválida ou expirada.".to_string(),
                 session_token: None,
                 user: None,
-            })
+            });
         }
     };
 
@@ -388,7 +388,16 @@ pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Resu
         [session_token],
     )
     .map_err(|err| format!("Falha ao encerrar sessão: {err}"))?;
-    let _ = write_app_log(&conn, &data_dir, "info", "session", "Sessão encerrada.", Some("backend"), None, None);
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        "info",
+        "session",
+        "Sessão encerrada.",
+        Some("backend"),
+        None,
+        None,
+    );
     Ok(true)
 }
 
@@ -426,7 +435,16 @@ pub fn auth_change_password(
         params![new_hash, Utc::now().to_rfc3339(), identity.user_id],
     )
     .map_err(|err| format!("Falha ao atualizar senha: {err}"))?;
-    let _ = write_app_log(&conn, &data_dir, "info", "auth", "Senha alterada com sucesso.", Some("backend"), None, Some(&serde_json::json!({"usuario_id": identity.user_id})));
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        "info",
+        "auth",
+        "Senha alterada com sucesso.",
+        Some("backend"),
+        None,
+        Some(&serde_json::json!({"usuario_id": identity.user_id})),
+    );
 
     Ok(true)
 }

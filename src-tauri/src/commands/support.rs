@@ -9,8 +9,8 @@ use crate::{
     db::{open_connection, row_to_json_map, write_app_log, write_audit},
     security::{
         build_otpauth_url, decrypt_text, encrypt_text, generate_recovery_codes,
-        generate_support_secret, generate_totp_secret, hash_password, machine_key,
-        verify_password, verify_totp_code,
+        generate_support_secret, generate_totp_secret, hash_password, machine_key, verify_password,
+        verify_totp_code,
     },
 };
 
@@ -96,7 +96,14 @@ pub fn support_guard_status(
         > 0;
     result.insert(
         "configured".to_string(),
-        Value::from(result.get("support_secret_hash").and_then(Value::as_str).unwrap_or("").len() > 10),
+        Value::from(
+            result
+                .get("support_secret_hash")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .len()
+                > 10,
+        ),
     );
     result.insert("unlocked".to_string(), Value::from(unlocked));
     result.insert("totp_uri".to_string(), Value::Null);
@@ -123,7 +130,8 @@ pub fn support_guard_provision(
     let recovery_codes = generate_recovery_codes();
     let now = Utc::now().to_rfc3339();
     let support_secret_hash = hash_password(&support_secret)?;
-    let recovery_json = Value::Array(recovery_codes.iter().cloned().map(Value::String).collect()).to_string();
+    let recovery_json =
+        Value::Array(recovery_codes.iter().cloned().map(Value::String).collect()).to_string();
     let totp_encrypted = encrypt_text(&machine_key(), &totp_secret);
     let recovery_encrypted = encrypt_text(&machine_key(), &recovery_json);
 
@@ -190,8 +198,12 @@ pub fn support_guard_enable_totp(
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     let user_id = ensure_master(&conn, &session_token)?;
-    let row = guard_row(&conn)?.ok_or_else(|| "Proteção administrativa ainda não provisionada.".to_string())?;
-    let support_hash = row.get("support_secret_hash").and_then(Value::as_str).unwrap_or("");
+    let row = guard_row(&conn)?
+        .ok_or_else(|| "Proteção administrativa ainda não provisionada.".to_string())?;
+    let support_hash = row
+        .get("support_secret_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if !verify_password(&support_secret, support_hash)? {
         return Err("Secret de suporte inválido.".to_string());
     }
@@ -215,7 +227,16 @@ pub fn support_guard_enable_totp(
         [Utc::now().to_rfc3339()],
     )
     .map_err(|err| format!("Falha ao ativar TOTP administrativo: {err}"))?;
-    let _ = write_app_log(&conn, &data_dir, "info", "support_guard", "TOTP administrativo ativado.", Some("backend"), None, Some(&json!({"usuario_id": user_id}))); 
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        "info",
+        "support_guard",
+        "TOTP administrativo ativado.",
+        Some("backend"),
+        None,
+        Some(&json!({"usuario_id": user_id})),
+    );
     Ok(true)
 }
 
@@ -232,7 +253,8 @@ pub fn support_guard_unlock(
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     let user_id = ensure_master(&conn, &session_token)?;
-    let row = guard_row(&conn)?.ok_or_else(|| "Proteção administrativa ainda não provisionada.".to_string())?;
+    let row = guard_row(&conn)?
+        .ok_or_else(|| "Proteção administrativa ainda não provisionada.".to_string())?;
 
     let password_hash: String = conn
         .query_row(
@@ -245,7 +267,10 @@ pub fn support_guard_unlock(
         return Err("Senha atual inválida.".to_string());
     }
 
-    let support_hash = row.get("support_secret_hash").and_then(Value::as_str).unwrap_or("");
+    let support_hash = row
+        .get("support_secret_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("");
     if !verify_password(&support_secret, support_hash)? {
         return Err("Secret de suporte inválido.".to_string());
     }

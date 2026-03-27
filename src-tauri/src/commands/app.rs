@@ -218,7 +218,9 @@ pub fn app_log_write(
     let source = payload.get("source").and_then(Value::as_str);
     let route = payload.get("route").and_then(Value::as_str);
     let details = payload.get("details");
-    write_app_log(&conn, &data_dir, level, category, message, source, route, details)?;
+    write_app_log(
+        &conn, &data_dir, level, category, message, source, route, details,
+    )?;
     Ok(true)
 }
 
@@ -237,7 +239,11 @@ pub fn app_log_list(
         .and_then(Value::as_str)
         .unwrap_or("");
     let search = filters.get("search").and_then(Value::as_str).unwrap_or("");
-    let limit = filters.get("limit").and_then(Value::as_i64).unwrap_or(300).clamp(1, 5000);
+    let limit = filters
+        .get("limit")
+        .and_then(Value::as_i64)
+        .unwrap_or(300)
+        .clamp(1, 5000);
 
     let mut sql = String::from(
         "SELECT id, level, category, message, source, route, details_json, created_at FROM app_logs WHERE 1=1",
@@ -265,17 +271,17 @@ pub fn app_log_list(
         .prepare(&sql)
         .map_err(|err| format!("Falha ao preparar logs da aplicação: {err}"))?;
     let rows = stmt
-        .query_map(rusqlite::params_from_iter(params_vec.iter()), row_to_json_map)
+        .query_map(
+            rusqlite::params_from_iter(params_vec.iter()),
+            row_to_json_map,
+        )
         .map_err(|err| format!("Falha ao consultar logs da aplicação: {err}"))?;
     rows.collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("Falha ao mapear logs da aplicação: {err}"))
 }
 
 #[tauri::command]
-pub fn app_log_clear(
-    state: State<'_, SharedState>,
-    session_token: String,
-) -> Result<bool, String> {
+pub fn app_log_clear(state: State<'_, SharedState>, session_token: String) -> Result<bool, String> {
     let db_path = state.db_path()?;
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
@@ -287,8 +293,7 @@ pub fn app_log_clear(
         .map_err(|err| format!("Falha ao limpar logs da aplicação: {err}"))?;
     let log_path = app_log_file_path(&data_dir);
     if log_path.exists() {
-        fs::write(&log_path, "")
-            .map_err(|err| format!("Falha ao limpar arquivo de log: {err}"))?;
+        fs::write(&log_path, "").map_err(|err| format!("Falha ao limpar arquivo de log: {err}"))?;
     }
     Ok(true)
 }
