@@ -1,3 +1,10 @@
+## [1.1.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.3...v1.1.4) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** envia funcionarioId como número no filtro da listagem ([5f93cca](https://github.com/wkarts/argws-ponto-manager/commit/5f93cca4dacc818082397d2aa7aadf536cd6fc7d))
+
 ## [1.1.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.2...v1.1.3) (2026-03-27)
 
 
