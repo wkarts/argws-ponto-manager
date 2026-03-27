@@ -18,6 +18,12 @@ function textValue(value: unknown): string | number | readonly string[] | null |
   return value == null ? undefined : String(value);
 }
 
+function selectedFuncionarioId(): number | null {
+  if (!filters.funcionarioId) return null;
+  const parsed = Number(filters.funcionarioId);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 
 const filters = reactive({
   funcionarioId: "",
@@ -75,7 +81,7 @@ async function load() {
   try {
     rows.value = await listBatidas({
       empresaId: session.activeCompanyId ?? null,
-      funcionarioId: filters.funcionarioId || null,
+      funcionarioId: selectedFuncionarioId(),
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
     });
@@ -123,7 +129,7 @@ async function exportar() {
   try {
     const filePath = await exportBatidasCsv({
       empresaId: session.activeCompanyId ?? null,
-      funcionarioId: filters.funcionarioId || null,
+      funcionarioId: selectedFuncionarioId(),
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
     });
