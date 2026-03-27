@@ -1,4 +1,5 @@
 export default {
+  repositoryUrl: process.env.REPOSITORY_URL || 'https://github.com/wkarts/argws-ponto-manager.git',
   branches: ['main'],
   tagFormat: 'v${version}',
   plugins: [
