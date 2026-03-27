@@ -1,3 +1,17 @@
+## [1.1.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.2...v1.1.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** evita crash da rota ao tratar falhas de carregamento ([961f5e8](https://github.com/wkarts/argws-ponto-manager/commit/961f5e8fb2322317a7da1adef9a788c9b72c8df8))
+
+## [1.1.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.1...v1.1.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **release:** define repositoryUrl padrão no semantic-release ([92a464c](https://github.com/wkarts/argws-ponto-manager/commit/92a464c070cb1f69874bbd1032429a4645db7580))
+
 ## [1.1.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.0...v1.1.1) (2026-03-27)
 
 
