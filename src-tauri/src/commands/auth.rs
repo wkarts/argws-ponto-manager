@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
-    db::{open_connection, write_app_log},
+    db::{open_connection, AppLogInput, write_app_log},
     models::{AuthUser, LoginResponse, SessionIdentity},
     security::{hash_password, verify_password},
 };
@@ -309,12 +309,14 @@ pub fn auth_login(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "info",
-        "auth",
-        "Login efetuado com sucesso.",
-        Some("backend"),
-        None,
-        Some(&serde_json::json!({"usuario_id": row.0, "login": row.2})),
+        AppLogInput {
+            level: "info",
+            category: "auth",
+            message: "Login efetuado com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": row.0, "login": row.2})),
+        },
     );
 
     Ok(LoginResponse {
@@ -343,12 +345,14 @@ pub fn auth_restore(
             let _ = write_app_log(
                 &conn,
                 &data_dir,
-                "warning",
-                "session",
-                "Falha ao restaurar sessão expirada ou inválida.",
-                Some("backend"),
-                None,
-                None,
+                AppLogInput {
+                    level: "warning",
+                    category: "session",
+                    message: "Falha ao restaurar sessão expirada ou inválida.",
+                    source: Some("backend"),
+                    route: None,
+                    details: None,
+                },
             );
             return Ok(LoginResponse {
                 success: false,
@@ -363,12 +367,14 @@ pub fn auth_restore(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "info",
-        "session",
-        "Sessão restaurada com sucesso.",
-        Some("backend"),
-        None,
-        Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        AppLogInput {
+            level: "info",
+            category: "session",
+            message: "Sessão restaurada com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        },
     );
     Ok(LoginResponse {
         success: true,
@@ -391,12 +397,14 @@ pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Resu
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "info",
-        "session",
-        "Sessão encerrada.",
-        Some("backend"),
-        None,
-        None,
+        AppLogInput {
+            level: "info",
+            category: "session",
+            message: "Sessão encerrada.",
+            source: Some("backend"),
+            route: None,
+            details: None,
+        },
     );
     Ok(true)
 }
@@ -438,12 +446,14 @@ pub fn auth_change_password(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "info",
-        "auth",
-        "Senha alterada com sucesso.",
-        Some("backend"),
-        None,
-        Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        AppLogInput {
+            level: "info",
+            category: "auth",
+            message: "Senha alterada com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        },
     );
 
     Ok(true)

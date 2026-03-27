@@ -7,7 +7,10 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{app_log_file_path, count_table, open_connection, row_to_json_map, write_app_log},
+    db::{
+        app_log_file_path, count_table, open_connection, row_to_json_map, AppLogInput,
+        write_app_log,
+    },
 };
 
 fn build_hash() -> String {
@@ -219,7 +222,16 @@ pub fn app_log_write(
     let route = payload.get("route").and_then(Value::as_str);
     let details = payload.get("details");
     write_app_log(
-        &conn, &data_dir, level, category, message, source, route, details,
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level,
+            category,
+            message,
+            source,
+            route,
+            details,
+        },
     )?;
     Ok(true)
 }

@@ -10,7 +10,10 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit},
+    db::{
+        enqueue_sync, open_connection, row_to_json_map, AppLogInput, write_app_log,
+        write_audit,
+    },
     security::{decrypt_text, encrypt_text, integrity_hash, machine_key},
 };
 
@@ -259,7 +262,7 @@ pub fn licensing_load_settings(
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let identity = require_session_by_token(&conn, &session_token)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     if identity.master_user {
         if let Some(token) = admin_unlock_token {
@@ -282,7 +285,7 @@ pub fn licensing_save_settings(
     let db_path = state.db_path()?;
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
-    let identity = require_session_by_token(&conn, &session_token)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     if !identity.master_user {
         return Err(
             "Apenas usuário master pode alterar configurações de licenciamento.".to_string(),
@@ -299,12 +302,14 @@ pub fn licensing_save_settings(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "warning",
-        "licensing",
-        "Configurações sensíveis de licenciamento atualizadas.",
-        Some("backend"),
-        None,
-        Some(&json!({"usuario_id": identity.user_id})),
+        AppLogInput {
+            level: "warning",
+            category: "licensing",
+            message: "Configurações sensíveis de licenciamento atualizadas.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&json!({"usuario_id": identity.user_id})),
+        },
     );
     Ok(settings)
 }
@@ -337,7 +342,7 @@ pub async fn licensing_check_runtime(
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let identity = require_session_by_token(&conn, &session_token)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     let (empresa_id_resolved, documento, empresa_nome, empresa_email) =
         company_seed(&conn, empresa_id)?;
@@ -409,7 +414,7 @@ pub fn licensing_status(
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let identity = require_session_by_token(&conn, &session_token)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     let (empresa_id_resolved, documento, empresa_nome, _) = company_seed(&conn, empresa_id)?;
 
@@ -443,8 +448,7 @@ pub fn licensing_start_trial(
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let identity = require_session_by_token(&conn, &session_token)?;
-    let _ = identity;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let now = Utc::now();
     let (empresa_id_resolved, documento, empresa_nome, _) = company_seed(&conn, empresa_id)?;
     let cnpj = documento.trim().to_string();

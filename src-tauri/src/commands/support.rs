@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
-    db::{open_connection, row_to_json_map, write_app_log, write_audit},
+    db::{open_connection, row_to_json_map, AppLogInput, write_app_log, write_audit},
     security::{
         build_otpauth_url, decrypt_text, encrypt_text, generate_recovery_codes,
         generate_support_secret, generate_totp_secret, hash_password, machine_key, verify_password,
@@ -159,12 +159,14 @@ pub fn support_guard_provision(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "warning",
-        "support_guard",
-        "Proteção administrativa provisionada/rotacionada.",
-        Some("backend"),
-        None,
-        Some(&payload),
+        AppLogInput {
+            level: "warning",
+            category: "support_guard",
+            message: "Proteção administrativa provisionada/rotacionada.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&payload),
+        },
     );
 
     let mut result = Map::new();
@@ -230,12 +232,14 @@ pub fn support_guard_enable_totp(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "info",
-        "support_guard",
-        "TOTP administrativo ativado.",
-        Some("backend"),
-        None,
-        Some(&json!({"usuario_id": user_id})),
+        AppLogInput {
+            level: "info",
+            category: "support_guard",
+            message: "TOTP administrativo ativado.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&json!({"usuario_id": user_id})),
+        },
     );
     Ok(true)
 }
@@ -298,12 +302,14 @@ pub fn support_guard_unlock(
     let _ = write_app_log(
         &conn,
         &data_dir,
-        "warning",
-        "support_guard",
-        "Acesso administrativo reforçado liberado.",
-        Some("backend"),
-        None,
-        Some(&json!({"usuario_id": user_id, "scope": scope_value, "expires_at": expires_at})),
+        AppLogInput {
+            level: "warning",
+            category: "support_guard",
+            message: "Acesso administrativo reforçado liberado.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&json!({"usuario_id": user_id, "scope": scope_value, "expires_at": expires_at})),
+        },
     );
 
     let mut result = Map::new();

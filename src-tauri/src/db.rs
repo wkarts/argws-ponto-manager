@@ -81,22 +81,34 @@ pub fn app_log_file_path(data_dir: &Path) -> PathBuf {
     data_dir.join("app.log")
 }
 
+pub struct AppLogInput<'a> {
+    pub level: &'a str,
+    pub category: &'a str,
+    pub message: &'a str,
+    pub source: Option<&'a str>,
+    pub route: Option<&'a str>,
+    pub details: Option<&'a Value>,
+}
+
 pub fn write_app_log(
     conn: &Connection,
     data_dir: &Path,
-    level: &str,
-    category: &str,
-    message: &str,
-    source: Option<&str>,
-    route: Option<&str>,
-    details: Option<&Value>,
+    input: AppLogInput<'_>,
 ) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
-    let details_json = details.map(Value::to_string);
+    let details_json = input.details.map(Value::to_string);
     conn.execute(
         "INSERT INTO app_logs (level, category, message, source, route, details_json, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![level, category, message, source, route, details_json, now],
+        params![
+            input.level,
+            input.category,
+            input.message,
+            input.source,
+            input.route,
+            details_json,
+            now,
+        ],
     )
     .map_err(|err| format!("Falha ao gravar log da aplicação: {err}"))?;
 
@@ -110,16 +122,17 @@ pub fn write_app_log(
         .map_err(|err| format!("Falha ao abrir arquivo de log: {err}"))?;
     let line = json!({
         "created_at": now,
-        "level": level,
-        "category": category,
-        "message": message,
-        "source": source,
-        "route": route,
-        "details": details.cloned().unwrap_or(Value::Null),
+        "level": input.level,
+        "category": input.category,
+        "message": input.message,
+        "source": input.source,
+        "route": input.route,
+        "details": input.details.cloned().unwrap_or(Value::Null),
     })
     .to_string();
     file.write_all(line.as_bytes())
-        .and_then(|_| file.write_all(b"\n"))
+        .and_then(|_| file.write_all(b"
+"))
         .map_err(|err| format!("Falha ao escrever arquivo de log: {err}"))?;
     Ok(())
 }
