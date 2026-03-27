@@ -4,18 +4,54 @@ import App from "./App.vue";
 import router from "./router";
 import "./styles.css";
 import { useSessionStore } from "./stores/session";
+import { logAppError, logAppInfo } from "./services/logger";
 
 async function bootstrap() {
   const app = createApp(App);
   const pinia = createPinia();
   app.use(pinia);
+  app.use(router);
+
+  app.config.errorHandler = (error, instance, info) => {
+    logAppError("vue", "Erro global capturado pelo Vue.", {
+      info,
+      component: instance?.type,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    console.error(error);
+  };
+
+  window.addEventListener("error", (event) => {
+    logAppError("window", "Erro global de janela.", {
+      message: event.message,
+      file: event.filename,
+      line: event.lineno,
+      column: event.colno,
+    });
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    logAppError("promise", "Promise rejeitada sem tratamento.", {
+      reason: event.reason instanceof Error ? event.reason.message : String(event.reason),
+    });
+  });
 
   const session = useSessionStore(pinia);
-  await session.restore();
+  void session;
 
-  app.use(router);
-  await router.isReady();
-  app.mount("#app");
+  try {
+    await router.isReady();
+    app.mount("#app");
+    logAppInfo("bootstrap", "Aplicação inicializada com sucesso.");
+  } catch (error) {
+    logAppError("bootstrap", "Falha ao montar aplicação.", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    const target = document.querySelector("#app");
+    if (target) {
+      target.innerHTML = `<div style="padding:24px;font-family:Segoe UI,Arial,sans-serif;color:#1f2937"><h2>Falha ao inicializar a aplicação</h2><p>Consulte a página de logs após reiniciar o sistema.</p></div>`;
+    }
+  }
 }
 
-bootstrap();
+void bootstrap();

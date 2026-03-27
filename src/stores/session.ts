@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { invokeCommand } from "../services/tauri";
+import { logAppError, logAppInfo, logAppWarning } from "../services/logger";
 
 export interface AuthUser {
   id: number;
@@ -27,18 +28,23 @@ interface LoginResponse {
 const STORAGE_KEY = "pontos-desktop-session";
 const ACTIVE_COMPANY_KEY = "pontos-desktop-active-company";
 
-function readStorage(): string | null {
+function sessionStore() {
   if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(STORAGE_KEY);
+  return window.sessionStorage;
+}
+
+function readStorage(): string | null {
+  return sessionStore()?.getItem(STORAGE_KEY) ?? null;
 }
 
 function writeStorage(value: string | null) {
-  if (typeof window === "undefined") return;
+  const store = sessionStore();
+  if (!store) return;
   if (!value) {
-    window.localStorage.removeItem(STORAGE_KEY);
+    store.removeItem(STORAGE_KEY);
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, value);
+  store.setItem(STORAGE_KEY, value);
 }
 
 function readActiveCompany(): number | null {
@@ -65,7 +71,8 @@ export const useSessionStore = defineStore("session", {
     activeCompanyId: readActiveCompany() as number | null,
     loading: false,
     restoring: false,
-    initialized: false
+    initialized: false,
+    lastError: "",
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.user && state.sessionToken),
@@ -79,6 +86,14 @@ export const useSessionStore = defineStore("session", {
     }
   },
   actions: {
+    clearAuthState() {
+      this.user = null;
+      this.sessionToken = null;
+      this.activeCompanyId = null;
+      this.lastError = "";
+      writeStorage(null);
+      writeActiveCompany(null);
+    },
     can(permission: string) {
       if (!permission) return true;
       if (this.user?.master_user) return true;
@@ -112,16 +127,20 @@ export const useSessionStore = defineStore("session", {
       if (companyId == null) {
         this.activeCompanyId = null;
         writeActiveCompany(null);
+        logAppInfo("tenant", "Empresa ativa redefinida para contexto geral.");
         return;
       }
       if (!this.user.master_user && !this.user.company_ids.includes(companyId)) {
+        logAppWarning("tenant", "Tentativa de selecionar empresa sem vínculo.", { companyId });
         return;
       }
       this.activeCompanyId = companyId;
       writeActiveCompany(companyId);
+      logAppInfo("tenant", "Empresa ativa alterada.", { companyId });
     },
     async login(login: string, senha: string) {
       this.loading = true;
+      this.lastError = "";
       try {
         const response = await invokeCommand<LoginResponse>("auth_login", { login, senha });
         if (!response.success || !response.user || !response.session_token) {
@@ -132,14 +151,20 @@ export const useSessionStore = defineStore("session", {
         writeStorage(response.session_token);
         this.ensureActiveCompany();
         this.initialized = true;
+        logAppInfo("auth", "Login concluído no frontend.", { usuario: response.user.login });
         return response;
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : "Falha ao autenticar.";
+        logAppError("auth", "Erro durante login no frontend.", { error: this.lastError, login });
+        throw error;
       } finally {
         this.loading = false;
       }
     },
     async restore() {
-      if (this.initialized) return;
+      if (this.initialized || this.restoring) return;
       this.restoring = true;
+      this.lastError = "";
       try {
         if (!this.sessionToken) {
           this.user = null;
@@ -149,35 +174,46 @@ export const useSessionStore = defineStore("session", {
           session_token: this.sessionToken
         });
         if (!response.success || !response.user || !response.session_token) {
-          this.user = null;
-          this.sessionToken = null;
-          writeStorage(null);
-          writeActiveCompany(null);
+          logAppWarning("session", "Sessão não pôde ser restaurada; limpeza do estado local.");
+          this.clearAuthState();
           return;
         }
         this.user = response.user;
         this.sessionToken = response.session_token;
         writeStorage(response.session_token);
         this.ensureActiveCompany();
+        logAppInfo("session", "Sessão restaurada com sucesso no frontend.", {
+          usuario: response.user.login,
+        });
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : "Falha ao restaurar sessão.";
+        this.clearAuthState();
+        logAppError("session", "Erro ao restaurar sessão no frontend.", {
+          error: this.lastError,
+        });
       } finally {
         this.initialized = true;
         this.restoring = false;
       }
     },
-    async logout() {
+    async logout({ silent = false }: { silent?: boolean } = {}) {
       const currentToken = this.sessionToken;
-      this.user = null;
-      this.sessionToken = null;
-      this.activeCompanyId = null;
+      const currentUser = this.user?.login ?? null;
+      this.clearAuthState();
       this.initialized = true;
-      writeStorage(null);
-      writeActiveCompany(null);
       if (currentToken) {
         try {
           await invokeCommand<boolean>("auth_logout", { session_token: currentToken });
-        } catch {
-          // noop
+        } catch (error) {
+          if (!silent) {
+            logAppWarning("session", "Falha ao encerrar sessão no backend durante logout.", {
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
+      }
+      if (!silent) {
+        logAppInfo("session", "Logout executado no frontend.", { usuario: currentUser });
       }
     }
   }

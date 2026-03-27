@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "../stores/session";
 import logoLight from "../assets/branding/logo-light.png";
+import { logAppError, logAppInfo } from "../services/logger";
 
 const router = useRouter();
 const session = useSessionStore();
@@ -15,15 +16,28 @@ const form = reactive({
 const error = ref("");
 const info = ref("");
 
+function clearCredentials() {
+  form.login = "";
+  form.senha = "";
+  error.value = "";
+  info.value = "";
+}
+
+onMounted(() => {
+  clearCredentials();
+});
+
 async function submit() {
   error.value = "";
   info.value = "";
   try {
     const response = await session.login(form.login, form.senha);
     info.value = response.message;
+    logAppInfo("auth", "Login concluído pela tela de login.", { usuario: form.login });
     await router.push("/");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao autenticar.";
+    logAppError("auth", "Falha de autenticação exibida na tela de login.", { usuario: form.login, error: error.value });
   }
 }
 </script>
@@ -43,12 +57,12 @@ async function submit() {
       <form class="grid" @submit.prevent="submit">
         <div class="field">
           <label>Login</label>
-          <input v-model="form.login" type="text" autocomplete="username" />
+          <input v-model="form.login" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" />
         </div>
 
         <div class="field">
           <label>Senha</label>
-          <input v-model="form.senha" type="password" autocomplete="current-password" />
+          <input v-model="form.senha" type="password" autocomplete="off" />
         </div>
 
         <div v-if="info" class="alert info">{{ info }}</div>
@@ -57,6 +71,9 @@ async function submit() {
         <button class="primary" type="submit" :disabled="session.loading || session.restoring">
           {{ session.loading ? "Entrando..." : session.restoring ? "Restaurando..." : "Entrar" }}
         </button>
+        <div class="actions top-gap-12">
+        <button class="secondary" type="button" @click="clearCredentials">Limpar credenciais</button>
+      </div>
       </form>
     </div>
   </div>

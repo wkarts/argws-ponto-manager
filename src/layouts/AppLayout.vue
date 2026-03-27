@@ -5,6 +5,7 @@ import { entityConfigs } from "../config/entities";
 import { getAppMeta } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import logoMark from "../assets/branding/logo-mark.png";
+import { logAppError, logAppInfo } from "../services/logger";
 
 const session = useSessionStore();
 const router = useRouter();
@@ -15,12 +16,25 @@ const meta = reactive({ version: "1.0.0", build_hash: "dev" });
 const now = ref(new Date());
 let timer: number | undefined;
 
+const MENU_STATE_KEY = "ponto-shell-menu-state";
+
+function readMenuState() {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(MENU_STATE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+const savedMenuState = readMenuState();
+
 const groupState = reactive({
-  inicio: true,
-  cadastros: false,
-  operacao: false,
-  relatorios: false,
-  sistema: false,
+  inicio: savedMenuState?.inicio ?? true,
+  cadastros: savedMenuState?.cadastros ?? false,
+  operacao: savedMenuState?.operacao ?? false,
+  relatorios: savedMenuState?.relatorios ?? false,
+  sistema: savedMenuState?.sistema ?? false,
 });
 
 const cadastros = computed(() => [
@@ -59,6 +73,7 @@ const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
   { title: "Licenciamento", route: "/licenciamento" },
   { title: "Sobre", route: "/sobre" },
+  { title: "Logs da aplicação", route: "/logs" },
 ]);
 
 const pageTitle = computed(() => {
@@ -87,19 +102,27 @@ function closeSidebarOnMobile() {
 }
 
 watch(() => route.fullPath, closeSidebarOnMobile);
+watch(groupState, (value) => {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(MENU_STATE_KEY, JSON.stringify(value));
+  }
+}, { deep: true });
 
 onMounted(async () => {
   try {
     const payload = await getAppMeta();
     meta.version = String(payload.version || meta.version);
     meta.build_hash = String(payload.build_hash || meta.build_hash);
-  } catch {
-    // noop
+  } catch (error) {
+    logAppError("layout", "Falha ao carregar metadados da aplicação.", {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   timer = window.setInterval(() => {
     now.value = new Date();
   }, 1000);
   closeSidebarOnMobile();
+  logAppInfo("layout", "Shell principal montado.");
 });
 
 onBeforeUnmount(() => {
@@ -130,28 +153,28 @@ onBeforeUnmount(() => {
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('cadastros')">Cadastros</button>
-          <div v-show="groupState.cadastros" class="menu-links">
+          <div v-show="groupState.cadastros" class="menu-links submenu-links">
             <RouterLink v-for="item in cadastros" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('operacao')">Operação</button>
-          <div v-show="groupState.operacao" class="menu-links">
+          <div v-show="groupState.operacao" class="menu-links submenu-links">
             <RouterLink v-for="item in operacao" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('relatorios')">Relatórios e integração</button>
-          <div v-show="groupState.relatorios" class="menu-links">
+          <div v-show="groupState.relatorios" class="menu-links submenu-links">
             <RouterLink v-for="item in relatorios" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('sistema')">Sistema</button>
-          <div v-show="groupState.sistema" class="menu-links">
+          <div v-show="groupState.sistema" class="menu-links submenu-links">
             <RouterLink v-for="item in sistema" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>

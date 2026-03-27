@@ -251,3 +251,46 @@ tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top;
 .actions.wrap {
   flex-wrap: wrap;
 }
+
+.submenu-links a {
+  font-size: 14px;
+  padding-left: 16px;
+  position: relative;
+}
+
+.submenu-links a::before {
+  content: "•";
+  color: rgba(255,255,255,.45);
+  margin-right: 8px;
+}
+
+.menu-group-button:hover,
+.submenu-links a:hover {
+  background: rgba(255,255,255,.08);
+  color: #fff;
+}
+
+.logs-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  color: #475569;
+}
+
+.fatal-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f4f7fb;
+}
+
+.fatal-card {
+  width: min(720px, 100%);
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+}

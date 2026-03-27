@@ -1,3 +1,27 @@
+<script setup lang="ts">
+import { onErrorCaptured, ref } from "vue";
+import { logAppError } from "./services/logger";
+
+const fatalError = ref("");
+
+onErrorCaptured((error, instance, info) => {
+  fatalError.value = error instanceof Error ? error.message : "Falha inesperada na interface.";
+  logAppError("vue", "Erro capturado no componente raiz.", {
+    info,
+    component: instance?.type,
+    error: fatalError.value,
+  });
+  return false;
+});
+</script>
+
 <template>
-  <router-view />
+  <div v-if="fatalError" class="fatal-screen">
+    <div class="fatal-card">
+      <h2>Erro ao renderizar a aplicação</h2>
+      <p>{{ fatalError }}</p>
+      <p class="muted-text">Abra a página de logs após reiniciar o sistema para obter mais detalhes.</p>
+    </div>
+  </div>
+  <router-view v-else />
 </template>
