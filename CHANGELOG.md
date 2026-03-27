@@ -1,3 +1,16 @@
+# [1.1.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.0.0...v1.1.0) (2026-03-27)
+
+
+### Bug Fixes
+
+* **treatments:** corrige montagem de ApuracaoRequest no fechamento mensal ([68c22a3](https://github.com/wkarts/argws-ponto-manager/commit/68c22a30ebe661a0faf0d4ba61c24ad36130002a))
+
+
+### Features
+
+* **licensing:** integra generic-license-tauri com página dedicada e licença teste de 45 dias ([231044d](https://github.com/wkarts/argws-ponto-manager/commit/231044da4b1eb17390a0cb4b021dba6caaa2d2c3))
+* **ponto:** adiciona edição em lote de batidas e suporte a build windows x86 i686 ([5485248](https://github.com/wkarts/argws-ponto-manager/commit/5485248063bf63a6d1f9341411be2e928cc0e08c))
+
 # 1.0.0 (2026-03-26)
 
 
