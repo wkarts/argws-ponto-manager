@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.1...v1.1.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **release:** define repositoryUrl padrão no semantic-release ([92a464c](https://github.com/wkarts/argws-ponto-manager/commit/92a464c070cb1f69874bbd1032429a4645db7580))
+
 ## [1.1.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.0...v1.1.1) (2026-03-27)
 
 
