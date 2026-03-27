@@ -1,3 +1,13 @@
+## [1.1.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.0...v1.1.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **app:** corrige sessão, tela branca, cadastros administrativos e reforça logs e segurança ([10248de](https://github.com/wkarts/argws-ponto-manager/commit/10248de0a55b1005a0a53845ea0c99db2a66ec5d))
+* **ci:** corrige TS2339 em App/main e ajusta cargo fmt nos módulos de sessão e licenciamento ([1749d04](https://github.com/wkarts/argws-ponto-manager/commit/1749d04cb0c5a49e75e8de67f65bb371f844712b))
+* **clippy:** corrige runtime de licenciamento e assinatura de logging no Ponto Manager ([27f6c44](https://github.com/wkarts/argws-ponto-manager/commit/27f6c445fd50b092999f4c954706bb95b9767ead))
+* **clippy:** corrige unused variable em licensing e reduz argumentos de write_app_log ([1fd91f6](https://github.com/wkarts/argws-ponto-manager/commit/1fd91f612732c4682effe6a4cff2d2a2d27b74b9))
+
 # [1.1.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.0.0...v1.1.0) (2026-03-27)
 
 
