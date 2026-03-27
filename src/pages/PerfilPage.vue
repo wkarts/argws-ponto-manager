@@ -10,6 +10,7 @@ import {
 } from "../services/crud";
 import { booleanLabel } from "../services/format";
 import { useSessionStore } from "../stores/session";
+import { logAppError, logAppInfo } from "../services/logger";
 
 const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
@@ -34,6 +35,15 @@ function defaultForm() {
 const form = reactive(defaultForm());
 const canManage = computed(() => session.can("perfis:manage"));
 
+async function ensureSession() {
+  if (!session.sessionToken) {
+    await session.restore();
+  }
+  if (!session.sessionToken) {
+    throw new Error("Sessão inválida ou expirada. Faça login novamente.");
+  }
+}
+
 function resetForm() {
   Object.assign(form, defaultForm());
 }
@@ -44,27 +54,32 @@ function toStringArray(value: unknown): string[] {
 }
 
 async function load() {
+  await ensureSession();
   loading.value = true;
   error.value = "";
   try {
+    await ensureSession();
     rows.value = await listProfiles(session.sessionToken!, {
       search: search.value,
       onlyActive: onlyActive.value
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar perfis.";
+    logAppError("perfis", "Falha ao carregar perfis.", { error: error.value });
   } finally {
     loading.value = false;
   }
 }
 
 async function loadPermissions() {
+  await ensureSession();
   permissions.value = await listPermissionCatalog(session.sessionToken!);
 }
 
 async function editRow(id: number) {
   error.value = "";
   try {
+    await ensureSession();
     const record = await getProfile(session.sessionToken!, id);
     Object.assign(form, defaultForm(), record, {
       perfil_master: Number(record.perfil_master) === 1 || record.perfil_master === true,
@@ -73,6 +88,7 @@ async function editRow(id: number) {
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar perfil.";
+    logAppError("perfis", "Falha ao carregar perfil para edição.", { id, error: error.value });
   }
 }
 
@@ -81,11 +97,14 @@ async function persist() {
   saving.value = true;
   error.value = "";
   try {
+    await ensureSession();
     await saveProfile(session.sessionToken!, { ...form });
     await load();
     resetForm();
+    logAppInfo("perfis", "Perfil salvo com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar perfil.";
+    logAppError("perfis", "Falha ao salvar perfil.", { error: error.value, payload: form });
   } finally {
     saving.value = false;
   }
@@ -95,11 +114,13 @@ async function removeRow(id: number) {
   if (!canManage.value) return;
   if (!confirm("Deseja excluir este perfil de acesso?")) return;
   try {
+    await ensureSession();
     await deleteProfile(session.sessionToken!, id);
     await load();
     if (Number(form.id) === id) resetForm();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir perfil.";
+    logAppError("perfis", "Falha ao excluir perfil.", { id, error: error.value });
   }
 }
 
@@ -108,6 +129,7 @@ onMounted(async () => {
     await Promise.all([loadPermissions(), load()]);
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao inicializar perfis de acesso.";
+    logAppError("perfis", "Falha na inicialização da página de perfis.", { error: error.value });
   }
 });
 </script>

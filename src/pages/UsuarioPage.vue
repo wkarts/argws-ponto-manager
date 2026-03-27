@@ -12,6 +12,7 @@ import {
 } from "../services/crud";
 import { booleanLabel, formatPhone } from "../services/format";
 import { useSessionStore } from "../stores/session";
+import { logAppError, logAppInfo } from "../services/logger";
 
 const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
@@ -48,6 +49,15 @@ const form = reactive(defaultForm());
 
 const canManage = computed(() => session.can("usuarios:manage"));
 
+async function ensureSession() {
+  if (!session.sessionToken) {
+    await session.restore();
+  }
+  if (!session.sessionToken) {
+    throw new Error("Sessão inválida ou expirada. Faça login novamente.");
+  }
+}
+
 function resetForm() {
   Object.assign(form, defaultForm());
 }
@@ -58,6 +68,7 @@ function toStringArray(value: unknown): string[] {
 }
 
 async function loadOptions() {
+  await ensureSession();
   const [empresas, perfis] = await Promise.all([
     comboList("empresas"),
     listProfiles(session.sessionToken!, { onlyActive: true })
@@ -73,6 +84,7 @@ async function load() {
   loading.value = true;
   error.value = "";
   try {
+    await ensureSession();
     rows.value = await listUsers(session.sessionToken!, {
       search: search.value,
       onlyActive: onlyActive.value,
@@ -80,6 +92,7 @@ async function load() {
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar usuários.";
+    logAppError("usuarios", "Falha ao carregar listagem de usuários.", { error: error.value });
   } finally {
     loading.value = false;
   }
@@ -88,6 +101,7 @@ async function load() {
 async function editRow(id: number) {
   error.value = "";
   try {
+    await ensureSession();
     const record = await getUser(session.sessionToken!, id);
     Object.assign(form, defaultForm(), record, {
       master_user: Number(record.master_user) === 1 || record.master_user === true,
@@ -100,6 +114,7 @@ async function editRow(id: number) {
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar usuário.";
+    logAppError("usuarios", "Falha ao carregar usuário para edição.", { id, error: error.value });
   }
 }
 
@@ -108,6 +123,7 @@ async function persist() {
   saving.value = true;
   error.value = "";
   try {
+    await ensureSession();
     await saveUser(session.sessionToken!, {
       ...form,
       empresa_ids: form.empresa_ids.map((item) => Number(item)),
@@ -115,8 +131,10 @@ async function persist() {
     });
     await load();
     resetForm();
+    logAppInfo("usuarios", "Usuário salvo com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar usuário.";
+    logAppError("usuarios", "Falha ao salvar usuário.", { error: error.value, payload: form });
   } finally {
     saving.value = false;
   }
@@ -126,11 +144,13 @@ async function removeRow(id: number) {
   if (!canManage.value) return;
   if (!confirm("Deseja excluir este usuário?")) return;
   try {
+    await ensureSession();
     await deleteUser(session.sessionToken!, id);
     await load();
     if (Number(form.id) === id) resetForm();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir usuário.";
+    logAppError("usuarios", "Falha ao excluir usuário.", { id, error: error.value });
   }
 }
 
@@ -140,6 +160,7 @@ onMounted(async () => {
     await load();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao inicializar cadastro de usuários.";
+    logAppError("usuarios", "Falha na inicialização da página de usuários.", { error: error.value });
   }
 });
 </script>

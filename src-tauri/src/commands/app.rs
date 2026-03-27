@@ -1,11 +1,16 @@
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
-use serde_json::{json, Value};
+use super::auth::require_session_by_token;
+
+use serde_json::{json, Map, Value};
 use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{count_table, open_connection},
+    db::{
+        app_log_file_path, count_table, open_connection, row_to_json_map, write_app_log,
+        AppLogInput,
+    },
 };
 
 fn build_hash() -> String {
@@ -139,6 +144,10 @@ pub fn system_info(state: State<'_, SharedState>) -> Result<BTreeMap<String, Val
         "bootstrap_config".to_string(),
         Value::String(bootstrap_path.to_string_lossy().to_string()),
     );
+    payload.insert(
+        "log_file".to_string(),
+        Value::String(app_log_file_path(&data_dir).to_string_lossy().to_string()),
+    );
     Ok(payload)
 }
 
@@ -187,4 +196,116 @@ pub fn system_set_data_dir(
     SharedState::save_bootstrap_config(&cfg)?;
     state.reconfigure_data_dir(target_dir)?;
     system_info(state)
+}
+
+#[tauri::command]
+pub fn app_log_write(
+    state: State<'_, SharedState>,
+    payload: Map<String, Value>,
+) -> Result<bool, String> {
+    let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
+    let conn = open_connection(&db_path)?;
+    let level = payload
+        .get("level")
+        .and_then(Value::as_str)
+        .unwrap_or("info");
+    let category = payload
+        .get("category")
+        .and_then(Value::as_str)
+        .unwrap_or("app");
+    let message = payload
+        .get("message")
+        .and_then(Value::as_str)
+        .unwrap_or("evento sem mensagem");
+    let source = payload.get("source").and_then(Value::as_str);
+    let route = payload.get("route").and_then(Value::as_str);
+    let details = payload.get("details");
+    write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level,
+            category,
+            message,
+            source,
+            route,
+            details,
+        },
+    )?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn app_log_list(
+    state: State<'_, SharedState>,
+    session_token: String,
+    filters: Map<String, Value>,
+) -> Result<Vec<Map<String, Value>>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let _ = require_session_by_token(&conn, &session_token)?;
+    let level = filters.get("level").and_then(Value::as_str).unwrap_or("");
+    let category = filters
+        .get("category")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let search = filters.get("search").and_then(Value::as_str).unwrap_or("");
+    let limit = filters
+        .get("limit")
+        .and_then(Value::as_i64)
+        .unwrap_or(300)
+        .clamp(1, 5000);
+
+    let mut sql = String::from(
+        "SELECT id, level, category, message, source, route, details_json, created_at FROM app_logs WHERE 1=1",
+    );
+    let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
+    if !level.trim().is_empty() {
+        sql.push_str(" AND level = ?");
+        params_vec.push(rusqlite::types::Value::Text(level.trim().to_string()));
+    }
+    if !category.trim().is_empty() {
+        sql.push_str(" AND category = ?");
+        params_vec.push(rusqlite::types::Value::Text(category.trim().to_string()));
+    }
+    if !search.trim().is_empty() {
+        sql.push_str(" AND (message LIKE ? OR COALESCE(details_json,'') LIKE ? OR COALESCE(route,'') LIKE ?)");
+        let wild = format!("%{}%", search.trim());
+        params_vec.push(rusqlite::types::Value::Text(wild.clone()));
+        params_vec.push(rusqlite::types::Value::Text(wild.clone()));
+        params_vec.push(rusqlite::types::Value::Text(wild));
+    }
+    sql.push_str(" ORDER BY id DESC LIMIT ?");
+    params_vec.push(rusqlite::types::Value::Integer(limit));
+
+    let mut stmt = conn
+        .prepare(&sql)
+        .map_err(|err| format!("Falha ao preparar logs da aplicação: {err}"))?;
+    let rows = stmt
+        .query_map(
+            rusqlite::params_from_iter(params_vec.iter()),
+            row_to_json_map,
+        )
+        .map_err(|err| format!("Falha ao consultar logs da aplicação: {err}"))?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("Falha ao mapear logs da aplicação: {err}"))
+}
+
+#[tauri::command]
+pub fn app_log_clear(state: State<'_, SharedState>, session_token: String) -> Result<bool, String> {
+    let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
+    let conn = open_connection(&db_path)?;
+    let identity = require_session_by_token(&conn, &session_token)?;
+    if !identity.master_user {
+        return Err("Apenas usuário master pode limpar os logs da aplicação.".to_string());
+    }
+    conn.execute("DELETE FROM app_logs", [])
+        .map_err(|err| format!("Falha ao limpar logs da aplicação: {err}"))?;
+    let log_path = app_log_file_path(&data_dir);
+    if log_path.exists() {
+        fs::write(&log_path, "").map_err(|err| format!("Falha ao limpar arquivo de log: {err}"))?;
+    }
+    Ok(true)
 }

@@ -1,6 +1,10 @@
 use rusqlite::{params, types::ValueRef, Connection};
 use serde_json::{json, Map, Value};
-use std::path::Path;
+use std::{
+    fs::{self, OpenOptions},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 pub fn open_connection(db_path: &Path) -> Result<Connection, String> {
     let conn = Connection::open(db_path).map_err(|err| format!("Falha ao abrir banco: {err}"))?;
@@ -70,6 +74,70 @@ pub fn write_audit(
         params![entity_name, action_name, record_id, payload.to_string()],
     )
     .map_err(|err| format!("Falha ao gravar auditoria: {err}"))?;
+    Ok(())
+}
+
+pub fn app_log_file_path(data_dir: &Path) -> PathBuf {
+    data_dir.join("app.log")
+}
+
+pub struct AppLogInput<'a> {
+    pub level: &'a str,
+    pub category: &'a str,
+    pub message: &'a str,
+    pub source: Option<&'a str>,
+    pub route: Option<&'a str>,
+    pub details: Option<&'a Value>,
+}
+
+pub fn write_app_log(
+    conn: &Connection,
+    data_dir: &Path,
+    input: AppLogInput<'_>,
+) -> Result<(), String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let details_json = input.details.map(Value::to_string);
+    conn.execute(
+        "INSERT INTO app_logs (level, category, message, source, route, details_json, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![
+            input.level,
+            input.category,
+            input.message,
+            input.source,
+            input.route,
+            details_json,
+            now,
+        ],
+    )
+    .map_err(|err| format!("Falha ao gravar log da aplicação: {err}"))?;
+
+    fs::create_dir_all(data_dir)
+        .map_err(|err| format!("Falha ao preparar diretório de logs: {err}"))?;
+    let file_path = app_log_file_path(data_dir);
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&file_path)
+        .map_err(|err| format!("Falha ao abrir arquivo de log: {err}"))?;
+    let line = json!({
+        "created_at": now,
+        "level": input.level,
+        "category": input.category,
+        "message": input.message,
+        "source": input.source,
+        "route": input.route,
+        "details": input.details.cloned().unwrap_or(Value::Null),
+    })
+    .to_string();
+    file.write_all(line.as_bytes())
+        .and_then(|_| {
+            file.write_all(
+                b"
+",
+            )
+        })
+        .map_err(|err| format!("Falha ao escrever arquivo de log: {err}"))?;
     Ok(())
 }
 

@@ -19,6 +19,7 @@ mod commands {
     pub mod punches;
     pub mod rep;
     pub mod reports;
+    pub mod support;
     pub mod sync;
     pub mod treatments;
 }
@@ -41,6 +42,9 @@ pub fn run() {
             commands::app::app_meta,
             commands::app::system_info,
             commands::app::system_set_data_dir,
+            commands::app::app_log_write,
+            commands::app::app_log_list,
+            commands::app::app_log_clear,
             commands::auth::auth_login,
             commands::auth::auth_restore,
             commands::auth::auth_logout,
@@ -64,6 +68,10 @@ pub fn run() {
             commands::licensing::licensing_device_info,
             commands::licensing::licensing_check_runtime,
             commands::licensing::licensing_start_trial,
+            commands::support::support_guard_status,
+            commands::support::support_guard_provision,
+            commands::support::support_guard_enable_totp,
+            commands::support::support_guard_unlock,
             commands::employees::employee_list,
             commands::employees::employee_get,
             commands::employees::employee_save,

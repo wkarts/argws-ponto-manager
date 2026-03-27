@@ -275,28 +275,66 @@ export async function setSystemDataDir(dataDir: string): Promise<Record<string, 
   return invokeCommand<Record<string, unknown>>("system_set_data_dir", { data_dir: dataDir });
 }
 
-export async function getLicensingStatus(empresaId?: number | null): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_status", { empresa_id: empresaId ?? null });
+export async function listAppLogs(sessionToken: string, filters: Record<string, unknown> = {}): Promise<GenericRecord[]> {
+  return invokeCommand<GenericRecord[]>("app_log_list", { session_token: sessionToken, filters });
 }
 
-export async function loadLicensingSettings(): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_load_settings");
+export async function clearAppLogs(sessionToken: string): Promise<boolean> {
+  return invokeCommand<boolean>("app_log_clear", { session_token: sessionToken });
 }
 
-export async function saveLicensingSettings(payload: GenericRecord): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_save_settings", { payload });
+export async function getLicensingStatus(sessionToken: string, empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_status", { session_token: sessionToken, empresa_id: empresaId ?? null });
 }
 
-export async function getLicensingDeviceInfo(): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_device_info");
+export async function loadLicensingSettings(sessionToken: string, adminUnlockToken?: string | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_load_settings", {
+    session_token: sessionToken,
+    admin_unlock_token: adminUnlockToken ?? null,
+  });
 }
 
-export async function checkLicensingRuntime(empresaId?: number | null): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_check_runtime", { empresa_id: empresaId ?? null });
+export async function saveLicensingSettings(sessionToken: string, adminUnlockToken: string, payload: GenericRecord): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_save_settings", { session_token: sessionToken, admin_unlock_token: adminUnlockToken, payload });
 }
 
-export async function startTrialLicense(empresaId?: number | null): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("licensing_start_trial", { empresa_id: empresaId ?? null });
+export async function getLicensingDeviceInfo(sessionToken: string): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_device_info", { session_token: sessionToken });
+}
+
+export async function checkLicensingRuntime(sessionToken: string, empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_check_runtime", { session_token: sessionToken, empresa_id: empresaId ?? null });
+}
+
+export async function startTrialLicense(sessionToken: string, empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_start_trial", { session_token: sessionToken, empresa_id: empresaId ?? null });
+}
+
+export async function getSupportGuardStatus(sessionToken: string): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("support_guard_status", { session_token: sessionToken });
+}
+
+export async function provisionSupportGuard(sessionToken: string, forceRotate = false): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("support_guard_provision", { session_token: sessionToken, force_rotate: forceRotate });
+}
+
+export async function enableSupportGuardTotp(sessionToken: string, currentPassword: string, supportSecret: string, totpCode: string): Promise<boolean> {
+  return invokeCommand<boolean>("support_guard_enable_totp", {
+    session_token: sessionToken,
+    current_password: currentPassword,
+    support_secret: supportSecret,
+    totp_code: totpCode,
+  });
+}
+
+export async function unlockSupportGuard(sessionToken: string, currentPassword: string, supportSecret: string, totpCode?: string | null, scope = "global"): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("support_guard_unlock", {
+    session_token: sessionToken,
+    current_password: currentPassword,
+    support_secret: supportSecret,
+    totp_code: totpCode ?? null,
+    scope,
+  });
 }
 
 export async function exportRepEmpresaTxt(brand: string, empresaId: number): Promise<GenericRecord> {

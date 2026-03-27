@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
-    db::open_connection,
+    db::{open_connection, write_app_log, AppLogInput},
     models::{AuthUser, LoginResponse, SessionIdentity},
     security::{hash_password, verify_password},
 };
@@ -228,6 +228,7 @@ pub fn auth_login(
     senha: String,
 ) -> Result<LoginResponse, String> {
     let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     let normalized_login = login.trim().to_lowercase();
 
@@ -305,6 +306,18 @@ pub fn auth_login(
     .map_err(|err| format!("Falha ao atualizar último login: {err}"))?;
 
     let user = build_auth_user(&conn, row.0)?;
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level: "info",
+            category: "auth",
+            message: "Login efetuado com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": row.0, "login": row.2})),
+        },
+    );
 
     Ok(LoginResponse {
         success: true,
@@ -324,20 +337,45 @@ pub fn auth_restore(
     session_token: String,
 ) -> Result<LoginResponse, String> {
     let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     let identity = match require_session_by_token(&conn, &session_token) {
         Ok(identity) => identity,
         Err(_) => {
+            let _ = write_app_log(
+                &conn,
+                &data_dir,
+                AppLogInput {
+                    level: "warning",
+                    category: "session",
+                    message: "Falha ao restaurar sessão expirada ou inválida.",
+                    source: Some("backend"),
+                    route: None,
+                    details: None,
+                },
+            );
             return Ok(LoginResponse {
                 success: false,
                 message: "Sessão inválida ou expirada.".to_string(),
                 session_token: None,
                 user: None,
-            })
+            });
         }
     };
 
     let user = build_auth_user(&conn, identity.user_id)?;
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level: "info",
+            category: "session",
+            message: "Sessão restaurada com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        },
+    );
     Ok(LoginResponse {
         success: true,
         message: "Sessão restaurada com sucesso.".to_string(),
@@ -349,12 +387,25 @@ pub fn auth_restore(
 #[tauri::command]
 pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Result<bool, String> {
     let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     conn.execute(
         "DELETE FROM user_sessions WHERE session_token = ?1",
         [session_token],
     )
     .map_err(|err| format!("Falha ao encerrar sessão: {err}"))?;
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level: "info",
+            category: "session",
+            message: "Sessão encerrada.",
+            source: Some("backend"),
+            route: None,
+            details: None,
+        },
+    );
     Ok(true)
 }
 
@@ -366,6 +417,7 @@ pub fn auth_change_password(
     new_password: String,
 ) -> Result<bool, String> {
     let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
     let identity = require_session_by_token(&conn, &session_token)?;
 
@@ -391,6 +443,18 @@ pub fn auth_change_password(
         params![new_hash, Utc::now().to_rfc3339(), identity.user_id],
     )
     .map_err(|err| format!("Falha ao atualizar senha: {err}"))?;
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level: "info",
+            category: "auth",
+            message: "Senha alterada com sucesso.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&serde_json::json!({"usuario_id": identity.user_id})),
+        },
+    );
 
     Ok(true)
 }

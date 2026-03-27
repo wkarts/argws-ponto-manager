@@ -416,6 +416,42 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+
+
+        CREATE TABLE IF NOT EXISTS app_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level TEXT NOT NULL,
+            category TEXT NOT NULL,
+            message TEXT NOT NULL,
+            source TEXT,
+            route TEXT,
+            details_json TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_guard (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            support_secret_hash TEXT,
+            totp_secret_encrypted TEXT,
+            totp_enabled INTEGER NOT NULL DEFAULT 0,
+            recovery_codes_encrypted TEXT,
+            licensing_protected INTEGER NOT NULL DEFAULT 1,
+            white_label_protected INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            last_rotated_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS admin_unlock_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER NOT NULL,
+            scope TEXT NOT NULL,
+            unlock_token TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            last_used_at TEXT,
+            FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+        );
         CREATE TABLE IF NOT EXISTS local_licenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             empresa_id INTEGER NOT NULL,
@@ -567,6 +603,10 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_empresas ON usuarios_empresas(usuario_id, empresa_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_user_sessions_token ON user_sessions(session_token);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_local_licenses_empresa ON local_licenses(empresa_id);
+        CREATE INDEX IF NOT EXISTS idx_app_logs_created_at ON app_logs(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_app_logs_category ON app_logs(category);
+        CREATE INDEX IF NOT EXISTS idx_admin_unlock_sessions_usuario ON admin_unlock_sessions(usuario_id);
+        CREATE INDEX IF NOT EXISTS idx_admin_unlock_sessions_token ON admin_unlock_sessions(unlock_token);
         CREATE INDEX IF NOT EXISTS idx_local_licenses_cnpj ON local_licenses(cnpj);
         CREATE INDEX IF NOT EXISTS idx_app_settings_chave ON app_settings(chave);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_nome ON funcionarios(nome);

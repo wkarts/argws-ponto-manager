@@ -21,8 +21,10 @@ import ReportsCenterPage from "../pages/ReportsCenterPage.vue";
 import RepExportPage from "../pages/RepExportPage.vue";
 import PunchBatchPage from "../pages/PunchBatchPage.vue";
 import AboutPage from "../pages/AboutPage.vue";
+import AppLogsPage from "../pages/AppLogsPage.vue";
 import { entityConfigs } from "../config/entities";
 import { useSessionStore } from "../stores/session";
+import { logAppError, logAppInfo, logAppWarning } from "../services/logger";
 
 const permissionByEntity: Record<string, string> = {
   departamentos: "funcionarios:view",
@@ -69,7 +71,8 @@ const routes: RouteRecordRaw[] = [
       { path: "relatorios", component: ReportsCenterPage, meta: { permission: "relatorios:export" } },
       { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
       { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
-      { path: "sobre", component: AboutPage }
+      { path: "sobre", component: AboutPage },
+      { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } }
     ]
   }
 ];
@@ -82,10 +85,19 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const session = useSessionStore();
   if (!session.initialized) {
-    await session.restore();
+    try {
+      await session.restore();
+    } catch (error) {
+      logAppError("router", "Falha ao restaurar sessão durante navegação.", {
+        to: to.fullPath,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      session.clearAuthState();
+    }
   }
 
   if (to.path !== "/login" && !session.isAuthenticated) {
+    logAppWarning("router", "Navegação bloqueada por ausência de autenticação.", { to: to.fullPath });
     return "/login";
   }
   if (to.path === "/login" && session.isAuthenticated) {
@@ -94,10 +106,30 @@ router.beforeEach(async (to) => {
 
   const requiredPermission = to.meta?.permission as string | undefined;
   if (requiredPermission && !session.can(requiredPermission)) {
+    logAppWarning("router", "Navegação bloqueada por permissão insuficiente.", {
+      to: to.fullPath,
+      permission: requiredPermission,
+      user: session.user?.login,
+    });
     return "/";
   }
 
   return true;
+});
+
+router.afterEach((to) => {
+  const session = useSessionStore();
+  logAppInfo("navigation", "Rota carregada.", {
+    to: to.fullPath,
+    authenticated: session.isAuthenticated,
+    user: session.user?.login ?? null,
+  });
+});
+
+router.onError((error) => {
+  logAppError("router", "Erro interno de roteamento.", {
+    error: error instanceof Error ? error.message : String(error),
+  });
 });
 
 export default router;

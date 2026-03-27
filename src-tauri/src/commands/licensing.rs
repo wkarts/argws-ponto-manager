@@ -10,9 +10,11 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
+    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput},
     security::{decrypt_text, encrypt_text, integrity_hash, machine_key},
 };
+
+use super::{auth::require_session_by_token, support::require_admin_unlock};
 
 const LICENSE_SETTINGS_KEY: &str = "licensing_settings";
 
@@ -106,6 +108,23 @@ fn save_settings_to_db(
     )
     .map_err(|err| format!("Falha ao salvar configuração de licenciamento: {err}"))?;
     Ok(())
+}
+fn mask_protected_settings(settings: &Map<String, Value>) -> Map<String, Value> {
+    let mut masked = settings.clone();
+    for key in [
+        "service_url",
+        "app_instance",
+        "auto_register_validation_mode",
+        "auto_register_interface_mode",
+        "auto_register_device_identifier",
+        "auto_register_requested_licenses",
+    ] {
+        if masked.contains_key(key) {
+            masked.insert(key.to_string(), Value::String("[protegido]".to_string()));
+        }
+    }
+    masked.insert("protected".to_string(), Value::from(true));
+    masked
 }
 
 fn get_bool(map: &Map<String, Value>, key: &str, default: bool) -> bool {
@@ -234,19 +253,41 @@ fn attach_decrypted_payload(mut row: Map<String, Value>, cnpj: &str) -> Map<Stri
 #[tauri::command]
 pub fn licensing_load_settings(
     state: State<'_, SharedState>,
+    session_token: String,
+    admin_unlock_token: Option<String>,
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    load_settings_from_db(&conn)
+    let identity = require_session_by_token(&conn, &session_token)?;
+    let settings = load_settings_from_db(&conn)?;
+    if identity.master_user {
+        if let Some(token) = admin_unlock_token {
+            if require_admin_unlock(&conn, identity.user_id, &token, "licensing").is_ok() {
+                return Ok(settings);
+            }
+        }
+        return Ok(mask_protected_settings(&settings));
+    }
+    Ok(mask_protected_settings(&settings))
 }
 
 #[tauri::command]
 pub fn licensing_save_settings(
     state: State<'_, SharedState>,
+    session_token: String,
+    admin_unlock_token: String,
     payload: Map<String, Value>,
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
+    let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
+    let identity = require_session_by_token(&conn, &session_token)?;
+    if !identity.master_user {
+        return Err(
+            "Apenas usuário master pode alterar configurações de licenciamento.".to_string(),
+        );
+    }
+    require_admin_unlock(&conn, identity.user_id, &admin_unlock_token, "licensing")?;
     let mut settings = default_license_settings();
     for (k, v) in payload {
         settings.insert(k, v);
@@ -254,11 +295,29 @@ pub fn licensing_save_settings(
     save_settings_to_db(&conn, &settings)?;
     let value = Value::Object(settings.clone());
     write_audit(&conn, "licensing_settings", "update", None, &value)?;
+    let _ = write_app_log(
+        &conn,
+        &data_dir,
+        AppLogInput {
+            level: "warning",
+            category: "licensing",
+            message: "Configurações sensíveis de licenciamento atualizadas.",
+            source: Some("backend"),
+            route: None,
+            details: Some(&json!({"usuario_id": identity.user_id})),
+        },
+    );
     Ok(settings)
 }
 
 #[tauri::command]
-pub fn licensing_device_info() -> Result<Map<String, Value>, String> {
+pub fn licensing_device_info(
+    state: State<'_, SharedState>,
+    session_token: String,
+) -> Result<Map<String, Value>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let _ = require_session_by_token(&conn, &session_token)?;
     let info = collect_device_metadata();
     let value = serde_json::to_value(info)
         .map_err(|err| format!("Falha ao serializar informações do dispositivo: {err}"))?;
@@ -274,10 +333,12 @@ pub fn licensing_device_info() -> Result<Map<String, Value>, String> {
 #[tauri::command]
 pub async fn licensing_check_runtime(
     state: State<'_, SharedState>,
+    session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     let (empresa_id_resolved, documento, empresa_nome, empresa_email) =
         company_seed(&conn, empresa_id)?;
@@ -290,7 +351,10 @@ pub async fn licensing_check_runtime(
     );
     result.insert("cnpj".to_string(), Value::from(documento.clone()));
     result.insert("machine_key".to_string(), Value::from(machine_key()));
-    result.insert("settings".to_string(), Value::Object(settings.clone()));
+    result.insert(
+        "settings".to_string(),
+        Value::Object(mask_protected_settings(&settings)),
+    );
 
     if let Some(local) = trial_license_row(&conn, empresa_id_resolved)? {
         result.insert(
@@ -339,10 +403,12 @@ pub async fn licensing_check_runtime(
 #[tauri::command]
 pub fn licensing_status(
     state: State<'_, SharedState>,
+    session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     let (empresa_id_resolved, documento, empresa_nome, _) = company_seed(&conn, empresa_id)?;
 
@@ -351,7 +417,10 @@ pub fn licensing_status(
     result.insert("empresa_nome".to_string(), Value::from(empresa_nome));
     result.insert("cnpj".to_string(), Value::from(documento.clone()));
     result.insert("machine_key".to_string(), Value::from(machine_key()));
-    result.insert("settings".to_string(), Value::Object(settings));
+    result.insert(
+        "settings".to_string(),
+        Value::Object(mask_protected_settings(&settings)),
+    );
 
     if let Some(row) = trial_license_row(&conn, empresa_id_resolved)? {
         result.insert(
@@ -368,10 +437,12 @@ pub fn licensing_status(
 #[tauri::command]
 pub fn licensing_start_trial(
     state: State<'_, SharedState>,
+    session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+    let _identity = require_session_by_token(&conn, &session_token)?;
     let now = Utc::now();
     let (empresa_id_resolved, documento, empresa_nome, _) = company_seed(&conn, empresa_id)?;
     let cnpj = documento.trim().to_string();
