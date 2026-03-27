@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
-    db::{open_connection, row_to_json_map, AppLogInput, write_app_log, write_audit},
+    db::{open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput},
     security::{
         build_otpauth_url, decrypt_text, encrypt_text, generate_recovery_codes,
         generate_support_secret, generate_totp_secret, hash_password, machine_key, verify_password,
@@ -308,7 +308,9 @@ pub fn support_guard_unlock(
             message: "Acesso administrativo reforçado liberado.",
             source: Some("backend"),
             route: None,
-            details: Some(&json!({"usuario_id": user_id, "scope": scope_value, "expires_at": expires_at})),
+            details: Some(
+                &json!({"usuario_id": user_id, "scope": scope_value, "expires_at": expires_at}),
+            ),
         },
     );
 

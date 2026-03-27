@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
-    db::{open_connection, AppLogInput, write_app_log},
+    db::{open_connection, write_app_log, AppLogInput},
     models::{AuthUser, LoginResponse, SessionIdentity},
     security::{hash_password, verify_password},
 };

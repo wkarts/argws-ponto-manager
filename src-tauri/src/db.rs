@@ -131,8 +131,12 @@ pub fn write_app_log(
     })
     .to_string();
     file.write_all(line.as_bytes())
-        .and_then(|_| file.write_all(b"
-"))
+        .and_then(|_| {
+            file.write_all(
+                b"
+",
+            )
+        })
         .map_err(|err| format!("Falha ao escrever arquivo de log: {err}"))?;
     Ok(())
 }

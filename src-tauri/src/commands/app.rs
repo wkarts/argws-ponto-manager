@@ -8,8 +8,8 @@ use tauri::State;
 use crate::{
     app_state::SharedState,
     db::{
-        app_log_file_path, count_table, open_connection, row_to_json_map, AppLogInput,
-        write_app_log,
+        app_log_file_path, count_table, open_connection, row_to_json_map, write_app_log,
+        AppLogInput,
     },
 };
 

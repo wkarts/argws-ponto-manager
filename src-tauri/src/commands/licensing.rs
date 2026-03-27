@@ -10,10 +10,7 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{
-        enqueue_sync, open_connection, row_to_json_map, AppLogInput, write_app_log,
-        write_audit,
-    },
+    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput},
     security::{decrypt_text, encrypt_text, integrity_hash, machine_key},
 };
 
@@ -112,7 +109,6 @@ fn save_settings_to_db(
     .map_err(|err| format!("Falha ao salvar configuração de licenciamento: {err}"))?;
     Ok(())
 }
-
 fn mask_protected_settings(settings: &Map<String, Value>) -> Map<String, Value> {
     let mut masked = settings.clone();
     for key in [
