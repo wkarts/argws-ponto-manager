@@ -101,6 +101,11 @@ pub fn batidas_list(
 
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
+    if let Some(empresa_id) = filters.empresa_id {
+        sql.push_str(" AND f.empresa_id = ?");
+        params.push(rusqlite::types::Value::Integer(empresa_id));
+    }
+
     if let Some(funcionario_id) = filters.funcionario_id {
         sql.push_str(" AND b.funcionario_id = ?");
         params.push(rusqlite::types::Value::Integer(funcionario_id));

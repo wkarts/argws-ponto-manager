@@ -98,6 +98,9 @@ jobs:
           - platform: windows-latest
             args: ''
             rust_target: ''
+          - platform: windows-latest
+            args: --target i686-pc-windows-msvc
+            rust_target: i686-pc-windows-msvc
     runs-on: ${{ matrix.platform }}
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

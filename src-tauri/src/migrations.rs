@@ -409,6 +409,29 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS app_settings (
+            chave TEXT PRIMARY KEY,
+            valor TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS local_licenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            empresa_id INTEGER NOT NULL,
+            cnpj TEXT NOT NULL,
+            license_kind TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            issued_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            fingerprint TEXT,
+            payload_encrypted TEXT,
+            integrity_hash TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+        );
+
         CREATE TABLE IF NOT EXISTS configuracoes (
             nome TEXT PRIMARY KEY,
             valor TEXT,
@@ -543,6 +566,9 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_perfis ON usuarios_perfis(usuario_id, perfil_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_usuarios_empresas ON usuarios_empresas(usuario_id, empresa_id);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_user_sessions_token ON user_sessions(session_token);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_local_licenses_empresa ON local_licenses(empresa_id);
+        CREATE INDEX IF NOT EXISTS idx_local_licenses_cnpj ON local_licenses(cnpj);
+        CREATE INDEX IF NOT EXISTS idx_app_settings_chave ON app_settings(chave);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_nome ON funcionarios(nome);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_documento ON funcionarios(documento);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_pis ON funcionarios(pis);

@@ -15,7 +15,9 @@ mod commands {
     pub mod employees;
     pub mod entities;
     pub mod jornadas;
+    pub mod licensing;
     pub mod punches;
+    pub mod rep;
     pub mod reports;
     pub mod sync;
     pub mod treatments;
@@ -36,6 +38,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::app::app_bootstrap,
+            commands::app::app_meta,
+            commands::app::system_info,
+            commands::app::system_set_data_dir,
             commands::auth::auth_login,
             commands::auth::auth_restore,
             commands::auth::auth_logout,
@@ -53,6 +58,12 @@ pub fn run() {
             commands::companies::company_get,
             commands::companies::company_save,
             commands::companies::company_delete,
+            commands::licensing::licensing_status,
+            commands::licensing::licensing_load_settings,
+            commands::licensing::licensing_save_settings,
+            commands::licensing::licensing_device_info,
+            commands::licensing::licensing_check_runtime,
+            commands::licensing::licensing_start_trial,
             commands::employees::employee_list,
             commands::employees::employee_get,
             commands::employees::employee_save,
@@ -71,6 +82,8 @@ pub fn run() {
             commands::punches::batida_delete,
             commands::reports::apurar_periodo,
             commands::reports::exportar_batidas_csv,
+            commands::rep::rep_export_empresa_txt,
+            commands::rep::rep_export_funcionarios_txt,
             commands::afd::afd_import_list,
             commands::afd::afd_import_file,
             commands::banco_horas::banco_horas_list,

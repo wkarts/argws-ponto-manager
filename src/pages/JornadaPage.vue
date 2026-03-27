@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref, watch } from "vue";
 import {
   comboList,
   deleteJornada,
@@ -10,7 +10,9 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { booleanLabel, formatMinutes } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
 const companyOptions = ref<ComboOption[]>([]);
 const loading = ref(false);
@@ -71,6 +73,8 @@ function resetForm() {
 async function loadOptions() {
   companyOptions.value = await comboList("empresas");
 }
+
+const visibleRows = computed(() => rows.value.filter((row) => !session.activeCompanyId || !row.empresa_id || Number(row.empresa_id) === session.activeCompanyId));
 
 async function load() {
   loading.value = true;
@@ -139,7 +143,10 @@ async function removeRow(id: number) {
   }
 }
 
+watch(() => session.activeCompanyId, (value) => { if (!form.empresa_id && value) form.empresa_id = String(value); });
+
 onMounted(async () => {
+  if (session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
   await loadOptions();
   await load();
 });

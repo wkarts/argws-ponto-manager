@@ -261,3 +261,48 @@ export async function deleteUser(sessionToken: string, id: number): Promise<bool
 export async function listPermissionCatalog(sessionToken: string): Promise<GenericRecord[]> {
   return invokeCommand<GenericRecord[]>("permission_catalog", { session_token: sessionToken });
 }
+
+
+export async function getAppMeta(): Promise<Record<string, unknown>> {
+  return invokeCommand<Record<string, unknown>>("app_meta");
+}
+
+export async function getSystemInfo(): Promise<Record<string, unknown>> {
+  return invokeCommand<Record<string, unknown>>("system_info");
+}
+
+export async function setSystemDataDir(dataDir: string): Promise<Record<string, unknown>> {
+  return invokeCommand<Record<string, unknown>>("system_set_data_dir", { data_dir: dataDir });
+}
+
+export async function getLicensingStatus(empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_status", { empresa_id: empresaId ?? null });
+}
+
+export async function loadLicensingSettings(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_load_settings");
+}
+
+export async function saveLicensingSettings(payload: GenericRecord): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_save_settings", { payload });
+}
+
+export async function getLicensingDeviceInfo(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_device_info");
+}
+
+export async function checkLicensingRuntime(empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_check_runtime", { empresa_id: empresaId ?? null });
+}
+
+export async function startTrialLicense(empresaId?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("licensing_start_trial", { empresa_id: empresaId ?? null });
+}
+
+export async function exportRepEmpresaTxt(brand: string, empresaId: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("rep_export_empresa_txt", { brand, empresa_id: empresaId });
+}
+
+export async function exportRepFuncionariosTxt(brand: string, empresaId: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("rep_export_funcionarios_txt", { brand, empresa_id: empresaId });
+}

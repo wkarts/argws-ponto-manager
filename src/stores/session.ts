@@ -25,6 +25,7 @@ interface LoginResponse {
 }
 
 const STORAGE_KEY = "pontos-desktop-session";
+const ACTIVE_COMPANY_KEY = "pontos-desktop-active-company";
 
 function readStorage(): string | null {
   if (typeof window === "undefined") return null;
@@ -40,10 +41,28 @@ function writeStorage(value: string | null) {
   window.localStorage.setItem(STORAGE_KEY, value);
 }
 
+function readActiveCompany(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(ACTIVE_COMPANY_KEY);
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function writeActiveCompany(value: number | null) {
+  if (typeof window === "undefined") return;
+  if (value == null) {
+    window.localStorage.removeItem(ACTIVE_COMPANY_KEY);
+    return;
+  }
+  window.localStorage.setItem(ACTIVE_COMPANY_KEY, String(value));
+}
+
 export const useSessionStore = defineStore("session", {
   state: () => ({
     user: null as AuthUser | null,
     sessionToken: readStorage() as string | null,
+    activeCompanyId: readActiveCompany() as number | null,
     loading: false,
     restoring: false,
     initialized: false
@@ -51,13 +70,55 @@ export const useSessionStore = defineStore("session", {
   getters: {
     isAuthenticated: (state) => Boolean(state.user && state.sessionToken),
     isMaster: (state) => Boolean(state.user?.master_user),
-    permissionKeys: (state) => state.user?.permission_keys || []
+    permissionKeys: (state) => state.user?.permission_keys || [],
+    activeCompanyName(state): string {
+      const user = state.user;
+      if (!user || state.activeCompanyId == null) return "Todas as empresas";
+      const index = user.company_ids.findIndex((id) => id === state.activeCompanyId);
+      return index >= 0 ? user.company_names[index] : "Empresa ativa";
+    }
   },
   actions: {
     can(permission: string) {
       if (!permission) return true;
       if (this.user?.master_user) return true;
       return this.permissionKeys.includes(permission);
+    },
+    ensureActiveCompany() {
+      if (!this.user) {
+        this.activeCompanyId = null;
+        writeActiveCompany(null);
+        return;
+      }
+      const available = this.user.company_ids || [];
+      if (!available.length) {
+        this.activeCompanyId = null;
+        writeActiveCompany(null);
+        return;
+      }
+      if (this.activeCompanyId && available.includes(this.activeCompanyId)) {
+        writeActiveCompany(this.activeCompanyId);
+        return;
+      }
+      this.activeCompanyId = available[0];
+      writeActiveCompany(this.activeCompanyId);
+    },
+    setActiveCompany(companyId: number | null) {
+      if (!this.user) {
+        this.activeCompanyId = null;
+        writeActiveCompany(null);
+        return;
+      }
+      if (companyId == null) {
+        this.activeCompanyId = null;
+        writeActiveCompany(null);
+        return;
+      }
+      if (!this.user.master_user && !this.user.company_ids.includes(companyId)) {
+        return;
+      }
+      this.activeCompanyId = companyId;
+      writeActiveCompany(companyId);
     },
     async login(login: string, senha: string) {
       this.loading = true;
@@ -69,6 +130,7 @@ export const useSessionStore = defineStore("session", {
         this.user = response.user;
         this.sessionToken = response.session_token;
         writeStorage(response.session_token);
+        this.ensureActiveCompany();
         this.initialized = true;
         return response;
       } finally {
@@ -90,11 +152,13 @@ export const useSessionStore = defineStore("session", {
           this.user = null;
           this.sessionToken = null;
           writeStorage(null);
+          writeActiveCompany(null);
           return;
         }
         this.user = response.user;
         this.sessionToken = response.session_token;
         writeStorage(response.session_token);
+        this.ensureActiveCompany();
       } finally {
         this.initialized = true;
         this.restoring = false;
@@ -104,8 +168,10 @@ export const useSessionStore = defineStore("session", {
       const currentToken = this.sessionToken;
       this.user = null;
       this.sessionToken = null;
+      this.activeCompanyId = null;
       this.initialized = true;
       writeStorage(null);
+      writeActiveCompany(null);
       if (currentToken) {
         try {
           await invokeCommand<boolean>("auth_logout", { session_token: currentToken });

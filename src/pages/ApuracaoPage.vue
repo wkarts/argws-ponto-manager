@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
-import { apurarPeriodo, comboList, type ApuracaoResumo, type ComboOption } from "../services/crud";
+import { onMounted, reactive, ref, watch } from "vue";
+import { apurarPeriodo, listEmployees, type ApuracaoResumo, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const funcionarioOptions = ref<ComboOption[]>([]);
 const result = ref<ApuracaoResumo | null>(null);
 const error = ref("");
@@ -15,7 +17,9 @@ const filters = reactive({
 });
 
 async function loadCombos() {
-  funcionarioOptions.value = await comboList("funcionarios");
+  const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+  funcionarioOptions.value = rows.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
+  if (!filters.funcionarioId && funcionarioOptions.value.length) filters.funcionarioId = String(funcionarioOptions.value[0].id);
 }
 
 async function processar() {
@@ -23,6 +27,7 @@ async function processar() {
   loading.value = true;
   try {
     result.value = await apurarPeriodo({
+      empresaId: session.activeCompanyId ?? null,
       funcionarioId: filters.funcionarioId || null,
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
@@ -33,6 +38,8 @@ async function processar() {
     loading.value = false;
   }
 }
+
+watch(() => session.activeCompanyId, loadCombos);
 
 onMounted(async () => {
   await loadCombos();

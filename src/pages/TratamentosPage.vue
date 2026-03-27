@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
-import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
+import { onMounted, reactive, ref, watch } from "vue";
+import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listEmployees, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
 import { RouterLink } from "vue-router";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const funcionarioOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
 const rows = ref<Record<string, unknown>[]>([]);
@@ -51,8 +53,11 @@ function resetForm() {
 }
 
 async function loadCombos() {
-  funcionarioOptions.value = await comboList("funcionarios");
+  const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+  funcionarioOptions.value = rows.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
   justificativaOptions.value = await comboList("justificativas");
+  if (!filters.funcionarioId && funcionarioOptions.value.length) filters.funcionarioId = String(funcionarioOptions.value[0].id);
+  if (!form.funcionario_id && funcionarioOptions.value.length) form.funcionario_id = funcionarioOptions.value[0].id;
 }
 
 async function load() {
@@ -108,6 +113,8 @@ function onFileSelected(event: Event) {
   };
   reader.readAsDataURL(file);
 }
+
+watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
 
 onMounted(async () => {
   await loadCombos();
