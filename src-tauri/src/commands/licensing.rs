@@ -258,7 +258,7 @@ pub fn licensing_load_settings(
 ) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let _identity = require_session_by_token(&conn, &session_token)?;
+    let identity = require_session_by_token(&conn, &session_token)?;
     let settings = load_settings_from_db(&conn)?;
     if identity.master_user {
         if let Some(token) = admin_unlock_token {
@@ -281,7 +281,7 @@ pub fn licensing_save_settings(
     let db_path = state.db_path()?;
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
-    let _identity = require_session_by_token(&conn, &session_token)?;
+    let identity = require_session_by_token(&conn, &session_token)?;
     if !identity.master_user {
         return Err(
             "Apenas usuário master pode alterar configurações de licenciamento.".to_string(),
@@ -344,7 +344,6 @@ pub async fn licensing_check_runtime(
         company_seed(&conn, empresa_id)?;
 
     let mut result = Map::new();
-    let _ = identity;
     result.insert("empresa_id".to_string(), Value::from(empresa_id_resolved));
     result.insert(
         "empresa_nome".to_string(),
@@ -392,7 +391,6 @@ pub async fn licensing_check_runtime(
         config.base_url = service_url;
     }
     let service = GenericLicenseService::new(config);
-    let _ = identity;
     let decision: LicenseDecision = service.check(input).await.map_err(|err| err.to_string())?;
     let decision_value = serde_json::to_value(&decision)
         .map_err(|err| format!("Falha ao serializar decisão de licença: {err}"))?;
