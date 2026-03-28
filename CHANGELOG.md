@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.5...v1.2.0) (2026-03-28)
+
+
+### Bug Fixes
+
+* **rustfmt:** ajusta formatacao da migration de bootstrap ([fdf1ce5](https://github.com/wkarts/argws-ponto-manager/commit/fdf1ce5a45e221ff833f874b762354498df6a9f6))
+
+
+### Features
+
+* **cartao-ponto:** centraliza operacoes e bloqueia reseed em base ativa ([9c821df](https://github.com/wkarts/argws-ponto-manager/commit/9c821dfd6536c53e10788ba950a6397f303e5e57))
+
 ## [1.1.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.4...v1.1.5) (2026-03-28)
 
 
