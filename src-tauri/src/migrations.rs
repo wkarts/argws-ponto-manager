@@ -759,9 +759,9 @@ fn has_operational_data(conn: &rusqlite::Connection) -> Result<bool, String> {
 
     for table in business_tables {
         let sql = format!("SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)");
-        let exists: i64 = conn
-            .query_row(&sql, [], |row| row.get(0))
-            .map_err(|err| format!("Falha ao verificar dados operacionais na tabela {table}: {err}"))?;
+        let exists: i64 = conn.query_row(&sql, [], |row| row.get(0)).map_err(|err| {
+            format!("Falha ao verificar dados operacionais na tabela {table}: {err}")
+        })?;
         if exists == 1 {
             return Ok(true);
         }
