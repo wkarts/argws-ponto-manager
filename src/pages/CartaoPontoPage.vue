@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { comboList, deleteBatida, deleteOcorrencia, listBatidas, listCompanies, listEmployees, listOcorrencias, saveBatida, saveOcorrencia, type ComboOption, type GenericRecord } from "../services/crud";
+import {
+  apurarPeriodo,
+  comboList,
+  deleteBatida,
+  deleteOcorrencia,
+  listBatidas,
+  listCompanies,
+  listEmployees,
+  listOcorrencias,
+  saveBatida,
+  saveOcorrencia,
+  type ApuracaoDia,
+  type ApuracaoResumo,
+  type ComboOption,
+  type GenericRecord
+} from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
 import { useSessionStore } from "../stores/session";
 
@@ -15,6 +30,7 @@ const employeeOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
+const apuracaoResumo = ref<ApuracaoResumo | null>(null);
 const reportHtml = ref("");
 const empresaResponsavel = ref("Responsável / RH");
 
@@ -114,7 +130,7 @@ async function carregarCartao() {
   error.value = "";
   message.value = "";
   try {
-    const [rowsBatida, rowsOcorrencia] = await Promise.all([
+    const [rowsBatida, rowsOcorrencia, apuracao] = await Promise.all([
       listBatidas({
         empresaId: session.activeCompanyId ?? null,
         funcionarioId: funcionarioIdNumero.value,
@@ -127,13 +143,21 @@ async function carregarCartao() {
         dataInicial: filtros.dataInicial || null,
         dataFinal: filtros.dataFinal || null,
       }),
+      apurarPeriodo({
+        empresaId: session.activeCompanyId ?? null,
+        funcionarioId: funcionarioIdNumero.value,
+        dataInicial: filtros.dataInicial || null,
+        dataFinal: filtros.dataFinal || null,
+      }),
     ]);
     batidas.value = rowsBatida;
     ocorrencias.value = rowsOcorrencia;
+    apuracaoResumo.value = apuracao;
     reportHtml.value = buildCartaoHtml();
   } catch (err) {
     batidas.value = [];
     ocorrencias.value = [];
+    apuracaoResumo.value = null;
     error.value = err instanceof Error ? err.message : "Falha ao carregar o cartão de ponto.";
     logAppError("cartao_ponto", "Falha ao carregar visão operacional do cartão.", {
       error: error.value,
@@ -152,7 +176,7 @@ function parseTimeToMinutes(value: string): number | null {
 }
 
 function minutesToHHMM(value: number): string {
-  const safe = Math.max(0, value);
+  const safe = Math.max(0, Number(value || 0));
   const hh = Math.floor(safe / 60).toString().padStart(2, "0");
   const mm = Math.floor(safe % 60).toString().padStart(2, "0");
   return `${hh}:${mm}`;
@@ -218,16 +242,21 @@ function splitNightMinutes(start: number, end: number): { day: number; night: nu
   return { day, night };
 }
 
+function calcIntraFromBatidas(batidasDia: string[]): number {
+  if (batidasDia.length < 3) return 0;
+  const outInterval = parseTimeToMinutes(batidasDia[1]);
+  const inInterval = parseTimeToMinutes(batidasDia[2]);
+  if (outInterval == null || inInterval == null || inInterval <= outInterval) return 0;
+  return inInterval - outInterval;
+}
+
 function buildDailyRows(initial: Date, final: Date): {
   rows: DailyReportRow[];
   totals: Record<string, number>;
 } {
-  const byDate = new Map<string, GenericRecord[]>();
-  for (const row of batidas.value) {
-    const date = String(row.data_referencia || "");
-    if (!date) continue;
-    if (!byDate.has(date)) byDate.set(date, []);
-    byDate.get(date)!.push(row);
+  const apuracaoByDate = new Map<string, ApuracaoDia>();
+  for (const row of apuracaoResumo.value?.rows || []) {
+    apuracaoByDate.set(row.data, row);
   }
 
   const rows: DailyReportRow[] = [];
@@ -239,42 +268,33 @@ function buildDailyRows(initial: Date, final: Date): {
     noturno: 0,
     atraso: 0,
   };
-  const targetDaily = 8 * 60;
-
   for (let cursor = new Date(initial); cursor <= final; cursor.setDate(cursor.getDate() + 1)) {
     const day = formatDate(cursor);
-    const dayRows = (byDate.get(day) || []).slice().sort((a, b) => String(a.hora || "").localeCompare(String(b.hora || "")));
-    const punches = dayRows.map((item) => String(item.hora || "")).filter(Boolean);
-    const occ = ocorrencias.value.filter((item) => String(item.data_referencia || "") === day);
-    const occLabel = occ.map((item) => String(item.tipo || "")).join(" | ") || (punches.length ? "Verificada" : "Falta");
-    const isWeekend = cursor.getDay() === 0 || cursor.getDay() === 6;
-    const previsto = isWeekend ? "Folga" : "08:00 12:00 | 13:30 17:30";
+    const apuracaoDia = apuracaoByDate.get(day);
+    const punches = apuracaoDia?.batidas || [];
+    const occLabel = apuracaoDia?.ocorrencias?.join(" | ") || (punches.length ? "Verificada" : "Falta");
+    const esperado = Number(apuracaoDia?.horario_esperado_minutos || 0);
+    const trabalhado = Number(apuracaoDia?.trabalhado_minutos || 0);
+    const extra = Math.max(0, Number(apuracaoDia?.extra_minutos || 0));
+    const atraso = Math.max(0, Number(apuracaoDia?.atraso_minutos || 0));
+    const saldo = Number(apuracaoDia?.saldo_minutos || 0);
+    const falta = apuracaoDia?.abonado ? 0 : Math.max(0, -saldo);
+    const previsto = apuracaoDia ? `${apuracaoDia.jornada_nome} (${minutesToHHMM(esperado)})` : "Sem jornada";
     const realizado = punches.length ? punches.join(" | ") : "Folga";
     const cols = [...punches, "", "", "", "", "", ""].slice(0, 6);
 
-    let worked = 0;
-    let intra = 0;
+    const intra = calcIntraFromBatidas(punches);
     let diurno = 0;
-    let noturno = 0;
-    for (let i = 0; i < punches.length; i += 2) {
+    for (let i = 0; i + 1 < punches.length; i += 2) {
       const start = parseTimeToMinutes(punches[i]);
       const end = parseTimeToMinutes(punches[i + 1] || "");
       if (start != null && end != null && end > start) {
-        worked += end - start;
         const split = splitNightMinutes(start, end);
         diurno += split.day;
-        noturno += split.night;
-      }
-      if (i === 1 && start != null && end != null && end > start) {
-        intra = end - start;
       }
     }
-
-    const hasDayAbono = occ.some((item) => Number(item.abonar_dia) === 1);
-    const normal = Math.min(targetDaily, worked);
-    const falta = hasDayAbono || isWeekend ? 0 : Math.max(0, targetDaily - worked);
-    const extra = isWeekend ? worked : Math.max(0, worked - targetDaily);
-    const atraso = hasDayAbono || isWeekend ? 0 : Math.max(0, 8 * 60 - (parseTimeToMinutes(punches[0] || "08:00") ?? 8 * 60));
+    const noturno = Math.max(0, trabalhado - diurno);
+    const normal = Math.min(esperado, trabalhado);
 
     totals.normal += normal;
     totals.falta += falta;
@@ -298,8 +318,8 @@ function buildDailyRows(initial: Date, final: Date): {
       intraJornada: minutesToHHMM(intra),
       hDiurnas: minutesToHHMM(diurno),
       hNoturnas: minutesToHHMM(noturno),
-      hTrabalhadas: minutesToHHMM(worked),
-      hTotais: minutesToHHMM(worked),
+      hTrabalhadas: minutesToHHMM(trabalhado),
+      hTotais: minutesToHHMM(trabalhado),
       heDiurnas: minutesToHHMM(Math.max(0, extra - noturno)),
       heNoturnas: minutesToHHMM(Math.min(extra, noturno)),
       heTotal: minutesToHHMM(extra),
