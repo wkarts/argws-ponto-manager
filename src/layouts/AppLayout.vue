@@ -54,6 +54,7 @@ const cadastros = computed(() => [
 ].filter(Boolean) as { title: string; route: string }[]);
 
 const operacao = computed(() => [
+  session.can("batidas:view") ? { title: "Batidas", route: "/batidas" } : null,
   session.can("batidas:view") ? { title: "Cartão de ponto", route: "/cartao-ponto" } : null,
   session.can("tratamentos:view") ? { title: "Tratamento de ponto", route: "/tratamentos" } : null,
   session.can("afd:import") ? { title: "Importação AFD", route: "/afd" } : null,

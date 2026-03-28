@@ -12,6 +12,7 @@ import FechamentoMensalPage from "../pages/FechamentoMensalPage.vue";
 import UsuarioPage from "../pages/UsuarioPage.vue";
 import PerfilPage from "../pages/PerfilPage.vue";
 import LoginPage from "../pages/LoginPage.vue";
+import PunchesPage from "../pages/PunchesPage.vue";
 import ApuracaoPage from "../pages/ApuracaoPage.vue";
 import SyncQueuePage from "../pages/SyncQueuePage.vue";
 import SystemPage from "../pages/SystemPage.vue";
@@ -63,7 +64,7 @@ const routes: RouteRecordRaw[] = [
       { path: "tratamentos", component: TratamentosPage, meta: { permission: "tratamentos:view" } },
       { path: "fechamentos", component: FechamentoMensalPage, meta: { permission: "fechamentos:view" } },
       ...genericEntityRoutes,
-      { path: "batidas", redirect: "/cartao-ponto" },
+      { path: "batidas", component: PunchesPage, meta: { permission: "batidas:view" } },
       { path: "cartao-ponto", component: CartaoPontoPage, meta: { permission: "batidas:view" } },
       { path: "apuracao", component: ApuracaoPage, meta: { permission: "apuracao:view" } },
       { path: "sync-queue", component: SyncQueuePage, meta: { permission: "sync:view" } },
