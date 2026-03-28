@@ -34,6 +34,7 @@ const groupState = reactive({
   cadastros: savedMenuState?.cadastros ?? false,
   operacao: savedMenuState?.operacao ?? false,
   relatorios: savedMenuState?.relatorios ?? false,
+  documentacao: savedMenuState?.documentacao ?? false,
   sistema: savedMenuState?.sistema ?? false,
 });
 
@@ -55,6 +56,7 @@ const cadastros = computed(() => [
 
 const operacao = computed(() => [
   session.can("batidas:view") ? { title: "Batidas", route: "/batidas" } : null,
+  session.can("batidas:view") ? { title: "Cartão de ponto", route: "/cartao-ponto" } : null,
   session.can("tratamentos:view") ? { title: "Tratamento de ponto", route: "/tratamentos" } : null,
   session.can("afd:import") ? { title: "Importação AFD", route: "/afd" } : null,
   session.can("apuracao:view") ? { title: "Apuração", route: "/apuracao" } : null,
@@ -66,7 +68,12 @@ const operacao = computed(() => [
 
 const relatorios = computed(() => [
   { title: "Central de relatórios", route: "/relatorios" },
+  { title: "Relatórios gerados", route: "/relatorios-gerados" },
   { title: "Exportação REP", route: "/rep" },
+]);
+
+const documentacao = computed(() => [
+  { title: "Guia do usuário", route: "/documentacao/guia" },
 ]);
 
 const sistema = computed(() => [
@@ -78,7 +85,7 @@ const sistema = computed(() => [
 
 const pageTitle = computed(() => {
   const path = route.path;
-  const all = [...cadastros.value, ...operacao.value, ...relatorios.value, ...sistema.value, { title: 'Dashboard', route: '/' }];
+  const all = [...cadastros.value, ...operacao.value, ...relatorios.value, ...documentacao.value, ...sistema.value, { title: 'Dashboard', route: '/' }];
   return all.find((item) => item.route === path)?.title || "Ponto Manager";
 });
 
@@ -171,6 +178,14 @@ onBeforeUnmount(() => {
             <RouterLink v-for="item in relatorios" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>
+
+        <div class="menu-group">
+          <button class="menu-group-button" @click="toggleGroup('documentacao')">Documentação</button>
+          <div v-show="groupState.documentacao" class="menu-links submenu-links">
+            <RouterLink v-for="item in documentacao" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
+          </div>
+        </div>
+
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('sistema')">Sistema</button>
