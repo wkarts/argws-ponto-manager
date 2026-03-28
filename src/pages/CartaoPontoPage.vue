@@ -22,7 +22,7 @@ const filtros = reactive({
   funcionarioId: "",
   dataInicial: new Date().toISOString().slice(0, 10),
   dataFinal: new Date().toISOString().slice(0, 10),
-  modeloRelatorio: "folha_legado",
+  modeloRelatorio: "cartao_ponto",
 });
 
 const batidaForm = reactive({
@@ -325,7 +325,7 @@ function buildCartaoHtml(): string {
 
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   const tableByModel: Record<string, string> = {
-    folha_legado: `
+    cartao_ponto: `
       <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.ent1}</td><td>${r.sai1}</td><td>${r.ent2}</td><td>${r.sai2}</td><td>${r.ent3}</td><td>${r.sai3}</td><td>${r.normal}</td><td>${r.falta}</td><td>${r.extra}</td><td>${r.ocorrencias}</td></tr>`).join("")}
@@ -656,7 +656,7 @@ onMounted(async () => {
         <div class="field">
           <label>Modelo do relatório</label>
           <select v-model="filtros.modeloRelatorio">
-            <option value="folha_legado">0) Folha padrão (já existente)</option>
+            <option value="cartao_ponto">0) Cartão de ponto (padrão)</option>
             <option value="folha_resumida">1) Folha resumida</option>
             <option value="folha_interjornada">2) Folha com inter/intra jornada</option>
             <option value="folha_com_he">3) Folha com HE e atrasos</option>
