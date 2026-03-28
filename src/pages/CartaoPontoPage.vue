@@ -15,6 +15,7 @@ const employeeOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
+const reportHtml = ref("");
 
 const filtros = reactive({
   funcionarioId: "",
@@ -53,6 +54,7 @@ const funcionarioIdNumero = computed<number | null>(() => {
   const parsed = Number(filtros.funcionarioId);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 });
+const funcionarioNomeSelecionado = computed(() => employeeOptions.value.find((item) => String(item.id) === filtros.funcionarioId)?.label || "Todos");
 
 function resetBatida() {
   batidaForm.id = undefined;
@@ -123,6 +125,7 @@ async function carregarCartao() {
     ]);
     batidas.value = rowsBatida;
     ocorrencias.value = rowsOcorrencia;
+    reportHtml.value = buildCartaoHtml();
   } catch (err) {
     batidas.value = [];
     ocorrencias.value = [];
@@ -134,6 +137,181 @@ async function carregarCartao() {
   } finally {
     loading.value = false;
   }
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  if (!value || !value.includes(":")) return null;
+  const [hh, mm] = value.split(":").map((item) => Number(item));
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return hh * 60 + mm;
+}
+
+function minutesToHHMM(value: number): string {
+  const safe = Math.max(0, value);
+  const hh = Math.floor(safe / 60).toString().padStart(2, "0");
+  const mm = Math.floor(safe % 60).toString().padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function formatDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function dayLabel(value: Date): string {
+  const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+  return map[value.getDay()];
+}
+
+function buildCartaoHtml(): string {
+  if (!filtros.dataInicial || !filtros.dataFinal) return "";
+  const byDate = new Map<string, GenericRecord[]>();
+  for (const row of batidas.value) {
+    const date = String(row.data_referencia || "");
+    if (!date) continue;
+    if (!byDate.has(date)) byDate.set(date, []);
+    byDate.get(date)!.push(row);
+  }
+
+  const initial = new Date(`${filtros.dataInicial}T00:00:00`);
+  const final = new Date(`${filtros.dataFinal}T00:00:00`);
+  if (Number.isNaN(initial.getTime()) || Number.isNaN(final.getTime()) || initial > final) return "";
+
+  const targetDaily = 8 * 60;
+  let totalNormal = 0;
+  let totalFalta = 0;
+  let totalExtra = 0;
+
+  const rows: string[] = [];
+  for (let cursor = new Date(initial); cursor <= final; cursor.setDate(cursor.getDate() + 1)) {
+    const day = formatDate(cursor);
+    const dayRows = (byDate.get(day) || []).slice().sort((a, b) => String(a.hora || "").localeCompare(String(b.hora || "")));
+    const batidasHora = dayRows.map((item) => String(item.hora || "")).filter(Boolean);
+    const dailyOcc = ocorrencias.value.filter((item) => String(item.data_referencia || "") === day);
+    const isWeekend = cursor.getDay() === 0 || cursor.getDay() === 6;
+
+    let worked = 0;
+    for (let i = 0; i < batidasHora.length; i += 2) {
+      const start = parseTimeToMinutes(batidasHora[i]);
+      const end = parseTimeToMinutes(batidasHora[i + 1] || "");
+      if (start != null && end != null && end > start) worked += end - start;
+    }
+
+    const hasDayAbono = dailyOcc.some((item) => Number(item.abonar_dia) === 1);
+    const normal = Math.min(targetDaily, worked);
+    const falta = hasDayAbono || isWeekend ? 0 : Math.max(0, targetDaily - worked);
+    const extra = isWeekend ? worked : Math.max(0, worked - targetDaily);
+    totalNormal += normal;
+    totalFalta += falta;
+    totalExtra += extra;
+
+    const col = [...batidasHora, "", "", "", "", "", ""].slice(0, 6);
+    rows.push(`
+      <tr>
+        <td>${day.split("-").reverse().join("/")} - ${dayLabel(cursor)}</td>
+        <td>${col[0] || "Folga"}</td>
+        <td>${col[1] || "Folga"}</td>
+        <td>${col[2] || "Folga"}</td>
+        <td>${col[3] || "Folga"}</td>
+        <td>${col[4] || "Folga"}</td>
+        <td>${col[5] || "Folga"}</td>
+        <td>${minutesToHHMM(normal)}</td>
+        <td>${minutesToHHMM(falta)}</td>
+        <td>${minutesToHHMM(extra)}</td>
+        <td>${dailyOcc.map((item) => String(item.tipo || "")).join(" | ") || "-"}</td>
+      </tr>
+    `);
+  }
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
+    <style>
+      body{font-family:Consolas,monospace;margin:14px;color:#111}
+      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:2px solid #333;padding-bottom:6px}
+      h1{margin:0;font-size:24px}
+      .meta{font-size:12px}
+      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
+      th,td{border:1px solid #808080;padding:4px 6px;text-align:left}
+      thead th{background:#ececec}
+      .tot{font-weight:700;background:#f5f5f5}
+      .sign{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
+      .line{border-top:1px solid #333;padding-top:4px}
+    </style></head>
+    <body>
+      <div class="head">
+        <div>
+          <h1>CARTÃO PONTO</h1>
+          <div class="meta">Período: ${filtros.dataInicial.split("-").reverse().join("/")} até ${filtros.dataFinal.split("-").reverse().join("/")}</div>
+          <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
+          <div class="meta">Colaborador: ${funcionarioNomeSelecionado.value}</div>
+        </div>
+        <div class="meta">Emitido em ${new Date().toLocaleDateString("pt-BR")}</div>
+      </div>
+      <table>
+        <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
+        <tbody>${rows.join("")}
+          <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totalNormal)}</td><td>${minutesToHHMM(totalFalta)}</td><td>${minutesToHHMM(totalExtra)}</td><td>-</td></tr>
+        </tbody>
+      </table>
+      <div class="sign"><div class="line">${funcionarioNomeSelecionado.value}</div><div class="line">Responsável / RH</div></div>
+    </body></html>`;
+}
+
+async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
+  if (!content) throw new Error("Gere o cartão antes de exportar.");
+  const picker = (window as unknown as { showSaveFilePicker?: Function }).showSaveFilePicker;
+  if (picker) {
+    const handle = await picker({
+      suggestedName,
+      types: [{ description: "Arquivo", accept: { [mimeType]: [`.${suggestedName.split(".").pop()}`] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return;
+  }
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = suggestedName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+async function exportarHtml() {
+  try {
+    reportHtml.value = buildCartaoHtml();
+    await saveWithDialog(reportHtml.value, `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.html`, "text/html");
+    message.value = "Cartão exportado em HTML.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao exportar HTML.";
+  }
+}
+
+async function exportarExcel() {
+  try {
+    reportHtml.value = buildCartaoHtml();
+    await saveWithDialog(reportHtml.value, `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.xls`, "application/vnd.ms-excel");
+    message.value = "Cartão exportado em Excel.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao exportar Excel.";
+  }
+}
+
+function imprimirOuSalvarPdf() {
+  reportHtml.value = buildCartaoHtml();
+  if (!reportHtml.value) {
+    error.value = "Gere o cartão antes de imprimir/salvar PDF.";
+    return;
+  }
+  const win = window.open("", "_blank");
+  if (!win) {
+    error.value = "Não foi possível abrir a janela de impressão.";
+    return;
+  }
+  win.document.write(reportHtml.value);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 }
 
 async function salvarBatida() {
@@ -235,6 +413,9 @@ onMounted(async () => {
       </div>
       <div class="actions">
         <button class="secondary" :disabled="loading" @click="carregarCartao">{{ loading ? 'Atualizando...' : 'Atualizar' }}</button>
+        <button class="secondary" @click="exportarHtml">Exportar HTML</button>
+        <button class="secondary" @click="exportarExcel">Exportar Excel</button>
+        <button class="primary" @click="imprimirOuSalvarPdf">Imprimir / Salvar PDF</button>
       </div>
     </div>
 
@@ -402,5 +583,7 @@ onMounted(async () => {
         </tbody>
       </table>
     </div>
+
+    <iframe v-if="reportHtml" class="report-frame" :src="`data:text/html;charset=utf-8,${encodeURIComponent(reportHtml)}`" title="Prévia cartão de ponto" />
   </div>
 </template>
