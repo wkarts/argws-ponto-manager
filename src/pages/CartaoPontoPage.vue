@@ -22,6 +22,7 @@ const filtros = reactive({
   funcionarioId: "",
   dataInicial: new Date().toISOString().slice(0, 10),
   dataFinal: new Date().toISOString().slice(0, 10),
+  modeloRelatorio: "cartao_ponto",
 });
 
 const batidaForm = reactive({
@@ -166,8 +167,61 @@ function dayLabel(value: Date): string {
   return map[value.getDay()];
 }
 
-function buildCartaoHtml(): string {
-  if (!filtros.dataInicial || !filtros.dataFinal) return "";
+interface DailyReportRow {
+  day: string;
+  dayLabel: string;
+  ent1: string;
+  sai1: string;
+  ent2: string;
+  sai2: string;
+  ent3: string;
+  sai3: string;
+  previsto: string;
+  realizado: string;
+  interJornada: string;
+  intraJornada: string;
+  hDiurnas: string;
+  hNoturnas: string;
+  hTrabalhadas: string;
+  hTotais: string;
+  heDiurnas: string;
+  heNoturnas: string;
+  heTotal: string;
+  atraso: string;
+  normal: string;
+  falta: string;
+  extra: string;
+  ocorrencias: string;
+}
+
+function calcInterJornada(previousEndMinutes: number | null): string {
+  if (previousEndMinutes == null) return "24h+";
+  const currentStart = parseTimeToMinutes("00:00");
+  if (currentStart == null) return "24h+";
+  const total = (24 * 60 - previousEndMinutes) + currentStart;
+  if (total >= 24 * 60) return "24h+";
+  return minutesToHHMM(total);
+}
+
+function splitNightMinutes(start: number, end: number): { day: number; night: number } {
+  if (end <= start) return { day: 0, night: 0 };
+  const nightStart = 22 * 60;
+  const nightEnd = 5 * 60;
+  let night = 0;
+  let day = 0;
+  for (let m = start; m < end; m += 1) {
+    const minuteOfDay = m % (24 * 60);
+    const isNight = minuteOfDay >= nightStart || minuteOfDay < nightEnd;
+    if (isNight) night += 1;
+    else day += 1;
+  }
+  return { day, night };
+}
+
+function buildDailyRows(initial: Date, final: Date): {
+  rows: DailyReportRow[];
+  totals: Record<string, number>;
+} {
   const byDate = new Map<string, GenericRecord[]>();
   for (const row of batidas.value) {
     const date = String(row.data_referencia || "");
@@ -176,57 +230,147 @@ function buildCartaoHtml(): string {
     byDate.get(date)!.push(row);
   }
 
+  const rows: DailyReportRow[] = [];
+  let previousLastPunch: number | null = null;
+  const totals = {
+    normal: 0,
+    falta: 0,
+    extra: 0,
+    noturno: 0,
+    atraso: 0,
+  };
+  const targetDaily = 8 * 60;
+
+  for (let cursor = new Date(initial); cursor <= final; cursor.setDate(cursor.getDate() + 1)) {
+    const day = formatDate(cursor);
+    const dayRows = (byDate.get(day) || []).slice().sort((a, b) => String(a.hora || "").localeCompare(String(b.hora || "")));
+    const punches = dayRows.map((item) => String(item.hora || "")).filter(Boolean);
+    const occ = ocorrencias.value.filter((item) => String(item.data_referencia || "") === day);
+    const occLabel = occ.map((item) => String(item.tipo || "")).join(" | ") || (punches.length ? "Verificada" : "Falta");
+    const isWeekend = cursor.getDay() === 0 || cursor.getDay() === 6;
+    const previsto = isWeekend ? "Folga" : "08:00 12:00 | 13:30 17:30";
+    const realizado = punches.length ? punches.join(" | ") : "Folga";
+    const cols = [...punches, "", "", "", "", "", ""].slice(0, 6);
+
+    let worked = 0;
+    let intra = 0;
+    let diurno = 0;
+    let noturno = 0;
+    for (let i = 0; i < punches.length; i += 2) {
+      const start = parseTimeToMinutes(punches[i]);
+      const end = parseTimeToMinutes(punches[i + 1] || "");
+      if (start != null && end != null && end > start) {
+        worked += end - start;
+        const split = splitNightMinutes(start, end);
+        diurno += split.day;
+        noturno += split.night;
+      }
+      if (i === 1 && start != null && end != null && end > start) {
+        intra = end - start;
+      }
+    }
+
+    const hasDayAbono = occ.some((item) => Number(item.abonar_dia) === 1);
+    const normal = Math.min(targetDaily, worked);
+    const falta = hasDayAbono || isWeekend ? 0 : Math.max(0, targetDaily - worked);
+    const extra = isWeekend ? worked : Math.max(0, worked - targetDaily);
+    const atraso = hasDayAbono || isWeekend ? 0 : Math.max(0, 8 * 60 - (parseTimeToMinutes(punches[0] || "08:00") ?? 8 * 60));
+
+    totals.normal += normal;
+    totals.falta += falta;
+    totals.extra += extra;
+    totals.noturno += noturno;
+    totals.atraso += atraso;
+
+    const currentLastPunch = parseTimeToMinutes(punches[punches.length - 1] || "");
+    rows.push({
+      day: day.split("-").reverse().join("/"),
+      dayLabel: dayLabel(cursor),
+      ent1: cols[0] || "Folga",
+      sai1: cols[1] || "Folga",
+      ent2: cols[2] || "Folga",
+      sai2: cols[3] || "Folga",
+      ent3: cols[4] || "Folga",
+      sai3: cols[5] || "Folga",
+      previsto,
+      realizado,
+      interJornada: calcInterJornada(previousLastPunch),
+      intraJornada: minutesToHHMM(intra),
+      hDiurnas: minutesToHHMM(diurno),
+      hNoturnas: minutesToHHMM(noturno),
+      hTrabalhadas: minutesToHHMM(worked),
+      hTotais: minutesToHHMM(worked),
+      heDiurnas: minutesToHHMM(Math.max(0, extra - noturno)),
+      heNoturnas: minutesToHHMM(Math.min(extra, noturno)),
+      heTotal: minutesToHHMM(extra),
+      atraso: minutesToHHMM(atraso),
+      normal: minutesToHHMM(normal),
+      falta: minutesToHHMM(falta),
+      extra: minutesToHHMM(extra),
+      ocorrencias: occLabel,
+    });
+    previousLastPunch = currentLastPunch;
+  }
+
+  return { rows, totals };
+}
+
+function buildCartaoHtml(): string {
+  if (!filtros.dataInicial || !filtros.dataFinal) return "";
   const initial = new Date(`${filtros.dataInicial}T00:00:00`);
   const final = new Date(`${filtros.dataFinal}T00:00:00`);
   if (Number.isNaN(initial.getTime()) || Number.isNaN(final.getTime()) || initial > final) return "";
 
-  const targetDaily = 8 * 60;
-  let totalNormal = 0;
-  let totalFalta = 0;
-  let totalExtra = 0;
-
-  const rows: string[] = [];
-  for (let cursor = new Date(initial); cursor <= final; cursor.setDate(cursor.getDate() + 1)) {
-    const day = formatDate(cursor);
-    const dayRows = (byDate.get(day) || []).slice().sort((a, b) => String(a.hora || "").localeCompare(String(b.hora || "")));
-    const batidasHora = dayRows.map((item) => String(item.hora || "")).filter(Boolean);
-    const dailyOcc = ocorrencias.value.filter((item) => String(item.data_referencia || "") === day);
-    const isWeekend = cursor.getDay() === 0 || cursor.getDay() === 6;
-
-    let worked = 0;
-    for (let i = 0; i < batidasHora.length; i += 2) {
-      const start = parseTimeToMinutes(batidasHora[i]);
-      const end = parseTimeToMinutes(batidasHora[i + 1] || "");
-      if (start != null && end != null && end > start) worked += end - start;
-    }
-
-    const hasDayAbono = dailyOcc.some((item) => Number(item.abonar_dia) === 1);
-    const normal = Math.min(targetDaily, worked);
-    const falta = hasDayAbono || isWeekend ? 0 : Math.max(0, targetDaily - worked);
-    const extra = isWeekend ? worked : Math.max(0, worked - targetDaily);
-    totalNormal += normal;
-    totalFalta += falta;
-    totalExtra += extra;
-
-    const col = [...batidasHora, "", "", "", "", "", ""].slice(0, 6);
-    rows.push(`
-      <tr>
-        <td>${day.split("-").reverse().join("/")} - ${dayLabel(cursor)}</td>
-        <td>${col[0] || "Folga"}</td>
-        <td>${col[1] || "Folga"}</td>
-        <td>${col[2] || "Folga"}</td>
-        <td>${col[3] || "Folga"}</td>
-        <td>${col[4] || "Folga"}</td>
-        <td>${col[5] || "Folga"}</td>
-        <td>${minutesToHHMM(normal)}</td>
-        <td>${minutesToHHMM(falta)}</td>
-        <td>${minutesToHHMM(extra)}</td>
-        <td>${dailyOcc.map((item) => String(item.tipo || "")).join(" | ") || "-"}</td>
-      </tr>
-    `);
-  }
+  const { rows: dailyRows, totals } = buildDailyRows(initial, final);
 
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
+  const tableByModel: Record<string, string> = {
+    cartao_ponto: `
+      <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.ent1}</td><td>${r.sai1}</td><td>${r.ent2}</td><td>${r.sai2}</td><td>${r.ent3}</td><td>${r.sai3}</td><td>${r.normal}</td><td>${r.falta}</td><td>${r.extra}</td><td>${r.ocorrencias}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.normal)}</td><td>${minutesToHHMM(totals.falta)}</td><td>${minutesToHHMM(totals.extra)}</td><td>-</td></tr>
+      </tbody>
+    `,
+    folha_resumida: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Realizado</th><th>H. trab.</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.realizado}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td></tr>
+      </tbody>
+    `,
+    folha_interjornada: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. trab.</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td></tr>
+      </tbody>
+    `,
+    folha_com_he: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      </tbody>
+    `,
+    folha_completa: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      </tbody>
+    `,
+  };
+
+  const summaryByModel = filtros.modeloRelatorio === "folha_completa" ? `
+    <div class="summary-grid">
+      <div class="summary-box"><strong>Total atrasos</strong><div>${minutesToHHMM(totals.atraso)}</div></div>
+      <div class="summary-box"><strong>Total horas noturnas</strong><div>${minutesToHHMM(totals.noturno)}</div></div>
+      <div class="summary-box"><strong>Total H.E. acumuladas</strong><div>${minutesToHHMM(totals.extra)}</div></div>
+      <div class="summary-box"><strong>Total banco de horas</strong><div>${minutesToHHMM(totals.extra - totals.falta)}</div></div>
+    </div>
+  ` : "";
+
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
     <style>
       body{font-family:Consolas,monospace;margin:14px;color:#111}
@@ -239,12 +383,14 @@ function buildCartaoHtml(): string {
       .tot{font-weight:700;background:#f5f5f5}
       .sign{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
       .line{border-top:1px solid #333;padding-top:4px}
+      .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
+      .summary-box{border:1px solid #666;padding:6px;text-align:center}
     </style></head>
     <body>
       <div class="head">
         <div>
           <div>${logoSvg}</div>
-          <h1>CARTÃO PONTO</h1>
+          <h1>CARTÃO PONTO — ${filtros.modeloRelatorio.replace(/_/g, " " ).toUpperCase()}</h1>
           <div class="meta">Período: ${filtros.dataInicial.split("-").reverse().join("/")} até ${filtros.dataFinal.split("-").reverse().join("/")}</div>
           <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
           <div class="meta">Colaborador: ${funcionarioNomeSelecionado.value}</div>
@@ -252,11 +398,9 @@ function buildCartaoHtml(): string {
         <div class="meta">Emitido em ${new Date().toLocaleDateString("pt-BR")}</div>
       </div>
       <table>
-        <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
-        <tbody>${rows.join("")}
-          <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totalNormal)}</td><td>${minutesToHHMM(totalFalta)}</td><td>${minutesToHHMM(totalExtra)}</td><td>-</td></tr>
-        </tbody>
+        ${tableByModel[filtros.modeloRelatorio] || tableByModel.folha_resumida}
       </table>
+      ${summaryByModel}
       <div class="sign"><div class="line">${funcionarioNomeSelecionado.value}</div><div class="line">${empresaResponsavel.value}</div></div>
     </body></html>`;
 }
@@ -508,6 +652,16 @@ onMounted(async () => {
         <div class="field">
           <label>Data final</label>
           <input v-model="filtros.dataFinal" type="date" />
+        </div>
+        <div class="field">
+          <label>Modelo do relatório</label>
+          <select v-model="filtros.modeloRelatorio">
+            <option value="cartao_ponto">0) Cartão de ponto (padrão)</option>
+            <option value="folha_resumida">1) Folha resumida</option>
+            <option value="folha_interjornada">2) Folha com inter/intra jornada</option>
+            <option value="folha_com_he">3) Folha com HE e atrasos</option>
+            <option value="folha_completa">4) Folha completa com resumos</option>
+          </select>
         </div>
         <div class="actions align-end">
           <button class="primary" :disabled="loading" @click="carregarCartao">Aplicar filtros</button>
