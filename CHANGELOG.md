@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.0...v1.6.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** base report models on real apuracao rules ([8f17cab](https://github.com/wkarts/argws-ponto-manager/commit/8f17cab59cb198ed49c174c79c810371a05e0a04))
+
 # [1.6.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.5.0...v1.6.0) (2026-03-28)
 
 
