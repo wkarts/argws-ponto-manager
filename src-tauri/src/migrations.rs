@@ -3,6 +3,9 @@ use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
 use crate::{db::open_connection, security::hash_password};
+const BOOTSTRAP_SEED_KEY: &str = "bootstrap_seed_version";
+const BOOTSTRAP_SEED_STATUS_KEY: &str = "bootstrap_seed_status";
+const BOOTSTRAP_SEED_VERSION: i64 = 1;
 
 pub fn migrate(db_path: &Path) -> Result<(), String> {
     let conn = open_connection(db_path)?;
@@ -389,6 +392,26 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (empresa_id) REFERENCES empresas(id)
         );
 
+        CREATE TABLE IF NOT EXISTS relatorios_gerados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            descricao TEXT NOT NULL,
+            tipo_relatorio TEXT NOT NULL,
+            origem_rotina TEXT NOT NULL,
+            formato TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            mime_type TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            competencia TEXT,
+            funcionario_id INTEGER,
+            funcionario_nome TEXT,
+            usuario_login TEXT,
+            detalhado INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'GERADO',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id)
+        );
+
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             entity_name TEXT NOT NULL,
@@ -626,6 +649,9 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_ocorrencias_funcionario_data ON ocorrencias_ponto(funcionario_id, data_referencia);
         CREATE INDEX IF NOT EXISTS idx_ocorrencias_justificativa ON ocorrencias_ponto(justificativa_id);
         CREATE INDEX IF NOT EXISTS idx_banco_horas_funcionario_data ON banco_horas_lancamentos(funcionario_id, data_referencia);
+        CREATE INDEX IF NOT EXISTS idx_relatorios_gerados_created_at ON relatorios_gerados(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_relatorios_gerados_tipo ON relatorios_gerados(tipo_relatorio);
+        CREATE INDEX IF NOT EXISTS idx_relatorios_gerados_formato ON relatorios_gerados(formato);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_fechamentos_funcionario_mes ON fechamentos_mensais(funcionario_id, ano, mes);
         "#,
     )
@@ -636,6 +662,15 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
 
 fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
+
+    if bootstrap_seed_already_applied(conn)? {
+        return Ok(());
+    }
+
+    if has_operational_data(conn)? {
+        mark_bootstrap_seed(conn, &now, "skipped_existing_database")?;
+        return Ok(());
+    }
 
     let empresa_exists: Option<i64> = conn
         .query_row("SELECT id FROM empresas LIMIT 1", [], |row| row.get(0))
@@ -705,6 +740,71 @@ fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
         params![now],
     )
     .map_err(|err| format!("Falha ao gravar configuração padrão: {err}"))?;
+
+    mark_bootstrap_seed(conn, &now, "applied")?;
+
+    Ok(())
+}
+
+fn bootstrap_seed_already_applied(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let value: Option<i64> = conn
+        .query_row(
+            "SELECT CAST(valor AS INTEGER) FROM app_settings WHERE chave = ?1 LIMIT 1",
+            params![BOOTSTRAP_SEED_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar versão do bootstrap seed: {err}"))?;
+
+    Ok(value.unwrap_or(0) >= BOOTSTRAP_SEED_VERSION)
+}
+
+fn has_operational_data(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let business_tables = [
+        "empresas",
+        "usuarios",
+        "perfis_acesso",
+        "funcionarios",
+        "departamentos",
+        "funcoes",
+        "centro_custos",
+        "horarios",
+        "escalas",
+        "jornadas_trabalho",
+        "equipamentos",
+        "eventos",
+        "justificativas",
+        "batidas",
+        "ocorrencias_ponto",
+        "banco_horas_lancamentos",
+        "fechamentos_mensais",
+    ];
+
+    for table in business_tables {
+        let sql = format!("SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)");
+        let exists: i64 = conn.query_row(&sql, [], |row| row.get(0)).map_err(|err| {
+            format!("Falha ao verificar dados operacionais na tabela {table}: {err}")
+        })?;
+        if exists == 1 {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn mark_bootstrap_seed(conn: &rusqlite::Connection, now: &str, status: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, ?2, ?3)",
+        params![BOOTSTRAP_SEED_KEY, BOOTSTRAP_SEED_VERSION.to_string(), now],
+    )
+    .map_err(|err| format!("Falha ao registrar versão do bootstrap seed: {err}"))?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, ?2, ?3)",
+        params![BOOTSTRAP_SEED_STATUS_KEY, status, now],
+    )
+    .map_err(|err| format!("Falha ao registrar status do bootstrap seed: {err}"))?;
 
     Ok(())
 }

@@ -504,18 +504,20 @@ pub fn fechamento_gerar_relatorio(
         },
     )?;
 
-    let (funcionario_nome, empresa_id, empresa_nome, documento, matricula, jornada_nome): (
-        String,
-        Option<i64>,
-        String,
-        String,
-        String,
-        String,
-    ) = conn
+    let (
+        funcionario_nome,
+        empresa_id,
+        empresa_nome,
+        empresa_responsavel,
+        documento,
+        matricula,
+        jornada_nome,
+    ): (String, Option<i64>, String, String, String, String, String) = conn
         .query_row(
             "SELECT f.nome,
                     f.empresa_id,
                     COALESCE(e.nome, ''),
+                    COALESCE(e.responsavel_nome, ''),
                     COALESCE(f.documento, ''),
                     COALESCE(f.matricula, ''),
                     COALESCE(jt.descricao, '')
@@ -532,6 +534,7 @@ pub fn fechamento_gerar_relatorio(
                     row.get(3)?,
                     row.get(4)?,
                     row.get(5)?,
+                    row.get(6)?,
                 ))
             },
         )
@@ -620,6 +623,15 @@ pub fn fechamento_gerar_relatorio(
           </style>
         </head>
         <body>
+          <div style="margin-bottom: 8px;">
+            <svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'>
+              <rect width='100' height='100' rx='18' fill='#1d4ed8'/>
+              <path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/>
+              <circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/>
+              <text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text>
+              <text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text>
+            </svg>
+          </div>
           <h1>Espelho mensal de ponto para fechamento</h1>
           <h2>{funcionario}</h2>
           <div class="meta">
@@ -655,7 +667,7 @@ pub fn fechamento_gerar_relatorio(
 
           <div class="assinaturas">
             <div class="assinatura-linha">Assinatura do colaborador</div>
-            <div class="assinatura-linha">Assinatura do empregador / responsável</div>
+            <div class="assinatura-linha">{responsavel}</div>
           </div>
 
           <div class="rodape">
@@ -672,6 +684,11 @@ pub fn fechamento_gerar_relatorio(
         jornada = escape_html(&jornada_nome),
         matricula = escape_html(&matricula),
         documento = escape_html(&documento),
+        responsavel = escape_html(if empresa_responsavel.trim().is_empty() {
+            "Assinatura do empregador / responsável"
+        } else {
+            &empresa_responsavel
+        }),
         gerado = escape_html(&chrono::Local::now().format("%d/%m/%Y %H:%M").to_string()),
         linhas = linhas,
         previsto = format_minutes(apuracao.total_esperado_minutos),
