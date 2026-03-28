@@ -1,7 +1,9 @@
-use chrono::{Datelike, Duration, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate, Utc};
 use rusqlite::{params, params_from_iter, OptionalExtension};
 use std::{collections::BTreeSet, fs, path::PathBuf};
 use tauri::State;
+use serde::{Deserialize, Serialize};
+use base64::Engine;
 
 use crate::{
     app_state::SharedState,
@@ -14,6 +16,197 @@ use crate::{
 struct FuncionarioApuracaoBase {
     id: i64,
     nome: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedReportPayload {
+    pub descricao: String,
+    pub tipo_relatorio: String,
+    pub origem_rotina: String,
+    pub formato: String,
+    pub file_name: String,
+    pub mime_type: Option<String>,
+    pub competencia: Option<String>,
+    pub funcionario_id: Option<i64>,
+    pub funcionario_nome: Option<String>,
+    pub usuario_login: Option<String>,
+    pub detalhado: Option<bool>,
+    pub status: Option<String>,
+    pub file_path: Option<String>,
+    pub content_base64: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedReportDownload {
+    pub file_name: String,
+    pub mime_type: String,
+    pub content_base64: String,
+}
+
+fn ensure_generated_report_saved(db_path: &str, payload: &GeneratedReportPayload) -> Result<String, String> {
+    if let Some(path) = &payload.file_path {
+        if !path.trim().is_empty() {
+            return Ok(path.clone());
+        }
+    }
+    let raw_base64 = payload
+        .content_base64
+        .clone()
+        .ok_or_else(|| "contentBase64 é obrigatório quando filePath não for enviado.".to_string())?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(raw_base64)
+        .map_err(|err| format!("Falha ao decodificar conteúdo do relatório: {err}"))?;
+
+    let export_dir = PathBuf::from(db_path)
+        .parent()
+        .ok_or_else(|| "Diretório do banco inválido para salvar relatório.".to_string())?
+        .join("exports")
+        .join("generated_reports");
+    fs::create_dir_all(&export_dir)
+        .map_err(|err| format!("Falha ao criar diretório de relatórios gerados: {err}"))?;
+
+    let safe_name = if payload.file_name.trim().is_empty() {
+        format!(
+            "relatorio_{}.{}",
+            Utc::now().format("%Y%m%d_%H%M%S"),
+            payload.formato.to_lowercase()
+        )
+    } else {
+        payload.file_name.clone()
+    };
+    let file_path = export_dir.join(safe_name);
+    fs::write(&file_path, bytes).map_err(|err| format!("Falha ao gravar arquivo de relatório: {err}"))?;
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn report_generated_register(
+    state: State<'_, SharedState>,
+    payload: GeneratedReportPayload,
+) -> Result<i64, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let now = Utc::now().to_rfc3339();
+    let final_path = ensure_generated_report_saved(&db_path, &payload)?;
+
+    conn.execute(
+        "INSERT INTO relatorios_gerados (
+            descricao, tipo_relatorio, origem_rotina, formato, file_name, mime_type, file_path,
+            competencia, funcionario_id, funcionario_nome, usuario_login, detalhado, status, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?14)",
+        params![
+            payload.descricao,
+            payload.tipo_relatorio,
+            payload.origem_rotina,
+            payload.formato.to_uppercase(),
+            payload.file_name,
+            payload.mime_type.unwrap_or_else(|| "application/octet-stream".to_string()),
+            final_path,
+            payload.competencia,
+            payload.funcionario_id,
+            payload.funcionario_nome,
+            payload.usuario_login,
+            if payload.detalhado.unwrap_or(false) { 1 } else { 0 },
+            payload.status.unwrap_or_else(|| "GERADO".to_string()),
+            now
+        ],
+    )
+    .map_err(|err| format!("Falha ao registrar relatório gerado: {err}"))?;
+
+    Ok(conn.last_insert_rowid())
+}
+
+#[tauri::command]
+pub fn report_generated_list(
+    state: State<'_, SharedState>,
+    filters: Option<serde_json::Value>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let mut sql = String::from(
+        "SELECT id, descricao, tipo_relatorio, origem_rotina, formato, file_name, mime_type, file_path,
+                competencia, funcionario_id, funcionario_nome, usuario_login, detalhado, status, created_at
+         FROM relatorios_gerados
+         WHERE 1=1",
+    );
+    let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
+    let get_filter = |key: &str| -> Option<String> {
+        filters.as_ref()?.get(key)?.as_str().map(|v| v.to_string())
+    };
+    if let Some(v) = get_filter("competencia") {
+        sql.push_str(" AND competencia = ?");
+        params_vec.push(rusqlite::types::Value::Text(v));
+    }
+    if let Some(v) = get_filter("tipoRelatorio") {
+        sql.push_str(" AND tipo_relatorio = ?");
+        params_vec.push(rusqlite::types::Value::Text(v));
+    }
+    if let Some(v) = get_filter("formato") {
+        sql.push_str(" AND formato = ?");
+        params_vec.push(rusqlite::types::Value::Text(v.to_uppercase()));
+    }
+    if let Some(v) = get_filter("usuarioLogin") {
+        sql.push_str(" AND usuario_login = ?");
+        params_vec.push(rusqlite::types::Value::Text(v));
+    }
+    if let Some(v) = get_filter("funcionarioNome") {
+        sql.push_str(" AND funcionario_nome LIKE ?");
+        params_vec.push(rusqlite::types::Value::Text(format!("%{v}%")));
+    }
+    sql.push_str(" ORDER BY created_at DESC");
+
+    let mut stmt = conn.prepare(&sql).map_err(|err| format!("Falha ao preparar listagem de relatórios gerados: {err}"))?;
+    let rows = stmt
+        .query_map(params_from_iter(params_vec.iter()), |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "descricao": row.get::<_, String>(1)?,
+                "tipo_relatorio": row.get::<_, String>(2)?,
+                "origem_rotina": row.get::<_, String>(3)?,
+                "formato": row.get::<_, String>(4)?,
+                "file_name": row.get::<_, String>(5)?,
+                "mime_type": row.get::<_, String>(6)?,
+                "file_path": row.get::<_, String>(7)?,
+                "competencia": row.get::<_, Option<String>>(8)?,
+                "funcionario_id": row.get::<_, Option<i64>>(9)?,
+                "funcionario_nome": row.get::<_, Option<String>>(10)?,
+                "usuario_login": row.get::<_, Option<String>>(11)?,
+                "detalhado": row.get::<_, i64>(12)? == 1,
+                "status": row.get::<_, String>(13)?,
+                "created_at": row.get::<_, String>(14)?,
+            }))
+        })
+        .map_err(|err| format!("Falha ao consultar relatórios gerados: {err}"))?;
+
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("Falha ao mapear relatórios gerados: {err}"))
+}
+
+#[tauri::command]
+pub fn report_generated_download(
+    state: State<'_, SharedState>,
+    id: i64,
+) -> Result<GeneratedReportDownload, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let record: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT file_name, mime_type, file_path FROM relatorios_gerados WHERE id = ?1 LIMIT 1",
+            params![id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar relatório gerado: {err}"))?;
+    let (file_name, mime_type, file_path) =
+        record.ok_or_else(|| "Relatório gerado não encontrado.".to_string())?;
+    let bytes = fs::read(&file_path).map_err(|err| format!("Falha ao ler arquivo do relatório: {err}"))?;
+    Ok(GeneratedReportDownload {
+        file_name,
+        mime_type,
+        content_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+    })
 }
 
 #[derive(Debug, Default)]
