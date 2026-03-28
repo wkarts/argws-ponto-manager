@@ -23,6 +23,7 @@ import PunchBatchPage from "../pages/PunchBatchPage.vue";
 import CartaoPontoPage from "../pages/CartaoPontoPage.vue";
 import AboutPage from "../pages/AboutPage.vue";
 import AppLogsPage from "../pages/AppLogsPage.vue";
+import UserGuidePage from "../pages/UserGuidePage.vue";
 import { entityConfigs } from "../config/entities";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo, logAppWarning } from "../services/logger";
@@ -74,7 +75,8 @@ const routes: RouteRecordRaw[] = [
       { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
       { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
       { path: "sobre", component: AboutPage },
-      { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } }
+      { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } },
+      { path: "documentacao/guia", component: UserGuidePage }
     ]
   }
 ];

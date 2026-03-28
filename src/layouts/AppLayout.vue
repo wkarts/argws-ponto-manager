@@ -34,6 +34,7 @@ const groupState = reactive({
   cadastros: savedMenuState?.cadastros ?? false,
   operacao: savedMenuState?.operacao ?? false,
   relatorios: savedMenuState?.relatorios ?? false,
+  documentacao: savedMenuState?.documentacao ?? false,
   sistema: savedMenuState?.sistema ?? false,
 });
 
@@ -70,6 +71,10 @@ const relatorios = computed(() => [
   { title: "Exportação REP", route: "/rep" },
 ]);
 
+const documentacao = computed(() => [
+  { title: "Guia do usuário", route: "/documentacao/guia" },
+]);
+
 const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
   { title: "Licenciamento", route: "/licenciamento" },
@@ -79,7 +84,7 @@ const sistema = computed(() => [
 
 const pageTitle = computed(() => {
   const path = route.path;
-  const all = [...cadastros.value, ...operacao.value, ...relatorios.value, ...sistema.value, { title: 'Dashboard', route: '/' }];
+  const all = [...cadastros.value, ...operacao.value, ...relatorios.value, ...documentacao.value, ...sistema.value, { title: 'Dashboard', route: '/' }];
   return all.find((item) => item.route === path)?.title || "Ponto Manager";
 });
 
@@ -172,6 +177,14 @@ onBeforeUnmount(() => {
             <RouterLink v-for="item in relatorios" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
           </div>
         </div>
+
+        <div class="menu-group">
+          <button class="menu-group-button" @click="toggleGroup('documentacao')">Documentação</button>
+          <div v-show="groupState.documentacao" class="menu-links submenu-links">
+            <RouterLink v-for="item in documentacao" :key="item.route" :to="item.route">{{ item.title }}</RouterLink>
+          </div>
+        </div>
+
 
         <div class="menu-group">
           <button class="menu-group-button" @click="toggleGroup('sistema')">Sistema</button>
