@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, type ApuracaoResumo } from "../services/crud";
+import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, registerGeneratedReport, type ApuracaoResumo } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 
@@ -19,6 +19,11 @@ const exportFormat = ref<"html" | "excel" | "pdf">("pdf");
 const empresaResponsavel = ref("Responsável / RH");
 
 const previewSrc = computed(() => (previewHtml.value ? `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml.value)}` : ""));
+const selectedEmployeeName = computed(() => employees.value.find((e) => e.id === funcionarioId.value)?.nome || null);
+
+function toBase64Utf8(content: string) {
+  return btoa(unescape(encodeURIComponent(content)));
+}
 
 async function loadEmployeesForCompany() {
   const [rows, companies] = await Promise.all([
@@ -79,6 +84,22 @@ async function downloadCurrent() {
   const extension = exportFormat.value === "excel" ? "xls" : "html";
   const mimeType = exportFormat.value === "excel" ? "application/vnd.ms-excel" : "text/html";
   await saveWithDialog(previewHtml.value, `${base}.${extension}`, mimeType);
+  await registerGeneratedReport({
+    descricao: reportType.value === "apuracao" ? "Apuração do período" : "Fechamento mensal",
+    tipoRelatorio: reportType.value,
+    origemRotina: "central_relatorios",
+    formato: extension.toUpperCase(),
+    fileName: `${base}.${extension}`,
+    mimeType,
+    competencia: reportType.value === "fechamento" ? `${String(mes.value).padStart(2, "0")}/${ano.value}` : `${dataInicial.value}..${dataFinal.value}`,
+    funcionarioId: funcionarioId.value,
+    funcionarioNome: selectedEmployeeName.value,
+    usuarioLogin: session.user?.login || null,
+    detalhado: true,
+    status: "GERADO",
+    contentBase64: toBase64Utf8(previewHtml.value),
+  });
+  message.value = "Relatório exportado com sucesso e registrado na Central de Relatórios Gerados.";
 }
 
 function printCurrent() {
@@ -133,6 +154,22 @@ async function generate() {
       previewHtml.value = `<!DOCTYPE html><html lang="pt-BR"><body style="font-family:Arial;padding:24px"><h1>Fechamento mensal gerado</h1><p>Arquivo salvo em:</p><code>${path}</code><p>Use o botão abaixo para abrir o arquivo no sistema.</p></body></html>`;
       if (path) window.open(`file://${path}`, "_blank");
       message.value = "Relatório de fechamento gerado. O arquivo HTML foi aberto e pode ser impresso ou salvo como PDF pelo diálogo do sistema.";
+      if (path) {
+        await registerGeneratedReport({
+          descricao: "Fechamento mensal",
+          tipoRelatorio: "fechamento",
+          origemRotina: "central_relatorios",
+          formato: "HTML",
+          fileName: path.split(/[\\\\/]/).pop() || `fechamento_${ano.value}_${mes.value}.html`,
+          filePath: path,
+          competencia: `${String(mes.value).padStart(2, "0")}/${ano.value}`,
+          funcionarioId: funcionarioId.value,
+          funcionarioNome: selectedEmployeeName.value,
+          usuarioLogin: session.user?.login || null,
+          detalhado: true,
+          status: "GERADO",
+        });
+      }
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao gerar relatório.";

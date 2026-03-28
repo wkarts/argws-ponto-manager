@@ -68,6 +68,7 @@ const operacao = computed(() => [
 
 const relatorios = computed(() => [
   { title: "Central de relatórios", route: "/relatorios" },
+  { title: "Relatórios gerados", route: "/relatorios-gerados" },
   { title: "Exportação REP", route: "/rep" },
 ]);
 

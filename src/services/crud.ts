@@ -46,6 +46,23 @@ export interface SyncQueueItem {
   created_at: string;
 }
 
+export interface GeneratedReportPayload {
+  descricao: string;
+  tipoRelatorio: string;
+  origemRotina: string;
+  formato: string;
+  fileName: string;
+  mimeType?: string | null;
+  competencia?: string | null;
+  funcionarioId?: number | null;
+  funcionarioNome?: string | null;
+  usuarioLogin?: string | null;
+  detalhado?: boolean;
+  status?: string | null;
+  filePath?: string | null;
+  contentBase64?: string | null;
+}
+
 export interface CompanyFilters {
   search?: string;
   onlyActive?: boolean;
@@ -224,6 +241,18 @@ export async function listFechamentos(filters: Record<string, unknown>): Promise
 
 export async function gerarFechamentoRelatorio(payload: Record<string, unknown>): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("fechamento_gerar_relatorio", { payload });
+}
+
+export async function registerGeneratedReport(payload: GeneratedReportPayload): Promise<number> {
+  return invokeCommand<number>("report_generated_register", { payload });
+}
+
+export async function listGeneratedReports(filters: Record<string, unknown> = {}): Promise<GenericRecord[]> {
+  return invokeCommand<GenericRecord[]>("report_generated_list", { filters });
+}
+
+export async function downloadGeneratedReport(id: number): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
+  return invokeCommand<{ file_name: string; mime_type: string; content_base64: string }>("report_generated_download", { id });
 }
 
 export async function listProfiles(sessionToken: string, filters: Record<string, unknown> = {}): Promise<GenericRecord[]> {

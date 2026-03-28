@@ -18,6 +18,7 @@ import SyncQueuePage from "../pages/SyncQueuePage.vue";
 import SystemPage from "../pages/SystemPage.vue";
 import LicensingPage from "../pages/LicensingPage.vue";
 import ReportsCenterPage from "../pages/ReportsCenterPage.vue";
+import GeneratedReportsPage from "../pages/GeneratedReportsPage.vue";
 import RepExportPage from "../pages/RepExportPage.vue";
 import PunchBatchPage from "../pages/PunchBatchPage.vue";
 import CartaoPontoPage from "../pages/CartaoPontoPage.vue";
@@ -72,6 +73,7 @@ const routes: RouteRecordRaw[] = [
       { path: "sistema", component: SystemPage, meta: { permission: "config:view" } },
       { path: "licenciamento", component: LicensingPage, meta: { permission: "config:view" } },
       { path: "relatorios", component: ReportsCenterPage, meta: { permission: "relatorios:export" } },
+      { path: "relatorios-gerados", component: GeneratedReportsPage, meta: { permission: "relatorios:export" } },
       { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
       { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
       { path: "sobre", component: AboutPage },

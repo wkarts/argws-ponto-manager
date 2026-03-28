@@ -9,6 +9,7 @@ import {
   listCompanies,
   listEmployees,
   listOcorrencias,
+  registerGeneratedReport,
   saveBatida,
   saveOcorrencia,
   type ApuracaoDia,
@@ -189,6 +190,10 @@ function formatDate(value: Date): string {
 function dayLabel(value: Date): string {
   const map = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
   return map[value.getDay()];
+}
+
+function toBase64Utf8(content: string) {
+  return btoa(unescape(encodeURIComponent(content)));
 }
 
 interface DailyReportRow {
@@ -450,8 +455,24 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
 async function exportarHtml() {
   try {
     reportHtml.value = buildCartaoHtml();
-    await saveWithDialog(reportHtml.value, `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.html`, "text/html");
-    message.value = "Cartão exportado em HTML.";
+    const fileName = `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.html`;
+    await saveWithDialog(reportHtml.value, fileName, "text/html");
+    await registerGeneratedReport({
+      descricao: "Cartão de ponto",
+      tipoRelatorio: "cartao_ponto",
+      origemRotina: "cartao_ponto",
+      formato: "HTML",
+      fileName,
+      mimeType: "text/html",
+      competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
+      funcionarioId: funcionarioIdNumero.value,
+      funcionarioNome: funcionarioNomeSelecionado.value,
+      usuarioLogin: session.user?.login || null,
+      detalhado: true,
+      status: "GERADO",
+      contentBase64: toBase64Utf8(reportHtml.value),
+    });
+    message.value = "Cartão exportado em HTML e registrado em Relatórios Gerados.";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao exportar HTML.";
   }
@@ -460,8 +481,24 @@ async function exportarHtml() {
 async function exportarExcel() {
   try {
     reportHtml.value = buildCartaoHtml();
-    await saveWithDialog(reportHtml.value, `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.xls`, "application/vnd.ms-excel");
-    message.value = "Cartão exportado em Excel.";
+    const fileName = `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.xls`;
+    await saveWithDialog(reportHtml.value, fileName, "application/vnd.ms-excel");
+    await registerGeneratedReport({
+      descricao: "Cartão de ponto",
+      tipoRelatorio: "cartao_ponto",
+      origemRotina: "cartao_ponto",
+      formato: "EXCEL",
+      fileName,
+      mimeType: "application/vnd.ms-excel",
+      competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
+      funcionarioId: funcionarioIdNumero.value,
+      funcionarioNome: funcionarioNomeSelecionado.value,
+      usuarioLogin: session.user?.login || null,
+      detalhado: true,
+      status: "GERADO",
+      contentBase64: toBase64Utf8(reportHtml.value),
+    });
+    message.value = "Cartão exportado em Excel e registrado em Relatórios Gerados.";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao exportar Excel.";
   }
@@ -496,6 +533,22 @@ function imprimirOuSalvarPdf() {
   setTimeout(() => {
     try {
       frame.contentWindow?.print();
+      registerGeneratedReport({
+        descricao: "Cartão de ponto (impressão/PDF)",
+        tipoRelatorio: "cartao_ponto",
+        origemRotina: "cartao_ponto",
+        formato: "PDF",
+        fileName: `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.pdf`,
+        mimeType: "application/pdf",
+        competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
+        funcionarioId: funcionarioIdNumero.value,
+        funcionarioNome: funcionarioNomeSelecionado.value,
+        usuarioLogin: session.user?.login || null,
+        detalhado: true,
+        status: "GERADO",
+        contentBase64: toBase64Utf8(reportHtml.value),
+      }).catch(() => {});
+      message.value = "Impressão iniciada. O relatório também foi registrado em Relatórios Gerados.";
     } finally {
       setTimeout(() => frame.remove(), 1000);
     }
