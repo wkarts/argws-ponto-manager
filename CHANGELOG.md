@@ -1,3 +1,12 @@
+# [1.6.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.5.0...v1.6.0) (2026-03-28)
+
+
+### Features
+
+* **cartao-ponto:** add four folha report models for export/print ([91695f5](https://github.com/wkarts/argws-ponto-manager/commit/91695f5b83eac5a7c51ece4aeba7fa77209dd836))
+* **cartao-ponto:** add four folha report models for export/print ([7aa9ff1](https://github.com/wkarts/argws-ponto-manager/commit/7aa9ff14fab8535fec30375004e7f5e9a3c8dbb7))
+* **cartao-ponto:** add four folha report models for export/print ([c8c88fe](https://github.com/wkarts/argws-ponto-manager/commit/c8c88fe1022b36ef20ecaae1fc0f0bd1175515a8))
+
 # [1.5.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.4.0...v1.5.0) (2026-03-28)
 
 
