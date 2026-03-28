@@ -6,9 +6,11 @@
   background: #f4f7fb;
   --sidebar-width: 290px;
   --topbar-height: 76px;
-  --content-padding: 18px;
+  --content-padding: clamp(10px, 1.6vw, 18px);
   --radius: 12px;
   --shadow: 0 12px 26px rgba(15, 23, 42, 0.05);
+  --font-size-base: clamp(13px, 0.86vw, 15px);
+  --font-size-title: clamp(18px, 1.4vw, 22px);
 }
 
 html, body, #app {
@@ -17,7 +19,7 @@ html, body, #app {
   height: 100%;
 }
 
-body { background: #f4f7fb; }
+body { background: #f4f7fb; font-size: var(--font-size-base); }
 button, input, select, textarea { font: inherit; }
 a { color: inherit; }
 
@@ -108,7 +110,7 @@ a { color: inherit; }
   backdrop-filter: blur(10px);
 }
 .topbar-left, .topbar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.page-title { font-weight: 700; font-size: 18px; }
+.page-title { font-weight: 700; font-size: clamp(16px, 1.1vw, 18px); }
 .page-subtitle { color: #6b7280; font-size: 12px; }
 .icon-button { width: 42px; height: 42px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; }
 .company-selector { display: grid; gap: 4px; font-size: 12px; color: #6b7280; }
@@ -121,13 +123,13 @@ a { color: inherit; }
   padding: var(--content-padding);
 }
 
-.grid { display: grid; gap: 16px; }
-.page-gap { gap: 18px; }
+.grid { display: grid; gap: clamp(10px, 1.2vw, 16px); }
+.page-gap { gap: clamp(12px, 1.4vw, 18px); }
 .card {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: var(--radius);
-  padding: 16px;
+  padding: clamp(12px, 1.2vw, 16px);
   box-shadow: var(--shadow);
 }
 .toolbar {
@@ -143,7 +145,7 @@ a { color: inherit; }
   background: linear-gradient(180deg, #f4f7fb 70%, rgba(244,247,251,.75) 100%);
   backdrop-filter: blur(6px);
 }
-.toolbar h2 { margin: 0; font-size: 22px; }
+.toolbar h2 { margin: 0; font-size: var(--font-size-title); }
 .toolbar .muted, .toolbar .muted-text { max-width: 920px; }
 .section-title { font-weight: 700; font-size: 15px; }
 
@@ -156,7 +158,7 @@ a { color: inherit; }
   width: 100%;
   border: 1px solid #d1d5db;
   border-radius: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: #fff;
 }
 textarea.mono, .textarea-mono { font-family: Consolas, Monaco, monospace; min-height: 220px; }
@@ -164,18 +166,18 @@ textarea.mono, .textarea-mono { font-family: Consolas, Monaco, monospace; min-he
 .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .compact-actions { gap: 8px; }
 .align-end { align-items: end; }
-button { border: 0; border-radius: 10px; padding: 10px 14px; cursor: pointer; }
+button { border: 0; border-radius: 10px; padding: 8px 12px; cursor: pointer; }
 button.primary { background: #2563eb; color: #fff; }
 button.secondary { background: #e5e7eb; color: #111827; }
 button.danger { background: #dc2626; color: #fff; }
 .table-wrap { overflow: auto; }
 table { width: 100%; border-collapse: collapse; }
-thead th { text-align: left; font-size: 13px; padding: 10px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+thead th { text-align: left; font-size: 12px; padding: 8px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+tbody td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .kpi { background: #fff; border: 1px solid #e5e7eb; border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
 .kpi strong { display: block; font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; }
-.kpi span { display: block; font-size: 28px; font-weight: 700; }
+.kpi span { display: block; font-size: clamp(22px, 1.8vw, 28px); font-weight: 700; }
 .alert { border-radius: 10px; padding: 12px 14px; border: 1px solid transparent; }
 .alert.success, .alert.info { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
 .alert.error { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
@@ -201,6 +203,7 @@ tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top;
 
 @media (max-width: 1280px) {
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  :root { --font-size-base: 13px; }
 }
 
 @media (max-width: 1100px) {
@@ -225,9 +228,11 @@ tbody td { padding: 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top;
   :root { --topbar-height: auto; }
   .topbar { flex-direction: column; align-items: stretch; }
   .topbar-left, .topbar-right { width: 100%; justify-content: space-between; }
-  .toolbar h2 { font-size: 18px; }
-  .kpi span { font-size: 22px; }
+  .toolbar h2 { font-size: 17px; }
+  .kpi span { font-size: 20px; }
   .clock-time { font-size: 18px; }
+  .card { padding: 10px; }
+  button { padding: 7px 10px; }
 }
 
 
