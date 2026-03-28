@@ -1,3 +1,43 @@
+# [1.2.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.5...v1.2.0) (2026-03-28)
+
+
+### Bug Fixes
+
+* **rustfmt:** ajusta formatacao da migration de bootstrap ([fdf1ce5](https://github.com/wkarts/argws-ponto-manager/commit/fdf1ce5a45e221ff833f874b762354498df6a9f6))
+
+
+### Features
+
+* **cartao-ponto:** centraliza operacoes e bloqueia reseed em base ativa ([9c821df](https://github.com/wkarts/argws-ponto-manager/commit/9c821dfd6536c53e10788ba950a6397f303e5e57))
+
+## [1.1.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.4...v1.1.5) (2026-03-28)
+
+
+### Bug Fixes
+
+* **apuracao:** converte funcionarioId para número no payload ([2bd50cb](https://github.com/wkarts/argws-ponto-manager/commit/2bd50cb59cb010b370be44ec2c457503fb4fb6c4))
+
+## [1.1.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.3...v1.1.4) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** envia funcionarioId como número no filtro da listagem ([5f93cca](https://github.com/wkarts/argws-ponto-manager/commit/5f93cca4dacc818082397d2aa7aadf536cd6fc7d))
+
+## [1.1.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.2...v1.1.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** evita crash da rota ao tratar falhas de carregamento ([961f5e8](https://github.com/wkarts/argws-ponto-manager/commit/961f5e8fb2322317a7da1adef9a788c9b72c8df8))
+
+## [1.1.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.1...v1.1.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **release:** define repositoryUrl padrão no semantic-release ([92a464c](https://github.com/wkarts/argws-ponto-manager/commit/92a464c070cb1f69874bbd1032429a4645db7580))
+
 ## [1.1.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.0...v1.1.1) (2026-03-27)
 
 
