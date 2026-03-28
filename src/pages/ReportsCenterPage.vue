@@ -76,12 +76,31 @@ async function downloadCurrent() {
 
 function printCurrent() {
   if (!previewHtml.value) return;
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(previewHtml.value);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 300);
+  const frame = document.createElement("iframe");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentWindow?.document;
+  if (!doc || !frame.contentWindow) {
+    frame.remove();
+    return;
+  }
+  doc.open();
+  doc.write(previewHtml.value);
+  doc.close();
+  frame.contentWindow.focus();
+  setTimeout(() => {
+    try {
+      frame.contentWindow?.print();
+    } finally {
+      setTimeout(() => frame.remove(), 1000);
+    }
+  }, 250);
 }
 
 async function generate() {

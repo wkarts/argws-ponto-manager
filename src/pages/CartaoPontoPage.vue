@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { comboList, listBatidas, listEmployees, listOcorrencias, saveBatida, saveOcorrencia, type ComboOption, type GenericRecord } from "../services/crud";
+import { comboList, deleteBatida, deleteOcorrencia, listBatidas, listEmployees, listOcorrencias, saveBatida, saveOcorrencia, type ComboOption, type GenericRecord } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
 import { useSessionStore } from "../stores/session";
 
@@ -303,15 +303,33 @@ function imprimirOuSalvarPdf() {
     error.value = "Gere o cartão antes de imprimir/salvar PDF.";
     return;
   }
-  const win = window.open("", "_blank");
-  if (!win) {
-    error.value = "Não foi possível abrir a janela de impressão.";
+  const frame = document.createElement("iframe");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentWindow?.document;
+  if (!doc || !frame.contentWindow) {
+    frame.remove();
+    error.value = "Não foi possível inicializar o modo de impressão.";
     return;
   }
-  win.document.write(reportHtml.value);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 300);
+
+  doc.open();
+  doc.write(reportHtml.value);
+  doc.close();
+  frame.contentWindow.focus();
+  setTimeout(() => {
+    try {
+      frame.contentWindow?.print();
+    } finally {
+      setTimeout(() => frame.remove(), 1000);
+    }
+  }, 250);
 }
 
 async function salvarBatida() {
@@ -386,6 +404,52 @@ function editarOcorrencia(row: GenericRecord) {
   ocorrenciaForm.abonar_dia = Number(row.abonar_dia) === 1 || row.abonar_dia === true;
   ocorrenciaForm.minutos_abonados = Number(row.minutos_abonados || 0);
   ocorrenciaForm.observacao = String(row.observacao || "");
+}
+
+function addBatidaFromGrid(referenceDate?: string) {
+  resetBatida();
+  batidaForm.funcionario_id = filtros.funcionarioId || "";
+  batidaForm.data_referencia = referenceDate || filtros.dataInicial || new Date().toISOString().slice(0, 10);
+}
+
+async function removerBatida(row: GenericRecord) {
+  if (!row.id || !confirm("Remover esta batida?")) return;
+  try {
+    await deleteBatida(Number(row.id));
+    message.value = "Batida removida com sucesso.";
+    await carregarCartao();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao remover batida.";
+  }
+}
+
+async function moverBatida(row: GenericRecord, direction: -1 | 1) {
+  const currentMinutes = parseTimeToMinutes(String(row.hora || ""));
+  if (currentMinutes == null) return;
+  const nextMinutes = Math.min(23 * 60 + 59, Math.max(0, currentMinutes + direction));
+  try {
+    await saveBatida({
+      ...row,
+      hora: minutesToHHMM(nextMinutes),
+      funcionario_id: Number(row.funcionario_id),
+      equipamento_id: row.equipamento_id ? Number(row.equipamento_id) : null,
+      justificativa_id: row.justificativa_id ? Number(row.justificativa_id) : null,
+    });
+    await carregarCartao();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao reorganizar batida.";
+  }
+}
+
+async function removerOcorrencia(row: GenericRecord) {
+  if (!row.id || !confirm("Remover esta ocorrência?")) return;
+  try {
+    await deleteOcorrencia(Number(row.id));
+    message.value = "Ocorrência removida com sucesso.";
+    await carregarCartao();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao remover ocorrência.";
+  }
 }
 
 watch(() => session.activeCompanyId, async () => {
@@ -546,7 +610,15 @@ onMounted(async () => {
             <td>{{ row.tipo }}</td>
             <td>{{ row.origem || '-' }}</td>
             <td>{{ row.justificativa_nome || '-' }}</td>
-            <td><button class="secondary" @click="editarBatida(row)">Editar</button></td>
+            <td>
+              <div class="actions compact-actions">
+                <button class="secondary" @click="editarBatida(row)">Editar</button>
+                <button class="secondary" @click="addBatidaFromGrid(String(row.data_referencia || ''))">+ Batida</button>
+                <button class="secondary" @click="moverBatida(row, -1)">↑</button>
+                <button class="secondary" @click="moverBatida(row, 1)">↓</button>
+                <button class="danger" @click="removerBatida(row)">Remover</button>
+              </div>
+            </td>
           </tr>
           <tr v-if="!batidas.length">
             <td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o período.</td>
@@ -575,7 +647,12 @@ onMounted(async () => {
             <td>{{ row.justificativa_nome || '-' }}</td>
             <td>{{ Number(row.minutos_abonados || 0) > 0 ? row.minutos_abonados : (Number(row.abonar_dia) === 1 ? 'Dia abonado' : '-') }}</td>
             <td>{{ row.observacao || '-' }}</td>
-            <td><button class="secondary" @click="editarOcorrencia(row)">Editar</button></td>
+            <td>
+              <div class="actions compact-actions">
+                <button class="secondary" @click="editarOcorrencia(row)">Editar</button>
+                <button class="danger" @click="removerOcorrencia(row)">Remover</button>
+              </div>
+            </td>
           </tr>
           <tr v-if="!ocorrencias.length">
             <td colspan="6" class="empty-cell">Nenhuma ocorrência encontrada para o período.</td>
