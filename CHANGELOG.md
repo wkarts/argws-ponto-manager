@@ -1,3 +1,88 @@
+## [1.6.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.0...v1.6.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** base report models on real apuracao rules ([8f17cab](https://github.com/wkarts/argws-ponto-manager/commit/8f17cab59cb198ed49c174c79c810371a05e0a04))
+
+# [1.6.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.5.0...v1.6.0) (2026-03-28)
+
+
+### Features
+
+* **cartao-ponto:** add four folha report models for export/print ([91695f5](https://github.com/wkarts/argws-ponto-manager/commit/91695f5b83eac5a7c51ece4aeba7fa77209dd836))
+* **cartao-ponto:** add four folha report models for export/print ([7aa9ff1](https://github.com/wkarts/argws-ponto-manager/commit/7aa9ff14fab8535fec30375004e7f5e9a3c8dbb7))
+* **cartao-ponto:** add four folha report models for export/print ([c8c88fe](https://github.com/wkarts/argws-ponto-manager/commit/c8c88fe1022b36ef20ecaae1fc0f0bd1175515a8))
+
+# [1.5.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.4.0...v1.5.0) (2026-03-28)
+
+
+### Features
+
+* **ui:** add in-app user and technical documentation pages ([0944dff](https://github.com/wkarts/argws-ponto-manager/commit/0944dff7d530325fc67316ee01ca7df8f7036110))
+
+# [1.4.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.1...v1.4.0) (2026-03-28)
+
+
+### Features
+
+* **institucional:** adiciona logo e suporte nos relatorios e tela sobre ([d9e0d86](https://github.com/wkarts/argws-ponto-manager/commit/d9e0d86ceb0a1d28c53f9080fa601931b277d3ab))
+
+## [1.3.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.0...v1.3.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** restaura menu batidas e acoes diretas na grade ([27d7d3c](https://github.com/wkarts/argws-ponto-manager/commit/27d7d3c17d0d04c4af10386520cd883121b15cbe))
+* **cartao-ponto:** unifica acesso e impressao sem popup ([5fc5f6e](https://github.com/wkarts/argws-ponto-manager/commit/5fc5f6e96babde31ce031714eb725f0fa6f445fe))
+
+# [1.3.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.2.0...v1.3.0) (2026-03-28)
+
+
+### Features
+
+* **relatorios:** exportacao com dialogo e layout profissional do cartao ([c67e7b3](https://github.com/wkarts/argws-ponto-manager/commit/c67e7b3796453f7cae14cc20a3aea4ea3ae3c410))
+
+# [1.2.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.5...v1.2.0) (2026-03-28)
+
+
+### Bug Fixes
+
+* **rustfmt:** ajusta formatacao da migration de bootstrap ([fdf1ce5](https://github.com/wkarts/argws-ponto-manager/commit/fdf1ce5a45e221ff833f874b762354498df6a9f6))
+
+
+### Features
+
+* **cartao-ponto:** centraliza operacoes e bloqueia reseed em base ativa ([9c821df](https://github.com/wkarts/argws-ponto-manager/commit/9c821dfd6536c53e10788ba950a6397f303e5e57))
+
+## [1.1.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.4...v1.1.5) (2026-03-28)
+
+
+### Bug Fixes
+
+* **apuracao:** converte funcionarioId para número no payload ([2bd50cb](https://github.com/wkarts/argws-ponto-manager/commit/2bd50cb59cb010b370be44ec2c457503fb4fb6c4))
+
+## [1.1.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.3...v1.1.4) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** envia funcionarioId como número no filtro da listagem ([5f93cca](https://github.com/wkarts/argws-ponto-manager/commit/5f93cca4dacc818082397d2aa7aadf536cd6fc7d))
+
+## [1.1.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.2...v1.1.3) (2026-03-27)
+
+
+### Bug Fixes
+
+* **batidas:** evita crash da rota ao tratar falhas de carregamento ([961f5e8](https://github.com/wkarts/argws-ponto-manager/commit/961f5e8fb2322317a7da1adef9a788c9b72c8df8))
+
+## [1.1.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.1...v1.1.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* **release:** define repositoryUrl padrão no semantic-release ([92a464c](https://github.com/wkarts/argws-ponto-manager/commit/92a464c070cb1f69874bbd1032429a4645db7580))
+
 ## [1.1.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.0...v1.1.1) (2026-03-27)
 
 
