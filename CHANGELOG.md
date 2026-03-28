@@ -1,3 +1,11 @@
+## [1.3.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.0...v1.3.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** restaura menu batidas e acoes diretas na grade ([27d7d3c](https://github.com/wkarts/argws-ponto-manager/commit/27d7d3c17d0d04c4af10386520cd883121b15cbe))
+* **cartao-ponto:** unifica acesso e impressao sem popup ([5fc5f6e](https://github.com/wkarts/argws-ponto-manager/commit/5fc5f6e96babde31ce031714eb725f0fa6f445fe))
+
 # [1.3.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.2.0...v1.3.0) (2026-03-28)
 
 
