@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { comboList, deleteBatida, deleteOcorrencia, listBatidas, listEmployees, listOcorrencias, saveBatida, saveOcorrencia, type ComboOption, type GenericRecord } from "../services/crud";
+import { comboList, deleteBatida, deleteOcorrencia, listBatidas, listCompanies, listEmployees, listOcorrencias, saveBatida, saveOcorrencia, type ComboOption, type GenericRecord } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
 import { useSessionStore } from "../stores/session";
 
@@ -16,6 +16,7 @@ const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
 const reportHtml = ref("");
+const empresaResponsavel = ref("Responsável / RH");
 
 const filtros = reactive({
   funcionarioId: "",
@@ -85,9 +86,10 @@ function resetOcorrencia() {
 async function carregarBase() {
   error.value = "";
   try {
-    const [employees, justificativas] = await Promise.all([
+    const [employees, justificativas, empresas] = await Promise.all([
       listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true }),
       comboList("justificativas"),
+      listCompanies({ onlyActive: true }),
     ]);
     employeeOptions.value = employees.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
     justificativaOptions.value = justificativas;
@@ -98,6 +100,8 @@ async function carregarBase() {
 
     if (!batidaForm.funcionario_id) batidaForm.funcionario_id = filtros.funcionarioId;
     if (!ocorrenciaForm.funcionario_id) ocorrenciaForm.funcionario_id = filtros.funcionarioId;
+    const activeCompany = empresas.find((item) => Number(item.id) === Number(session.activeCompanyId));
+    empresaResponsavel.value = String(activeCompany?.responsavel_nome || "Responsável / RH");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar dados do cartão de ponto.";
     logAppError("cartao_ponto", "Falha ao carregar base de dados da tela.", { error: error.value });
@@ -222,6 +226,7 @@ function buildCartaoHtml(): string {
     `);
   }
 
+  const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
     <style>
       body{font-family:Consolas,monospace;margin:14px;color:#111}
@@ -238,6 +243,7 @@ function buildCartaoHtml(): string {
     <body>
       <div class="head">
         <div>
+          <div>${logoSvg}</div>
           <h1>CARTÃO PONTO</h1>
           <div class="meta">Período: ${filtros.dataInicial.split("-").reverse().join("/")} até ${filtros.dataFinal.split("-").reverse().join("/")}</div>
           <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
@@ -251,7 +257,7 @@ function buildCartaoHtml(): string {
           <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totalNormal)}</td><td>${minutesToHHMM(totalFalta)}</td><td>${minutesToHHMM(totalExtra)}</td><td>-</td></tr>
         </tbody>
       </table>
-      <div class="sign"><div class="line">${funcionarioNomeSelecionado.value}</div><div class="line">Responsável / RH</div></div>
+      <div class="sign"><div class="line">${funcionarioNomeSelecionado.value}</div><div class="line">${empresaResponsavel.value}</div></div>
     </body></html>`;
 }
 

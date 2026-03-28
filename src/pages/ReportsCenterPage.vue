@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { apurarPeriodo, gerarFechamentoRelatorio, listEmployees, type ApuracaoResumo } from "../services/crud";
+import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, type ApuracaoResumo } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 
@@ -16,16 +16,23 @@ const previewHtml = ref("");
 const message = ref("");
 const error = ref("");
 const exportFormat = ref<"html" | "excel" | "pdf">("pdf");
+const empresaResponsavel = ref("Responsável / RH");
 
 const previewSrc = computed(() => (previewHtml.value ? `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml.value)}` : ""));
 
 async function loadEmployeesForCompany() {
-  const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+  const [rows, companies] = await Promise.all([
+    listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true }),
+    listCompanies({ onlyActive: true }),
+  ]);
   employees.value = rows.map((item) => ({ id: Number(item.id), nome: String(item.nome || item.id) }));
   if (!funcionarioId.value && employees.value.length) funcionarioId.value = employees.value[0].id;
+  const activeCompany = companies.find((item) => Number(item.id) === Number(session.activeCompanyId));
+  empresaResponsavel.value = String(activeCompany?.responsavel_nome || "Responsável / RH");
 }
 
 function buildApuracaoHtml(result: ApuracaoResumo) {
+  const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   const rows = result.rows.map((row) => `
     <tr>
       <td>${row.funcionario_nome}</td>
@@ -37,7 +44,7 @@ function buildApuracaoHtml(result: ApuracaoResumo) {
       <td>${formatMinutes(row.saldo_minutos)}</td>
       <td>${(row.mensagens || []).join(' | ') || '-'}</td>
     </tr>`).join('');
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Apuração</title><style>body{font-family:Arial,sans-serif;margin:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:6px 8px}th{background:#f3f4f6}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:10px}</style></head><body><h1>Apuração do período</h1><div class="kpis"><div class="box"><strong>Funcionários</strong><br>${result.total_funcionarios}</div><div class="box"><strong>Dias</strong><br>${result.total_dias}</div><div class="box"><strong>Saldo</strong><br>${formatMinutes(result.total_saldo_minutos)}</div><div class="box"><strong>Extras</strong><br>${formatMinutes(result.total_extra_minutos)}</div></div><table><thead><tr><th>Funcionário</th><th>Data</th><th>Jornada</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Mensagens</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Apuração</title><style>body{font-family:Arial,sans-serif;margin:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:6px 8px}th{background:#f3f4f6}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:10px}.assinaturas{margin-top:34px;display:grid;grid-template-columns:repeat(2,1fr);gap:20px}.linha{margin-top:40px;border-top:1px solid #111827;padding-top:8px;text-align:center}</style></head><body><div>${logoSvg}</div><h1>Apuração do período</h1><div class="kpis"><div class="box"><strong>Funcionários</strong><br>${result.total_funcionarios}</div><div class="box"><strong>Dias</strong><br>${result.total_dias}</div><div class="box"><strong>Saldo</strong><br>${formatMinutes(result.total_saldo_minutos)}</div><div class="box"><strong>Extras</strong><br>${formatMinutes(result.total_extra_minutos)}</div></div><table><thead><tr><th>Funcionário</th><th>Data</th><th>Jornada</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Mensagens</th></tr></thead><tbody>${rows}</tbody></table><div class="assinaturas"><div class="linha">Colaborador</div><div class="linha">${empresaResponsavel.value}</div></div></body></html>`;
 }
 
 async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
