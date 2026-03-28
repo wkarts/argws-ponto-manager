@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.1...v1.6.2) (2026-03-28)
+
+
+### Bug Fixes
+
+* **rust:** accept Path in generated report save helper ([4e20904](https://github.com/wkarts/argws-ponto-manager/commit/4e20904c6af8620cbd6961a6f7022a777a1db303))
+
 ## [1.6.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.0...v1.6.1) (2026-03-28)
 
 
