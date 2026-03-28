@@ -20,6 +20,7 @@ import LicensingPage from "../pages/LicensingPage.vue";
 import ReportsCenterPage from "../pages/ReportsCenterPage.vue";
 import RepExportPage from "../pages/RepExportPage.vue";
 import PunchBatchPage from "../pages/PunchBatchPage.vue";
+import CartaoPontoPage from "../pages/CartaoPontoPage.vue";
 import AboutPage from "../pages/AboutPage.vue";
 import AppLogsPage from "../pages/AppLogsPage.vue";
 import { entityConfigs } from "../config/entities";
@@ -64,6 +65,7 @@ const routes: RouteRecordRaw[] = [
       { path: "fechamentos", component: FechamentoMensalPage, meta: { permission: "fechamentos:view" } },
       ...genericEntityRoutes,
       { path: "batidas", component: PunchesPage, meta: { permission: "batidas:view" } },
+      { path: "cartao-ponto", component: CartaoPontoPage, meta: { permission: "batidas:view" } },
       { path: "apuracao", component: ApuracaoPage, meta: { permission: "apuracao:view" } },
       { path: "sync-queue", component: SyncQueuePage, meta: { permission: "sync:view" } },
       { path: "sistema", component: SystemPage, meta: { permission: "config:view" } },
