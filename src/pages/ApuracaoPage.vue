@@ -16,6 +16,12 @@ const filters = reactive({
   dataFinal: ""
 });
 
+function selectedFuncionarioId(): number | null {
+  if (!filters.funcionarioId) return null;
+  const parsed = Number(filters.funcionarioId);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 async function loadCombos() {
   const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
   funcionarioOptions.value = rows.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
@@ -28,7 +34,7 @@ async function processar() {
   try {
     result.value = await apurarPeriodo({
       empresaId: session.activeCompanyId ?? null,
-      funcionarioId: filters.funcionarioId || null,
+      funcionarioId: selectedFuncionarioId(),
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
     });
