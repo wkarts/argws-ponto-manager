@@ -1,3 +1,10 @@
+## [1.1.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.4...v1.1.5) (2026-03-28)
+
+
+### Bug Fixes
+
+* **apuracao:** converte funcionarioId para número no payload ([2bd50cb](https://github.com/wkarts/argws-ponto-manager/commit/2bd50cb59cb010b370be44ec2c457503fb4fb6c4))
+
 ## [1.1.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.3...v1.1.4) (2026-03-27)
 
 
