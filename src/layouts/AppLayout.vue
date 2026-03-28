@@ -73,8 +73,7 @@ const relatorios = computed(() => [
 
 const documentacao = computed(() => [
   { title: "Guia do usuário", route: "/documentacao/guia" },
-  session.can("config:view") ? { title: "Documentação técnica", route: "/documentacao/tecnica" } : null,
-].filter(Boolean) as { title: string; route: string }[]);
+]);
 
 const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
