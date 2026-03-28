@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
+import { logAppError, logAppInfo } from "../services/logger";
 
 const session = useSessionStore();
 const funcionarioOptions = ref<ComboOption[]>([]);
@@ -15,6 +16,12 @@ function textValue(value: unknown): string | number | readonly string[] | null |
   if (typeof value === "string" || typeof value === "number") return value;
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   return value == null ? undefined : String(value);
+}
+
+function selectedFuncionarioId(): number | null {
+  if (!filters.funcionarioId) return null;
+  const parsed = Number(filters.funcionarioId);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 
@@ -55,22 +62,37 @@ function resetForm() {
 }
 
 async function loadCombos() {
-  const employees = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
-  funcionarioOptions.value = employees.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
-  equipamentoOptions.value = await comboList("equipamentos");
-  justificativaOptions.value = await comboList("justificativas");
-  if (!filters.funcionarioId && funcionarioOptions.value.length) filters.funcionarioId = String(funcionarioOptions.value[0].id);
-  if (!form.funcionario_id && session.activeCompanyId && funcionarioOptions.value.length) form.funcionario_id = funcionarioOptions.value[0].id;
+  error.value = "";
+  try {
+    const employees = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
+    funcionarioOptions.value = employees.map((item) => ({ id: Number(item.id), label: String(item.nome || item.id) }));
+    equipamentoOptions.value = await comboList("equipamentos");
+    justificativaOptions.value = await comboList("justificativas");
+    if (!filters.funcionarioId && funcionarioOptions.value.length) filters.funcionarioId = String(funcionarioOptions.value[0].id);
+    if (!form.funcionario_id && session.activeCompanyId && funcionarioOptions.value.length) form.funcionario_id = funcionarioOptions.value[0].id;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao carregar dados auxiliares de batidas.";
+    logAppError("batidas", "Falha ao carregar combos de batidas.", { error: error.value });
+  }
 }
 
 async function load() {
   error.value = "";
-  rows.value = await listBatidas({
-    empresaId: session.activeCompanyId ?? null,
-    funcionarioId: filters.funcionarioId || null,
-    dataInicial: filters.dataInicial || null,
-    dataFinal: filters.dataFinal || null
-  });
+  try {
+    rows.value = await listBatidas({
+      empresaId: session.activeCompanyId ?? null,
+      funcionarioId: selectedFuncionarioId(),
+      dataInicial: filters.dataInicial || null,
+      dataFinal: filters.dataFinal || null
+    });
+  } catch (err) {
+    rows.value = [];
+    error.value = err instanceof Error ? err.message : "Falha ao carregar batidas.";
+    logAppError("batidas", "Falha ao listar batidas.", {
+      error: error.value,
+      filters: { ...filters, empresaId: session.activeCompanyId ?? null }
+    });
+  }
 }
 
 function editRow(row: Record<string, unknown>) {
@@ -92,8 +114,14 @@ async function persist() {
 
 async function removeRow(id: number) {
   if (!confirm("Deseja remover esta batida?")) return;
-  await deleteBatida(id);
-  await load();
+  try {
+    await deleteBatida(id);
+    await load();
+    logAppInfo("batidas", "Batida removida com sucesso.", { id });
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao remover batida.";
+    logAppError("batidas", "Falha ao remover batida.", { id, error: error.value });
+  }
 }
 
 async function exportar() {
@@ -101,7 +129,7 @@ async function exportar() {
   try {
     const filePath = await exportBatidasCsv({
       empresaId: session.activeCompanyId ?? null,
-      funcionarioId: filters.funcionarioId || null,
+      funcionarioId: selectedFuncionarioId(),
       dataInicial: filters.dataInicial || null,
       dataFinal: filters.dataFinal || null
     });
@@ -111,11 +139,19 @@ async function exportar() {
   }
 }
 
-watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
-
-onMounted(async () => {
+watch(() => session.activeCompanyId, async () => {
   await loadCombos();
   await load();
+});
+
+onMounted(async () => {
+  try {
+    await loadCombos();
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao inicializar a página de batidas.";
+    logAppError("batidas", "Falha inesperada na inicialização da página de batidas.", { error: error.value });
+  }
 });
 </script>
 
