@@ -15,6 +15,7 @@ const mes = ref(new Date().getMonth() + 1);
 const previewHtml = ref("");
 const message = ref("");
 const error = ref("");
+const exportFormat = ref<"html" | "excel" | "pdf">("pdf");
 
 const previewSrc = computed(() => (previewHtml.value ? `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml.value)}` : ""));
 
@@ -39,16 +40,38 @@ function buildApuracaoHtml(result: ApuracaoResumo) {
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Apuração</title><style>body{font-family:Arial,sans-serif;margin:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:6px 8px}th{background:#f3f4f6}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:10px}</style></head><body><h1>Apuração do período</h1><div class="kpis"><div class="box"><strong>Funcionários</strong><br>${result.total_funcionarios}</div><div class="box"><strong>Dias</strong><br>${result.total_dias}</div><div class="box"><strong>Saldo</strong><br>${formatMinutes(result.total_saldo_minutos)}</div><div class="box"><strong>Extras</strong><br>${formatMinutes(result.total_extra_minutos)}</div></div><table><thead><tr><th>Funcionário</th><th>Data</th><th>Jornada</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Mensagens</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
 }
 
-function downloadCurrent() {
+async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
+  const picker = (window as unknown as { showSaveFilePicker?: Function }).showSaveFilePicker;
+  if (picker) {
+    const handle = await picker({
+      suggestedName,
+      types: [{ description: "Relatório", accept: { [mimeType]: [`.${suggestedName.split(".").pop()}`] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return;
+  }
   if (!previewHtml.value) return;
-  const blob = new Blob([previewHtml.value], { type: "text/html;charset=utf-8" });
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const base = reportType.value === "apuracao" ? `apuracao_${dataInicial.value}_${dataFinal.value}` : `fechamento_${ano.value}_${mes.value}`;
   a.href = url;
-  a.download = `${base}.html`;
+  a.download = suggestedName;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+async function downloadCurrent() {
+  if (!previewHtml.value) return;
+  if (exportFormat.value === "pdf") {
+    printCurrent();
+    return;
+  }
+  const base = reportType.value === "apuracao" ? `apuracao_${dataInicial.value}_${dataFinal.value}` : `fechamento_${ano.value}_${mes.value}`;
+  const extension = exportFormat.value === "excel" ? "xls" : "html";
+  const mimeType = exportFormat.value === "excel" ? "application/vnd.ms-excel" : "text/html";
+  await saveWithDialog(previewHtml.value, `${base}.${extension}`, mimeType);
 }
 
 function printCurrent() {
@@ -103,6 +126,14 @@ onMounted(loadEmployeesForCompany);
         <div class="muted-text">Prévia HTML unificada, com impressão direta, seleção de impressora pelo diálogo do sistema e possibilidade de salvar/exportar o relatório.</div>
       </div>
       <div class="actions">
+        <div class="field min-field">
+          <label>Formato</label>
+          <select v-model="exportFormat">
+            <option value="pdf">PDF (impressão)</option>
+            <option value="excel">Excel (.xls)</option>
+            <option value="html">HTML</option>
+          </select>
+        </div>
         <button class="secondary" @click="downloadCurrent">Salvar / exportar</button>
         <button class="primary" @click="printCurrent">Imprimir / PDF</button>
       </div>
