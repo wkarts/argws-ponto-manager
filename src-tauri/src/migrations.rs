@@ -3,6 +3,9 @@ use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
 use crate::{db::open_connection, security::hash_password};
+const BOOTSTRAP_SEED_KEY: &str = "bootstrap_seed_version";
+const BOOTSTRAP_SEED_STATUS_KEY: &str = "bootstrap_seed_status";
+const BOOTSTRAP_SEED_VERSION: i64 = 1;
 
 pub fn migrate(db_path: &Path) -> Result<(), String> {
     let conn = open_connection(db_path)?;
@@ -637,6 +640,15 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
 fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
 
+    if bootstrap_seed_already_applied(conn)? {
+        return Ok(());
+    }
+
+    if has_operational_data(conn)? {
+        mark_bootstrap_seed(conn, &now, "skipped_existing_database")?;
+        return Ok(());
+    }
+
     let empresa_exists: Option<i64> = conn
         .query_row("SELECT id FROM empresas LIMIT 1", [], |row| row.get(0))
         .optional()
@@ -705,6 +717,71 @@ fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
         params![now],
     )
     .map_err(|err| format!("Falha ao gravar configuração padrão: {err}"))?;
+
+    mark_bootstrap_seed(conn, &now, "applied")?;
+
+    Ok(())
+}
+
+fn bootstrap_seed_already_applied(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let value: Option<i64> = conn
+        .query_row(
+            "SELECT CAST(valor AS INTEGER) FROM app_settings WHERE chave = ?1 LIMIT 1",
+            params![BOOTSTRAP_SEED_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar versão do bootstrap seed: {err}"))?;
+
+    Ok(value.unwrap_or(0) >= BOOTSTRAP_SEED_VERSION)
+}
+
+fn has_operational_data(conn: &rusqlite::Connection) -> Result<bool, String> {
+    let business_tables = [
+        "empresas",
+        "usuarios",
+        "perfis_acesso",
+        "funcionarios",
+        "departamentos",
+        "funcoes",
+        "centro_custos",
+        "horarios",
+        "escalas",
+        "jornadas_trabalho",
+        "equipamentos",
+        "eventos",
+        "justificativas",
+        "batidas",
+        "ocorrencias_ponto",
+        "banco_horas_lancamentos",
+        "fechamentos_mensais",
+    ];
+
+    for table in business_tables {
+        let sql = format!("SELECT EXISTS(SELECT 1 FROM {table} LIMIT 1)");
+        let exists: i64 = conn.query_row(&sql, [], |row| row.get(0)).map_err(|err| {
+            format!("Falha ao verificar dados operacionais na tabela {table}: {err}")
+        })?;
+        if exists == 1 {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
+fn mark_bootstrap_seed(conn: &rusqlite::Connection, now: &str, status: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, ?2, ?3)",
+        params![BOOTSTRAP_SEED_KEY, BOOTSTRAP_SEED_VERSION.to_string(), now],
+    )
+    .map_err(|err| format!("Falha ao registrar versão do bootstrap seed: {err}"))?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, ?2, ?3)",
+        params![BOOTSTRAP_SEED_STATUS_KEY, status, now],
+    )
+    .map_err(|err| format!("Falha ao registrar status do bootstrap seed: {err}"))?;
 
     Ok(())
 }

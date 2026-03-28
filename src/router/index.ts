@@ -20,8 +20,11 @@ import LicensingPage from "../pages/LicensingPage.vue";
 import ReportsCenterPage from "../pages/ReportsCenterPage.vue";
 import RepExportPage from "../pages/RepExportPage.vue";
 import PunchBatchPage from "../pages/PunchBatchPage.vue";
+import CartaoPontoPage from "../pages/CartaoPontoPage.vue";
 import AboutPage from "../pages/AboutPage.vue";
 import AppLogsPage from "../pages/AppLogsPage.vue";
+import UserGuidePage from "../pages/UserGuidePage.vue";
+import TechnicalDocsPage from "../pages/TechnicalDocsPage.vue";
 import { entityConfigs } from "../config/entities";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo, logAppWarning } from "../services/logger";
@@ -64,6 +67,7 @@ const routes: RouteRecordRaw[] = [
       { path: "fechamentos", component: FechamentoMensalPage, meta: { permission: "fechamentos:view" } },
       ...genericEntityRoutes,
       { path: "batidas", component: PunchesPage, meta: { permission: "batidas:view" } },
+      { path: "cartao-ponto", component: CartaoPontoPage, meta: { permission: "batidas:view" } },
       { path: "apuracao", component: ApuracaoPage, meta: { permission: "apuracao:view" } },
       { path: "sync-queue", component: SyncQueuePage, meta: { permission: "sync:view" } },
       { path: "sistema", component: SystemPage, meta: { permission: "config:view" } },
@@ -72,7 +76,9 @@ const routes: RouteRecordRaw[] = [
       { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
       { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
       { path: "sobre", component: AboutPage },
-      { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } }
+      { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } },
+      { path: "documentacao/guia", component: UserGuidePage },
+      { path: "documentacao/tecnica", component: TechnicalDocsPage, meta: { permission: "config:view" } }
     ]
   }
 ];
