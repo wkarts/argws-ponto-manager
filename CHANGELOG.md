@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.2.0...v1.3.0) (2026-03-28)
+
+
+### Features
+
+* **relatorios:** exportacao com dialogo e layout profissional do cartao ([c67e7b3](https://github.com/wkarts/argws-ponto-manager/commit/c67e7b3796453f7cae14cc20a3aea4ea3ae3c410))
+
 # [1.2.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.1.5...v1.2.0) (2026-03-28)
 
 
