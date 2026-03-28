@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.4.0...v1.5.0) (2026-03-28)
+
+
+### Features
+
+* **ui:** add in-app user and technical documentation pages ([0944dff](https://github.com/wkarts/argws-ponto-manager/commit/0944dff7d530325fc67316ee01ca7df8f7036110))
+
 # [1.4.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.1...v1.4.0) (2026-03-28)
 
 
