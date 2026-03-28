@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.1...v1.4.0) (2026-03-28)
+
+
+### Features
+
+* **institucional:** adiciona logo e suporte nos relatorios e tela sobre ([d9e0d86](https://github.com/wkarts/argws-ponto-manager/commit/d9e0d86ceb0a1d28c53f9080fa601931b277d3ab))
+
 ## [1.3.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.3.0...v1.3.1) (2026-03-28)
 
 
