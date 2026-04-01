@@ -203,7 +203,7 @@ onMounted(async () => {
               <td>{{ row.codigo || '-' }}</td>
               <td>{{ row.descricao }}</td>
               <td>{{ row.tipo_jornada || '-' }}</td>
-              <td>{{ formatMinutes(row.carga_semanal_minutos || 0) }}</td>
+              <td>{{ formatMinutes(Number(row.carga_semanal_minutos || 0)) }}</td>
               <td>{{ row.total_dias || 0 }}</td>
               <td>{{ booleanLabel(row.ativo) }}</td>
               <td>

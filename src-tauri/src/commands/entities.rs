@@ -295,26 +295,62 @@ pub fn combo_list(
 ) -> Result<Vec<ComboOption>, String> {
     if entity == "contextos_feriado" {
         return Ok(vec![
-            ComboOption { id: 1, label: "global".to_string() },
-            ComboOption { id: 2, label: "empresa".to_string() },
-            ComboOption { id: 3, label: "departamento".to_string() },
-            ComboOption { id: 4, label: "operacional".to_string() },
+            ComboOption {
+                id: 1,
+                label: "global".to_string(),
+            },
+            ComboOption {
+                id: 2,
+                label: "empresa".to_string(),
+            },
+            ComboOption {
+                id: 3,
+                label: "departamento".to_string(),
+            },
+            ComboOption {
+                id: 4,
+                label: "operacional".to_string(),
+            },
         ]);
     }
     if entity == "regras_jornada" {
         return Ok(vec![
-            ComboOption { id: 1, label: "normal".to_string() },
-            ComboOption { id: 2, label: "reduzida".to_string() },
-            ComboOption { id: 3, label: "especial".to_string() },
-            ComboOption { id: 4, label: "escala diferenciada".to_string() },
+            ComboOption {
+                id: 1,
+                label: "normal".to_string(),
+            },
+            ComboOption {
+                id: 2,
+                label: "reduzida".to_string(),
+            },
+            ComboOption {
+                id: 3,
+                label: "especial".to_string(),
+            },
+            ComboOption {
+                id: 4,
+                label: "escala diferenciada".to_string(),
+            },
         ]);
     }
     if entity == "regras_compensacao" {
         return Ok(vec![
-            ComboOption { id: 1, label: "banco_horas".to_string() },
-            ComboOption { id: 2, label: "hora_extra".to_string() },
-            ComboOption { id: 3, label: "consumo_horas".to_string() },
-            ComboOption { id: 4, label: "sem_compensacao".to_string() },
+            ComboOption {
+                id: 1,
+                label: "banco_horas".to_string(),
+            },
+            ComboOption {
+                id: 2,
+                label: "hora_extra".to_string(),
+            },
+            ComboOption {
+                id: 3,
+                label: "consumo_horas".to_string(),
+            },
+            ComboOption {
+                id: 4,
+                label: "sem_compensacao".to_string(),
+            },
         ]);
     }
     if entity == "jornadas_lookup" {
@@ -324,7 +360,12 @@ pub fn combo_list(
             .prepare("SELECT id, descricao AS label FROM jornadas_trabalho WHERE ativo = 1 ORDER BY descricao ASC")
             .map_err(|err| format!("Falha ao preparar combo de jornadas: {err}"))?;
         let rows = stmt
-            .query_map([], |row| Ok(ComboOption { id: row.get(0)?, label: row.get(1)? }))
+            .query_map([], |row| {
+                Ok(ComboOption {
+                    id: row.get(0)?,
+                    label: row.get(1)?,
+                })
+            })
             .map_err(|err| format!("Falha ao executar combo de jornadas: {err}"))?;
         let result: Result<Vec<_>, _> = rows.collect();
         return result.map_err(|err| format!("Falha ao mapear combo de jornadas: {err}"));
