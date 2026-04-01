@@ -267,6 +267,47 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (jornada_id) REFERENCES jornadas_trabalho(id)
         );
 
+
+        CREATE TABLE IF NOT EXISTS feriados (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            contexto_tipo TEXT NOT NULL DEFAULT 'global',
+            empresa_id INTEGER,
+            departamento_id INTEGER,
+            regra_jornada TEXT,
+            regra_compensacao TEXT,
+            observacoes TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id),
+            FOREIGN KEY (departamento_id) REFERENCES departamentos(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS jornada_contextos_regras (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            descricao TEXT NOT NULL,
+            empresa_id INTEGER,
+            departamento_id INTEGER,
+            funcao_id INTEGER,
+            centro_custo_id INTEGER,
+            jornada_id INTEGER,
+            regra_compensacao TEXT,
+            banco_horas_ativo INTEGER NOT NULL DEFAULT 1,
+            permite_hora_extra INTEGER NOT NULL DEFAULT 0,
+            compensa_atraso_com_extra INTEGER NOT NULL DEFAULT 0,
+            usa_banco_para_excedente INTEGER NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id),
+            FOREIGN KEY (departamento_id) REFERENCES departamentos(id),
+            FOREIGN KEY (funcao_id) REFERENCES funcoes(id),
+            FOREIGN KEY (centro_custo_id) REFERENCES centro_custos(id),
+            FOREIGN KEY (jornada_id) REFERENCES jornadas_trabalho(id)
+        );
+
         CREATE TABLE IF NOT EXISTS afd_importacoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             empresa_id INTEGER,
@@ -906,6 +947,8 @@ fn access_permission_keys() -> Vec<&'static str> {
         "escalas:manage",
         "jornadas:view",
         "jornadas:manage",
+        "feriados:view",
+        "feriados:manage",
         "equipamentos:view",
         "equipamentos:manage",
         "eventos:view",

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
@@ -11,6 +12,7 @@ const justificativaOptions = ref<ComboOption[]>([]);
 const rows = ref<Record<string, unknown>[]>([]);
 const message = ref("");
 const error = ref("");
+const modalOpen = ref(false);
 
 function textValue(value: unknown): string | number | readonly string[] | null | undefined {
   if (typeof value === "string" || typeof value === "number") return value;
@@ -45,6 +47,16 @@ const form = reactive<Record<string, unknown>>({
   observacao: "",
   tipo: "entrada"
 });
+
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  if (funcionarioOptions.value.length && !form.funcionario_id) form.funcionario_id = funcionarioOptions.value[0].id;
+  modalOpen.value = true;
+}
 
 function resetForm() {
   form.id = undefined;
@@ -97,6 +109,7 @@ async function load() {
 
 function editRow(row: Record<string, unknown>) {
   Object.assign(form, row);
+  modalOpen.value = true;
 }
 
 async function persist() {
@@ -106,6 +119,7 @@ async function persist() {
     await saveBatida({ ...form });
     await load();
     resetForm();
+    closeModal();
     message.value = "Batida salva com sucesso.";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar batida.";
@@ -163,6 +177,7 @@ onMounted(async () => {
         <div class="muted">Registro manual, ajustes autorizados e exportação local.</div>
       </div>
       <div class="actions">
+        <button class="secondary" @click="openNewModal">Nova batida</button>
         <button class="secondary" @click="exportar">Exportar CSV</button>
       </div>
     </div>
@@ -170,86 +185,7 @@ onMounted(async () => {
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="grid columns-2 mobile-columns-1">
-      <div class="card">
-        <h3 style="margin-top: 0;">Cadastro de batida</h3>
-        <form class="grid" @submit.prevent="persist">
-          <div class="field">
-            <label>Funcionário</label>
-            <select v-model="form.funcionario_id">
-              <option value="">Selecione</option>
-              <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-            </select>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Equipamento</label>
-              <select v-model="form.equipamento_id">
-                <option value="">Selecione</option>
-                <option v-for="item in equipamentoOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Justificativa</label>
-              <select v-model="form.justificativa_id">
-                <option value="">Selecione</option>
-                <option v-for="item in justificativaOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Data</label>
-              <input v-model="form.data_referencia" type="date" />
-            </div>
-            <div class="field">
-              <label>Hora</label>
-              <input v-model="form.hora" type="time" />
-            </div>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Tipo</label>
-              <select v-model="form.tipo">
-                <option value="entrada">Entrada</option>
-                <option value="saida">Saída</option>
-                <option value="intervalo_saida">Intervalo saída</option>
-                <option value="intervalo_retorno">Intervalo retorno</option>
-                <option value="marcacao">Marcação importada</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>NSR</label>
-              <input v-model="form.nsr" type="text" />
-            </div>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Origem</label>
-              <input v-model="form.origem" type="text" />
-            </div>
-            <div class="field">
-              <label>Observação</label>
-              <textarea :value="textValue(form.observacao)" rows="2" @input="form.observacao = ($event.target as HTMLTextAreaElement).value" />
-            </div>
-          </div>
-
-          <div class="actions">
-            <label class="actions"><input v-model="form.manual_ajuste" type="checkbox" class="checkbox-input" /> Ajuste manual autorizado</label>
-            <label class="actions"><input v-model="form.validado" type="checkbox" class="checkbox-input" /> Validado</label>
-          </div>
-
-          <div class="actions">
-            <button class="primary" type="submit">Salvar</button>
-            <button class="secondary" type="button" @click="resetForm">Limpar</button>
-          </div>
-        </form>
-      </div>
-
+    <div class="grid columns-1">
       <div class="card">
         <h3 style="margin-top: 0;">Filtros</h3>
         <div class="grid">
@@ -323,5 +259,89 @@ onMounted(async () => {
         </table>
       </div>
     </div>
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar batida' : 'Nova batida'"
+      subtitle="Inclusão e edição convertidas para modal, preservando a listagem principal."
+      width="lg"
+      @close="closeModal"
+    >
+      <form class="grid" @submit.prevent="persist">
+        <div class="field">
+          <label>Funcionário</label>
+          <select v-model="form.funcionario_id">
+            <option value="">Selecione</option>
+            <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Equipamento</label>
+            <select v-model="form.equipamento_id">
+              <option value="">Selecione</option>
+              <option v-for="item in equipamentoOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Justificativa</label>
+            <select v-model="form.justificativa_id">
+              <option value="">Selecione</option>
+              <option v-for="item in justificativaOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Data</label>
+            <input v-model="form.data_referencia" type="date" />
+          </div>
+          <div class="field">
+            <label>Hora</label>
+            <input v-model="form.hora" type="time" />
+          </div>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Tipo</label>
+            <select v-model="form.tipo">
+              <option value="entrada">Entrada</option>
+              <option value="saida">Saída</option>
+              <option value="intervalo_saida">Intervalo saída</option>
+              <option value="intervalo_retorno">Intervalo retorno</option>
+              <option value="marcacao">Marcação importada</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>NSR</label>
+            <input v-model="form.nsr" type="text" />
+          </div>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Origem</label>
+            <input v-model="form.origem" type="text" />
+          </div>
+          <div class="field">
+            <label>Observação</label>
+            <textarea :value="textValue(form.observacao)" rows="2" @input="form.observacao = ($event.target as HTMLTextAreaElement).value" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <label class="actions"><input v-model="form.manual_ajuste" type="checkbox" class="checkbox-input" /> Ajuste manual autorizado</label>
+          <label class="actions"><input v-model="form.validado" type="checkbox" class="checkbox-input" /> Validado</label>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit">{{ form.id ? 'Atualizar' : 'Salvar' }}</button>
+          <button class="secondary" type="button" @click="resetForm">Limpar</button>
+        </div>
+      </form>
+    </AppModal>
+
   </div>
 </template>

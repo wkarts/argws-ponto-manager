@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import AppModal from "../components/AppModal.vue";
 import {
   comboList,
   deleteUser,
@@ -7,24 +8,24 @@ import {
   listProfiles,
   listUsers,
   saveUser,
-  type ComboOption,
-  type GenericRecord
+  type ComboOption
 } from "../services/crud";
 import { booleanLabel, formatPhone } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
 
 const session = useSessionStore();
-const rows = ref<GenericRecord[]>([]);
+const rows = ref<Record<string, unknown>[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const search = ref("");
-const onlyActive = ref(true);
 const filterEmpresaId = ref<number | null>(null);
+const onlyActive = ref(true);
+const modalOpen = ref(false);
 
 const companyOptions = ref<ComboOption[]>([]);
-const profileOptions = ref<{ id: number; label: string }[]>([]);
+const profileOptions = ref<ComboOption[]>([]);
 
 function defaultForm() {
   return {
@@ -46,7 +47,6 @@ function defaultForm() {
 }
 
 const form = reactive(defaultForm());
-
 const canManage = computed(() => session.can("usuarios:manage"));
 
 async function ensureSession() {
@@ -56,6 +56,15 @@ async function ensureSession() {
   if (!session.sessionToken) {
     throw new Error("Sessão inválida ou expirada. Faça login novamente.");
   }
+}
+
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  modalOpen.value = true;
 }
 
 function resetForm() {
@@ -69,30 +78,27 @@ function toStringArray(value: unknown): string[] {
 
 async function loadOptions() {
   await ensureSession();
-  const [empresas, perfis] = await Promise.all([
-    comboList("empresas"),
-    listProfiles(session.sessionToken!, { onlyActive: true })
-  ]);
-  companyOptions.value = empresas;
-  profileOptions.value = perfis.map((item) => ({
-    id: Number(item.id),
-    label: String(item.nome || item.label || `Perfil ${item.id}`)
+  companyOptions.value = await comboList("empresas");
+  const profileRows = await listProfiles(session.sessionToken!, { onlyActive: true });
+  profileOptions.value = profileRows.map((row) => ({
+    id: Number(row.id),
+    label: String(row.nome || `Perfil ${row.id}`)
   }));
 }
 
 async function load() {
+  await ensureSession();
   loading.value = true;
   error.value = "";
   try {
-    await ensureSession();
     rows.value = await listUsers(session.sessionToken!, {
       search: search.value,
-      onlyActive: onlyActive.value,
-      empresaId: filterEmpresaId.value
+      empresaId: filterEmpresaId.value,
+      onlyActive: onlyActive.value
     });
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar usuários.";
-    logAppError("usuarios", "Falha ao carregar listagem de usuários.", { error: error.value });
+    logAppError("usuarios", "Falha ao carregar usuários.", { error: error.value });
   } finally {
     loading.value = false;
   }
@@ -112,6 +118,7 @@ async function editRow(id: number) {
       profile_ids: toStringArray(record.profile_ids),
       senha: ""
     });
+    modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar usuário.";
     logAppError("usuarios", "Falha ao carregar usuário para edição.", { id, error: error.value });
@@ -130,6 +137,7 @@ async function persist() {
       profile_ids: form.profile_ids.map((item) => Number(item))
     });
     await load();
+    closeModal();
     resetForm();
     logAppInfo("usuarios", "Usuário salvo com sucesso.");
   } catch (err) {
@@ -147,7 +155,10 @@ async function removeRow(id: number) {
     await ensureSession();
     await deleteUser(session.sessionToken!, id);
     await load();
-    if (Number(form.id) === id) resetForm();
+    if (Number(form.id) === id) {
+      resetForm();
+      closeModal();
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir usuário.";
     logAppError("usuarios", "Falha ao excluir usuário.", { id, error: error.value });
@@ -170,83 +181,16 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de usuários</h2>
-        <div class="muted-text">Estrutura completa com usuário master, perfis múltiplos, empresas vinculadas e senha provisória.</div>
+        <div class="muted-text">Listagem fixa com manutenção do acesso em modal.</div>
       </div>
       <div class="actions">
-        <button class="secondary" :disabled="!canManage" @click="resetForm">Novo cadastro</button>
+        <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo cadastro</button>
       </div>
     </div>
 
     <div v-if="!session.can('usuarios:view')" class="alert error">Você não possui permissão para visualizar usuários.</div>
     <div v-else class="grid page-gap">
       <div v-if="error" class="alert error">{{ error }}</div>
-
-      <div class="card grid page-gap">
-        <div class="section-title">Dados do acesso</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field">
-            <label>Nome *</label>
-            <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Nome completo do usuário" />
-          </div>
-          <div class="field">
-            <label>Login *</label>
-            <input v-model="form.login" type="text" :disabled="!canManage" placeholder="login" />
-          </div>
-          <div class="field">
-            <label>E-mail</label>
-            <input v-model="form.email" type="email" :disabled="!canManage" placeholder="usuario@empresa.com" />
-          </div>
-          <div class="field">
-            <label>Telefone</label>
-            <input v-model="form.telefone" type="text" :disabled="!canManage" placeholder="(00) 00000-0000" />
-          </div>
-          <div class="field">
-            <label>Cargo</label>
-            <input v-model="form.cargo" type="text" :disabled="!canManage" placeholder="Cargo / função" />
-          </div>
-          <div class="field">
-            <label>{{ form.id ? 'Nova senha (opcional)' : 'Senha *' }}</label>
-            <input v-model="form.senha" type="password" :disabled="!canManage" placeholder="mínimo 6 caracteres" />
-          </div>
-        </div>
-
-        <div class="section-title">Perfis e empresas</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field span-2">
-            <label>Perfis de acesso</label>
-            <select v-model="form.profile_ids" multiple size="5" :disabled="!canManage || form.master_user">
-              <option v-for="item in profileOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-            <div class="muted-row">Segure Ctrl/Cmd para selecionar múltiplos perfis.</div>
-          </div>
-          <div class="field span-2">
-            <label>Empresas vinculadas</label>
-            <select v-model="form.empresa_ids" multiple size="5" :disabled="!canManage || form.master_user">
-              <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-            <div class="muted-row">Usuário master pode operar sem vínculo específico de empresa.</div>
-          </div>
-        </div>
-
-        <div class="section-title">Status e observações</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field span-2">
-            <label>Observações</label>
-            <textarea v-model="form.observacoes" rows="4" :disabled="!canManage" placeholder="Observações internas sobre o usuário"></textarea>
-          </div>
-          <div class="field checkbox-line"><input v-model="form.master_user" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário master</label></div>
-          <div class="field checkbox-line"><input v-model="form.administrador" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Administrador</label></div>
-          <div class="field checkbox-line"><input v-model="form.senha_provisoria" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Senha provisória / exigir troca</label></div>
-          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário ativo</label></div>
-        </div>
-
-        <div class="actions">
-          <button class="primary" :disabled="saving || !canManage" @click="persist">
-            {{ saving ? "Salvando..." : form.id ? "Atualizar usuário" : "Salvar usuário" }}
-          </button>
-          <button class="secondary" @click="resetForm">Limpar</button>
-        </div>
-      </div>
 
       <div class="card grid page-gap">
         <div class="toolbar">
@@ -320,5 +264,80 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar usuário' : 'Novo usuário'"
+      subtitle="Fluxo convertido para modal, preservando as regras atuais de sessão, perfis e empresas."
+      width="xl"
+      @close="closeModal"
+    >
+      <div class="grid page-gap">
+        <div class="section-title">Dados do acesso</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Nome *</label>
+            <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Nome completo do usuário" />
+          </div>
+          <div class="field">
+            <label>Login *</label>
+            <input v-model="form.login" type="text" :disabled="!canManage" placeholder="login" />
+          </div>
+          <div class="field">
+            <label>E-mail</label>
+            <input v-model="form.email" type="email" :disabled="!canManage" placeholder="usuario@empresa.com" />
+          </div>
+          <div class="field">
+            <label>Telefone</label>
+            <input v-model="form.telefone" type="text" :disabled="!canManage" placeholder="(00) 00000-0000" />
+          </div>
+          <div class="field">
+            <label>Cargo</label>
+            <input v-model="form.cargo" type="text" :disabled="!canManage" placeholder="Cargo / função" />
+          </div>
+          <div class="field">
+            <label>{{ form.id ? 'Nova senha (opcional)' : 'Senha *' }}</label>
+            <input v-model="form.senha" type="password" :disabled="!canManage" placeholder="mínimo 6 caracteres" />
+          </div>
+        </div>
+
+        <div class="section-title">Perfis e empresas</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field span-2">
+            <label>Perfis de acesso</label>
+            <select v-model="form.profile_ids" multiple size="5" :disabled="!canManage || form.master_user">
+              <option v-for="item in profileOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+            <div class="muted-row">Segure Ctrl/Cmd para selecionar múltiplos perfis.</div>
+          </div>
+          <div class="field span-2">
+            <label>Empresas vinculadas</label>
+            <select v-model="form.empresa_ids" multiple size="5" :disabled="!canManage || form.master_user">
+              <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+            <div class="muted-row">Usuário master pode operar sem vínculo específico de empresa.</div>
+          </div>
+        </div>
+
+        <div class="section-title">Status e observações</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field span-2">
+            <label>Observações</label>
+            <textarea v-model="form.observacoes" rows="4" :disabled="!canManage" placeholder="Observações internas sobre o usuário"></textarea>
+          </div>
+          <div class="field checkbox-line"><input v-model="form.master_user" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário master</label></div>
+          <div class="field checkbox-line"><input v-model="form.administrador" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Administrador</label></div>
+          <div class="field checkbox-line"><input v-model="form.senha_provisoria" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Senha provisória / exigir troca</label></div>
+          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário ativo</label></div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving || !canManage" @click="persist">
+            {{ saving ? "Salvando..." : form.id ? "Atualizar usuário" : "Salvar usuário" }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+    </AppModal>
   </div>
 </template>

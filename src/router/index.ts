@@ -35,6 +35,8 @@ const permissionByEntity: Record<string, string> = {
   centro_custos: "funcionarios:view",
   horarios: "horarios:view",
   escalas: "escalas:view",
+  feriados: "feriados:view",
+  jornada_contextos_regras: "jornadas:view",
   equipamentos: "equipamentos:view",
   eventos: "eventos:view",
   justificativas: "justificativas:view"

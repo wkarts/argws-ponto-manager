@@ -146,6 +146,44 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: "ativo", label: "Ativo", type: "checkbox" }
     ]
   },
+
+  feriados: {
+    key: "feriados",
+    title: "Tabela de feriados",
+    route: "/feriados",
+    columns: ["id", "data", "descricao", "contexto_tipo", "empresa_id", "departamento_id", "regra_compensacao", "ativo"],
+    fields: [
+      { key: "data", label: "Data", type: "date", required: true },
+      { key: "descricao", label: "Descrição", required: true },
+      { key: "contexto_tipo", label: "Contexto", type: "select", relationEntity: "contextos_feriado" },
+      { key: "empresa_id", label: "Empresa", type: "select", relationEntity: "empresas" },
+      { key: "departamento_id", label: "Departamento", type: "select", relationEntity: "departamentos" },
+      { key: "regra_jornada", label: "Tratamento da jornada", type: "select", relationEntity: "regras_jornada" },
+      { key: "regra_compensacao", label: "Compensação", type: "select", relationEntity: "regras_compensacao" },
+      { key: "observacoes", label: "Observações", type: "textarea" },
+      { key: "ativo", label: "Ativo", type: "checkbox" }
+    ]
+  },
+  jornada_contextos_regras: {
+    key: "jornada_contextos_regras",
+    title: "Regras de jornada por contexto",
+    route: "/jornada-contextos",
+    columns: ["id", "descricao", "empresa_id", "departamento_id", "funcao_id", "centro_custo_id", "jornada_id", "regra_compensacao", "ativo"],
+    fields: [
+      { key: "descricao", label: "Descrição", required: true },
+      { key: "empresa_id", label: "Empresa", type: "select", relationEntity: "empresas" },
+      { key: "departamento_id", label: "Departamento", type: "select", relationEntity: "departamentos" },
+      { key: "funcao_id", label: "Função", type: "select", relationEntity: "funcoes" },
+      { key: "centro_custo_id", label: "Centro de custo", type: "select", relationEntity: "centro_custos" },
+      { key: "jornada_id", label: "Jornada", type: "select", relationEntity: "jornadas_lookup" },
+      { key: "regra_compensacao", label: "Compensação", type: "select", relationEntity: "regras_compensacao" },
+      { key: "banco_horas_ativo", label: "Banco de horas ativo", type: "checkbox" },
+      { key: "permite_hora_extra", label: "Permite hora extra", type: "checkbox" },
+      { key: "compensa_atraso_com_extra", label: "Compensa atraso com extra", type: "checkbox" },
+      { key: "usa_banco_para_excedente", label: "Usa banco para excedente", type: "checkbox" },
+      { key: "ativo", label: "Ativo", type: "checkbox" }
+    ]
+  },
   justificativas: {
     key: "justificativas",
     title: "Justificativas",
