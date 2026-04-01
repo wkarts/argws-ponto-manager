@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import { deleteBatida, listBatidas, listEmployees, saveBatida, saveOcorrencia, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -14,8 +15,26 @@ const observacao = ref("");
 const message = ref("");
 const error = ref("");
 const loading = ref(false);
+const modalOpen = ref(false);
+const savingLine = ref(false);
+const editingIndex = ref<number | null>(null);
+const rowForm = ref<Record<string, any>>(emptyRow());
 
 const currentEmployee = computed(() => employees.value.find((item) => item.id === selectedEmployeeId.value));
+
+function emptyRow() {
+  return {
+    id: undefined,
+    funcionario_id: selectedEmployeeId.value,
+    data_referencia: dataInicial.value,
+    hora: "08:00",
+    tipo: "entrada",
+    origem: "ajuste_manual",
+    manual_ajuste: true,
+    validado: true,
+    observacao: observacao.value || "Ajuste manual em lote",
+  };
+}
 
 async function loadEmployeesForCompany() {
   const rows = await listEmployees({ empresaId: session.activeCompanyId ?? null, onlyActive: true });
@@ -54,17 +73,71 @@ async function removeRow(id: number) {
 }
 
 function addRow() {
-  rows.value.unshift({
-    id: undefined,
+  editingIndex.value = null;
+  rowForm.value = emptyRow();
+  modalOpen.value = true;
+}
+
+function editRow(row: Record<string, any>, index: number) {
+  editingIndex.value = index;
+  rowForm.value = {
+    id: row.id,
     funcionario_id: selectedEmployeeId.value,
-    data_referencia: dataInicial.value,
-    hora: "08:00",
-    tipo: "entrada",
-    origem: "ajuste_manual",
-    manual_ajuste: true,
-    validado: true,
-    observacao: observacao.value || "Ajuste manual em lote",
-  });
+    data_referencia: row.data_referencia || dataInicial.value,
+    hora: row.hora || "08:00",
+    tipo: row.tipo || "entrada",
+    origem: row.origem || "ajuste_manual",
+    manual_ajuste: row.manual_ajuste ?? true,
+    validado: row.validado ?? true,
+    observacao: row.observacao || "",
+  };
+  modalOpen.value = true;
+}
+
+function closeModal() {
+  modalOpen.value = false;
+  editingIndex.value = null;
+  rowForm.value = emptyRow();
+}
+
+function persistLocalRow() {
+  const payload = {
+    ...rowForm.value,
+    funcionario_id: selectedEmployeeId.value,
+    data_referencia: rowForm.value.data_referencia || dataInicial.value,
+    hora: rowForm.value.hora || "08:00",
+    tipo: rowForm.value.tipo || "entrada",
+    origem: rowForm.value.origem || "ajuste_manual",
+    manual_ajuste: rowForm.value.manual_ajuste ?? true,
+    validado: rowForm.value.validado ?? true,
+    observacao: rowForm.value.observacao || "",
+  };
+
+  if (editingIndex.value === null) {
+    rows.value.unshift(payload);
+  } else {
+    rows.value.splice(editingIndex.value, 1, payload);
+  }
+
+  closeModal();
+}
+
+async function salvarLinhaModal() {
+  if (!selectedEmployeeId.value) {
+    error.value = "Selecione um colaborador antes de lançar uma batida.";
+    return;
+  }
+
+  savingLine.value = true;
+  error.value = "";
+  try {
+    persistLocalRow();
+    message.value = "Linha preparada para o lote com sucesso.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao preparar a linha para o lote.";
+  } finally {
+    savingLine.value = false;
+  }
 }
 
 async function salvarLote() {
@@ -159,22 +232,15 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="String(row.id || `${row.data_referencia}-${row.hora}`)">
-              <td><input v-model="row.data_referencia" type="date" /></td>
-              <td><input v-model="row.hora" type="time" /></td>
-              <td>
-                <select v-model="row.tipo">
-                  <option value="entrada">Entrada</option>
-                  <option value="saida">Saída</option>
-                  <option value="intervalo_saida">Intervalo saída</option>
-                  <option value="intervalo_retorno">Intervalo retorno</option>
-                </select>
-              </td>
-              <td><input v-model="row.origem" type="text" /></td>
-              <td><input v-model="row.observacao" type="text" /></td>
+            <tr v-for="(row, index) in rows" :key="String(row.id || `${row.data_referencia}-${row.hora}-${index}`)">
+              <td>{{ row.data_referencia || '-' }}</td>
+              <td>{{ row.hora || '-' }}</td>
+              <td>{{ row.tipo || '-' }}</td>
+              <td>{{ row.origem || '-' }}</td>
+              <td>{{ row.observacao || '-' }}</td>
               <td>
                 <div class="actions compact-actions">
-                  <button class="secondary" @click="saveRow(row)">Salvar linha</button>
+                  <button class="secondary" @click="editRow(row, index)">Editar</button>
                   <button v-if="row.id" class="danger" @click="removeRow(Number(row.id))">Excluir</button>
                 </div>
               </td>
@@ -186,5 +252,63 @@ onMounted(async () => {
         </table>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="rowForm.id ? 'Editar batida em lote' : 'Nova batida em lote'"
+      subtitle="A inclusão e a edição da linha agora seguem o padrão em modal, preservando o salvamento consolidado do lote."
+      width="md"
+      @close="closeModal"
+    >
+      <form class="grid" @submit.prevent="salvarLinhaModal">
+        <div class="field">
+          <label>Data</label>
+          <input v-model="rowForm.data_referencia" type="date" required />
+        </div>
+
+        <div class="field">
+          <label>Hora</label>
+          <input v-model="rowForm.hora" type="time" required />
+        </div>
+
+        <div class="field">
+          <label>Tipo</label>
+          <select v-model="rowForm.tipo" required>
+            <option value="entrada">Entrada</option>
+            <option value="saida">Saída</option>
+            <option value="intervalo_saida">Intervalo saída</option>
+            <option value="intervalo_retorno">Intervalo retorno</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Origem</label>
+          <input v-model="rowForm.origem" type="text" />
+        </div>
+
+        <div class="field full-width">
+          <label>Observação</label>
+          <input v-model="rowForm.observacao" type="text" />
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1 full-width">
+          <label class="checkbox-field">
+            <input v-model="rowForm.manual_ajuste" type="checkbox" />
+            <span>Ajuste manual</span>
+          </label>
+          <label class="checkbox-field">
+            <input v-model="rowForm.validado" type="checkbox" />
+            <span>Validado</span>
+          </label>
+        </div>
+
+        <div class="actions modal-actions full-width">
+          <button class="secondary" type="button" @click="closeModal">Cancelar</button>
+          <button class="primary" type="submit" :disabled="savingLine">
+            {{ savingLine ? 'Salvando...' : rowForm.id ? 'Atualizar linha' : 'Adicionar linha' }}
+          </button>
+        </div>
+      </form>
+    </AppModal>
   </div>
 </template>
