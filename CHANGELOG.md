@@ -1,3 +1,16 @@
+# [1.7.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.2...v1.7.0) (2026-04-01)
+
+
+### Bug Fixes
+
+* **ci:** corrige typecheck da JornadaPage e formatação de entities.rs ([579849b](https://github.com/wkarts/argws-ponto-manager/commit/579849bfdb47a2b10f8e3ae8637939c9c830ce7a))
+
+
+### Features
+
+* **ui:** aplica modal nas páginas restantes de CRUD e ajustes operacionais ([d047037](https://github.com/wkarts/argws-ponto-manager/commit/d047037d785d6fd99e2aaf5fbf126977a82b7dc6))
+* **ui:** padroniza todas as páginas de CRUD com inclusão e edição em modal ([b07de38](https://github.com/wkarts/argws-ponto-manager/commit/b07de38dfbd75815026e3f06e929cfacf1c6ee58))
+
 ## [1.6.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.1...v1.6.2) (2026-03-28)
 
 
