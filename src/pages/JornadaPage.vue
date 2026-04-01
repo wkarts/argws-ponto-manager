@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import {
   comboList,
   deleteJornada,
@@ -18,16 +19,9 @@ const companyOptions = ref<ComboOption[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
+const modalOpen = ref(false);
 
-const dayLabels = [
-  "Segunda",
-  "Terça",
-  "Quarta",
-  "Quinta",
-  "Sexta",
-  "Sábado",
-  "Domingo"
-];
+const dayLabels = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 
 function defaultDays() {
   return dayLabels.map((_, index) => ({
@@ -65,6 +59,16 @@ function defaultForm() {
 }
 
 const form = reactive(defaultForm());
+
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  if (session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
+  modalOpen.value = true;
+}
 
 function resetForm() {
   Object.assign(form, defaultForm());
@@ -111,6 +115,7 @@ async function editRow(id: number) {
           }))
         : defaultDays()
     });
+    modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar jornada.";
   }
@@ -122,6 +127,7 @@ async function persist() {
   try {
     await saveJornada({ ...form, dias: form.dias.map((day) => ({ ...day })) });
     await load();
+    closeModal();
     resetForm();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar jornada.";
@@ -137,6 +143,7 @@ async function removeRow(id: number) {
     await load();
     if (Number(form.id) === id) {
       resetForm();
+      closeModal();
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir jornada.";
@@ -157,123 +164,14 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de jornadas de trabalho</h2>
-        <div class="muted-text">Modelo semanal com tolerâncias, tratamento de AFD e integração com banco de horas.</div>
+        <div class="muted-text">Listagem preservada com manutenção da jornada em modal.</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="resetForm">Nova jornada</button>
+        <button class="secondary" @click="openNewModal">Nova jornada</button>
       </div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
-
-    <div class="card grid page-gap">
-      <div class="grid columns-2 mobile-columns-1">
-        <div class="field">
-          <label>Empresa</label>
-          <select v-model="form.empresa_id">
-            <option value="">Todas / padrão</option>
-            <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Código</label>
-          <input v-model="form.codigo" type="text" placeholder="JRN-001" />
-        </div>
-        <div class="field">
-          <label>Descrição *</label>
-          <input v-model="form.descricao" type="text" placeholder="Jornada comercial" />
-        </div>
-        <div class="field">
-          <label>Tipo</label>
-          <select v-model="form.tipo_jornada">
-            <option value="fixa">Fixa</option>
-            <option value="flexivel">Flexível</option>
-            <option value="12x36">12x36</option>
-            <option value="livre">Livre</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
-          <label>Tolerância entrada (min)</label>
-          <input v-model="form.tolerancia_entrada_minutos" type="number" min="0" />
-        </div>
-        <div class="field">
-          <label>Tolerância saída (min)</label>
-          <input v-model="form.tolerancia_saida_minutos" type="number" min="0" />
-        </div>
-        <div class="field">
-          <label>Tolerância intervalo (min)</label>
-          <input v-model="form.tolerancia_intervalo_minutos" type="number" min="0" />
-        </div>
-        <div class="field">
-          <label>Modo AFD</label>
-          <select v-model="form.modo_tratamento_afd">
-            <option value="auto">Automático</option>
-            <option value="1510">Portaria 1.510/2009</option>
-            <option value="671">Portaria 671/2021</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="grid columns-3 mobile-columns-1">
-        <div class="field">
-          <label>Carga semanal (min)</label>
-          <input v-model="form.carga_semanal_minutos" type="number" min="0" />
-        </div>
-        <div class="field">
-          <label>Limite diário (min)</label>
-          <input v-model="form.limite_diario_minutos" type="number" min="0" />
-        </div>
-        <div class="field">
-          <label>Observações</label>
-          <input v-model="form.observacoes" type="text" placeholder="Observações da jornada" />
-        </div>
-      </div>
-
-      <div class="grid columns-2 mobile-columns-1">
-        <label class="checkbox-line"><input v-model="form.banco_horas_ativo" class="checkbox-input" type="checkbox" /> Banco de horas ativo</label>
-        <label class="checkbox-line"><input v-model="form.exige_marcacao_intervalo" class="checkbox-input" type="checkbox" /> Exige marcação de intervalo</label>
-        <label class="checkbox-line"><input v-model="form.compensa_atraso_com_extra" class="checkbox-input" type="checkbox" /> Compensa atraso com extra</label>
-        <label class="checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" /> Jornada ativa</label>
-      </div>
-
-      <div class="section-title">Distribuição semanal</div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Dia</th>
-              <th>Entrada 1</th>
-              <th>Saída 1</th>
-              <th>Entrada 2</th>
-              <th>Saída 2</th>
-              <th>Carga (min)</th>
-              <th>Intervalo</th>
-              <th>Folga</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(day, index) in form.dias" :key="day.dia_semana">
-              <td>{{ dayLabels[index] }}</td>
-              <td><input v-model="day.entrada_1" type="time" :disabled="day.folga" /></td>
-              <td><input v-model="day.saida_1" type="time" :disabled="day.folga" /></td>
-              <td><input v-model="day.entrada_2" type="time" :disabled="day.folga" /></td>
-              <td><input v-model="day.saida_2" type="time" :disabled="day.folga" /></td>
-              <td><input v-model="day.carga_prevista_minutos" type="number" min="0" :disabled="day.folga" /></td>
-              <td><input v-model="day.intervalo_minutos" type="number" min="0" :disabled="day.folga" /></td>
-              <td><input v-model="day.folga" type="checkbox" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="actions">
-        <button class="primary" :disabled="saving" @click="persist">{{ saving ? 'Salvando...' : form.id ? 'Atualizar jornada' : 'Salvar jornada' }}</button>
-        <button class="secondary" @click="resetForm">Limpar</button>
-      </div>
-    </div>
 
     <div class="card grid page-gap">
       <div class="toolbar">
@@ -282,28 +180,31 @@ onMounted(async () => {
           <div class="muted-text">Base semanal utilizada na apuração, no AFD e no banco de horas.</div>
         </div>
       </div>
+
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>ID</th>
-              <th>Descrição</th>
               <th>Empresa</th>
+              <th>Código</th>
+              <th>Descrição</th>
               <th>Tipo</th>
               <th>Carga semanal</th>
-              <th>Modo AFD</th>
+              <th>Dias</th>
               <th>Status</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="Number(row.id)">
+            <tr v-for="row in visibleRows" :key="Number(row.id)">
               <td>{{ row.id }}</td>
+              <td>{{ row.empresa_nome || 'Geral' }}</td>
+              <td>{{ row.codigo || '-' }}</td>
               <td>{{ row.descricao }}</td>
-              <td>{{ row.empresa_nome || 'Padrão' }}</td>
-              <td>{{ row.tipo_jornada }}</td>
-              <td>{{ formatMinutes(Number(row.carga_semanal_minutos || 0)) }}</td>
-              <td>{{ row.modo_tratamento_afd }}</td>
+              <td>{{ row.tipo_jornada || '-' }}</td>
+              <td>{{ formatMinutes(row.carga_semanal_minutos || 0) }}</td>
+              <td>{{ row.total_dias || 0 }}</td>
               <td>{{ booleanLabel(row.ativo) }}</td>
               <td>
                 <div class="compact-actions actions">
@@ -312,12 +213,129 @@ onMounted(async () => {
                 </div>
               </td>
             </tr>
-            <tr v-if="!rows.length">
-              <td colspan="8" class="empty-cell">Nenhuma jornada cadastrada.</td>
+            <tr v-if="!visibleRows.length">
+              <td colspan="9" class="empty-cell">Nenhuma jornada encontrada.</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar jornada de trabalho' : 'Nova jornada de trabalho'"
+      subtitle="Fluxo convertido para modal, mantendo a mesma estrutura funcional do cadastro existente."
+      width="xl"
+      @close="closeModal"
+    >
+      <div class="grid page-gap">
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Empresa</label>
+            <select v-model="form.empresa_id">
+              <option value="">Todas / padrão</option>
+              <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Código</label>
+            <input v-model="form.codigo" type="text" placeholder="JRN-001" />
+          </div>
+          <div class="field">
+            <label>Descrição *</label>
+            <input v-model="form.descricao" type="text" placeholder="Jornada comercial" />
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select v-model="form.tipo_jornada">
+              <option value="fixa">Fixa</option>
+              <option value="flexivel">Flexível</option>
+              <option value="12x36">12x36</option>
+              <option value="livre">Livre</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid columns-4 mobile-columns-1">
+          <div class="field">
+            <label>Tolerância entrada (min)</label>
+            <input v-model="form.tolerancia_entrada_minutos" type="number" min="0" />
+          </div>
+          <div class="field">
+            <label>Tolerância saída (min)</label>
+            <input v-model="form.tolerancia_saida_minutos" type="number" min="0" />
+          </div>
+          <div class="field">
+            <label>Tolerância intervalo (min)</label>
+            <input v-model="form.tolerancia_intervalo_minutos" type="number" min="0" />
+          </div>
+          <div class="field">
+            <label>Modo AFD</label>
+            <select v-model="form.modo_tratamento_afd">
+              <option value="auto">Automático</option>
+              <option value="1510">Portaria 1.510/2009</option>
+              <option value="671">Portaria 671/2021</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid columns-3 mobile-columns-1">
+          <div class="field">
+            <label>Carga semanal (min)</label>
+            <input v-model="form.carga_semanal_minutos" type="number" min="0" />
+          </div>
+          <div class="field">
+            <label>Limite diário (min)</label>
+            <input v-model="form.limite_diario_minutos" type="number" min="0" />
+          </div>
+          <div class="field">
+            <label>Observações</label>
+            <input v-model="form.observacoes" type="text" placeholder="Observações da jornada" />
+          </div>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <label class="checkbox-line"><input v-model="form.banco_horas_ativo" class="checkbox-input" type="checkbox" /> Banco de horas ativo</label>
+          <label class="checkbox-line"><input v-model="form.exige_marcacao_intervalo" class="checkbox-input" type="checkbox" /> Exige marcação de intervalo</label>
+          <label class="checkbox-line"><input v-model="form.compensa_atraso_com_extra" class="checkbox-input" type="checkbox" /> Compensa atraso com extra</label>
+          <label class="checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" /> Jornada ativa</label>
+        </div>
+
+        <div class="section-title">Distribuição semanal</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Dia</th>
+                <th>Entrada 1</th>
+                <th>Saída 1</th>
+                <th>Entrada 2</th>
+                <th>Saída 2</th>
+                <th>Carga (min)</th>
+                <th>Intervalo</th>
+                <th>Folga</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(day, index) in form.dias" :key="day.dia_semana">
+                <td>{{ dayLabels[index] }}</td>
+                <td><input v-model="day.entrada_1" type="time" :disabled="day.folga" /></td>
+                <td><input v-model="day.saida_1" type="time" :disabled="day.folga" /></td>
+                <td><input v-model="day.entrada_2" type="time" :disabled="day.folga" /></td>
+                <td><input v-model="day.saida_2" type="time" :disabled="day.folga" /></td>
+                <td><input v-model="day.carga_prevista_minutos" type="number" min="0" :disabled="day.folga" /></td>
+                <td><input v-model="day.intervalo_minutos" type="number" min="0" :disabled="day.folga" /></td>
+                <td><input v-model="day.folga" type="checkbox" /></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving" @click="persist">{{ saving ? 'Salvando...' : form.id ? 'Atualizar jornada' : 'Salvar jornada' }}</button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+    </AppModal>
   </div>
 </template>

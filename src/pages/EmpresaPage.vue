@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import AppModal from "../components/AppModal.vue";
 import { deleteCompany, getCompany, listCompanies, saveCompany, type GenericRecord } from "../services/crud";
 import { booleanLabel, formatCpfCnpj, formatPhone } from "../services/format";
 
@@ -9,6 +10,7 @@ const saving = ref(false);
 const error = ref("");
 const search = ref("");
 const onlyActive = ref(false);
+const modalOpen = ref(false);
 
 function defaultForm() {
   return {
@@ -36,6 +38,15 @@ function defaultForm() {
 
 const form = reactive(defaultForm());
 
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  modalOpen.value = true;
+}
+
 function resetForm() {
   Object.assign(form, defaultForm());
 }
@@ -62,6 +73,7 @@ async function editRow(id: number) {
     Object.assign(form, defaultForm(), record, {
       ativo: Number(record.ativo) === 1 || record.ativo === true
     });
+    modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar empresa.";
   }
@@ -73,6 +85,7 @@ async function persist() {
   try {
     await saveCompany({ ...form });
     await load();
+    closeModal();
     resetForm();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar empresa.";
@@ -89,6 +102,7 @@ async function removeRow(id: number) {
     await load();
     if (Number(form.id) === id) {
       resetForm();
+      closeModal();
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir empresa.";
@@ -103,117 +117,14 @@ onMounted(load);
     <div class="toolbar">
       <div>
         <h2>Cadastro de empresa usuária</h2>
-        <div class="muted-text">Cadastre a empresa que utiliza o sistema com dados fiscais, contato e endereço.</div>
+        <div class="muted-text">Listagem preservada na tela principal com inclusão e edição em modal.</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="resetForm">Novo cadastro</button>
+        <button class="secondary" @click="openNewModal">Novo cadastro</button>
       </div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">Dados principais</div>
-      <div class="grid columns-2">
-        <div class="field">
-          <label>Razão social *</label>
-          <input v-model="form.nome" type="text" placeholder="Razão social da empresa" />
-        </div>
-        <div class="field">
-          <label>Nome fantasia</label>
-          <input v-model="form.nome_fantasia" type="text" placeholder="Nome fantasia" />
-        </div>
-        <div class="field">
-          <label>CNPJ / CPF *</label>
-          <input v-model="form.documento" type="text" placeholder="00.000.000/0000-00" />
-        </div>
-        <div class="grid columns-2 nested-grid">
-          <div class="field">
-            <label>Inscrição estadual</label>
-            <input v-model="form.inscricao_estadual" type="text" placeholder="Inscrição estadual" />
-          </div>
-          <div class="field">
-            <label>Inscrição municipal</label>
-            <input v-model="form.inscricao_municipal" type="text" placeholder="Inscrição municipal" />
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title">Contato</div>
-      <div class="grid columns-2">
-        <div class="field">
-          <label>Telefone principal</label>
-          <input v-model="form.telefone" type="text" placeholder="(00) 00000-0000" />
-        </div>
-        <div class="field">
-          <label>E-mail</label>
-          <input v-model="form.email" type="email" placeholder="contato@empresa.com" />
-        </div>
-        <div class="field">
-          <label>Responsável</label>
-          <input v-model="form.responsavel_nome" type="text" placeholder="Nome do responsável" />
-        </div>
-        <div class="field">
-          <label>Telefone do responsável</label>
-          <input v-model="form.responsavel_telefone" type="text" placeholder="(00) 00000-0000" />
-        </div>
-      </div>
-
-      <div class="section-title">Endereço</div>
-      <div class="grid columns-2">
-        <div class="field">
-          <label>CEP</label>
-          <input v-model="form.cep" type="text" placeholder="00000-000" />
-        </div>
-        <div class="grid columns-2 nested-grid">
-          <div class="field">
-            <label>UF</label>
-            <input v-model="form.estado" type="text" maxlength="2" placeholder="BA" />
-          </div>
-          <div class="field">
-            <label>Cidade</label>
-            <input v-model="form.cidade" type="text" placeholder="Cidade" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Endereço</label>
-          <input v-model="form.endereco" type="text" placeholder="Rua / Avenida" />
-        </div>
-        <div class="grid columns-2 nested-grid">
-          <div class="field">
-            <label>Número</label>
-            <input v-model="form.numero" type="text" placeholder="Número" />
-          </div>
-          <div class="field">
-            <label>Complemento</label>
-            <input v-model="form.complemento" type="text" placeholder="Complemento" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Bairro</label>
-          <input v-model="form.bairro" type="text" placeholder="Bairro" />
-        </div>
-      </div>
-
-      <div class="section-title">Observações</div>
-      <div class="grid columns-2">
-        <div class="field span-2">
-          <label>Observações</label>
-          <textarea v-model="form.observacoes" rows="4" placeholder="Informações adicionais da empresa"></textarea>
-        </div>
-        <div class="field checkbox-line span-2">
-          <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
-          <label>Empresa ativa</label>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="primary" :disabled="saving" @click="persist">
-          {{ saving ? "Salvando..." : form.id ? "Atualizar empresa" : "Salvar empresa" }}
-        </button>
-        <button class="secondary" @click="resetForm">Limpar</button>
-      </div>
-    </div>
 
     <div class="card grid page-gap">
       <div class="toolbar">
@@ -276,5 +187,116 @@ onMounted(load);
         </table>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar empresa usuária' : 'Nova empresa usuária'"
+      subtitle="Fluxo convertido para manutenção em modal sem alterar a listagem existente."
+      width="xl"
+      @close="closeModal"
+    >
+      <div class="grid page-gap">
+        <div class="section-title">Dados principais</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Razão social *</label>
+            <input v-model="form.nome" type="text" placeholder="Razão social da empresa" />
+          </div>
+          <div class="field">
+            <label>Nome fantasia</label>
+            <input v-model="form.nome_fantasia" type="text" placeholder="Nome fantasia" />
+          </div>
+          <div class="field">
+            <label>CNPJ / CPF *</label>
+            <input v-model="form.documento" type="text" placeholder="00.000.000/0000-00" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Inscrição estadual</label>
+              <input v-model="form.inscricao_estadual" type="text" placeholder="Inscrição estadual" />
+            </div>
+            <div class="field">
+              <label>Inscrição municipal</label>
+              <input v-model="form.inscricao_municipal" type="text" placeholder="Inscrição municipal" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Contato</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Telefone principal</label>
+            <input v-model="form.telefone" type="text" placeholder="(00) 00000-0000" />
+          </div>
+          <div class="field">
+            <label>E-mail</label>
+            <input v-model="form.email" type="email" placeholder="contato@empresa.com" />
+          </div>
+          <div class="field">
+            <label>Responsável</label>
+            <input v-model="form.responsavel_nome" type="text" placeholder="Nome do responsável" />
+          </div>
+          <div class="field">
+            <label>Telefone do responsável</label>
+            <input v-model="form.responsavel_telefone" type="text" placeholder="(00) 00000-0000" />
+          </div>
+        </div>
+
+        <div class="section-title">Endereço</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>CEP</label>
+            <input v-model="form.cep" type="text" placeholder="00000-000" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>UF</label>
+              <input v-model="form.estado" type="text" maxlength="2" placeholder="BA" />
+            </div>
+            <div class="field">
+              <label>Cidade</label>
+              <input v-model="form.cidade" type="text" placeholder="Cidade" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Endereço</label>
+            <input v-model="form.endereco" type="text" placeholder="Rua / Avenida" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Número</label>
+              <input v-model="form.numero" type="text" placeholder="Número" />
+            </div>
+            <div class="field">
+              <label>Complemento</label>
+              <input v-model="form.complemento" type="text" placeholder="Complemento" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Bairro</label>
+            <input v-model="form.bairro" type="text" placeholder="Bairro" />
+          </div>
+        </div>
+
+        <div class="section-title">Observações</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field span-2">
+            <label>Observações</label>
+            <textarea v-model="form.observacoes" rows="4" placeholder="Informações adicionais da empresa"></textarea>
+          </div>
+          <div class="field checkbox-line span-2">
+            <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
+            <label>Empresa ativa</label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving" @click="persist">
+            {{ saving ? "Salvando..." : form.id ? "Atualizar empresa" : "Salvar empresa" }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+    </AppModal>
   </div>
 </template>

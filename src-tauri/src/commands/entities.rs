@@ -94,6 +94,44 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
             required: &["descricao"],
             label_column: "descricao",
         }),
+
+        "feriados" => Some(EntityDefinition {
+            table: "feriados",
+            fields: &[
+                "data",
+                "descricao",
+                "contexto_tipo",
+                "empresa_id",
+                "departamento_id",
+                "regra_jornada",
+                "regra_compensacao",
+                "observacoes",
+                "ativo",
+            ],
+            searchable: &["data", "descricao", "contexto_tipo", "regra_compensacao"],
+            required: &["data", "descricao"],
+            label_column: "descricao",
+        }),
+        "jornada_contextos_regras" => Some(EntityDefinition {
+            table: "jornada_contextos_regras",
+            fields: &[
+                "descricao",
+                "empresa_id",
+                "departamento_id",
+                "funcao_id",
+                "centro_custo_id",
+                "jornada_id",
+                "regra_compensacao",
+                "banco_horas_ativo",
+                "permite_hora_extra",
+                "compensa_atraso_com_extra",
+                "usa_banco_para_excedente",
+                "ativo",
+            ],
+            searchable: &["descricao", "regra_compensacao"],
+            required: &["descricao"],
+            label_column: "descricao",
+        }),
         "equipamentos" => Some(EntityDefinition {
             table: "equipamentos",
             fields: &[
@@ -184,6 +222,7 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
         | "centro_custo_id"
         | "horario_id"
         | "escala_id"
+        | "jornada_id"
         | "numero"
         | "porta"
         | "carga_horaria_minutos"
@@ -191,7 +230,11 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
         | "ativo"
         | "administrador"
         | "impacta_banco_horas"
-        | "abono" => match value {
+        | "abono"
+        | "banco_horas_ativo"
+        | "permite_hora_extra"
+        | "compensa_atraso_com_extra"
+        | "usa_banco_para_excedente" => match value {
             Value::String(v) if v.trim().is_empty() => Value::Null,
             Value::String(v) => v.parse::<i64>().map(Value::from).unwrap_or(Value::Null),
             other => other,
@@ -250,6 +293,43 @@ pub fn combo_list(
     state: State<'_, SharedState>,
     entity: String,
 ) -> Result<Vec<ComboOption>, String> {
+    if entity == "contextos_feriado" {
+        return Ok(vec![
+            ComboOption { id: 1, label: "global".to_string() },
+            ComboOption { id: 2, label: "empresa".to_string() },
+            ComboOption { id: 3, label: "departamento".to_string() },
+            ComboOption { id: 4, label: "operacional".to_string() },
+        ]);
+    }
+    if entity == "regras_jornada" {
+        return Ok(vec![
+            ComboOption { id: 1, label: "normal".to_string() },
+            ComboOption { id: 2, label: "reduzida".to_string() },
+            ComboOption { id: 3, label: "especial".to_string() },
+            ComboOption { id: 4, label: "escala diferenciada".to_string() },
+        ]);
+    }
+    if entity == "regras_compensacao" {
+        return Ok(vec![
+            ComboOption { id: 1, label: "banco_horas".to_string() },
+            ComboOption { id: 2, label: "hora_extra".to_string() },
+            ComboOption { id: 3, label: "consumo_horas".to_string() },
+            ComboOption { id: 4, label: "sem_compensacao".to_string() },
+        ]);
+    }
+    if entity == "jornadas_lookup" {
+        let db_path = state.db_path()?;
+        let conn = open_connection(&db_path)?;
+        let mut stmt = conn
+            .prepare("SELECT id, descricao AS label FROM jornadas_trabalho WHERE ativo = 1 ORDER BY descricao ASC")
+            .map_err(|err| format!("Falha ao preparar combo de jornadas: {err}"))?;
+        let rows = stmt
+            .query_map([], |row| Ok(ComboOption { id: row.get(0)?, label: row.get(1)? }))
+            .map_err(|err| format!("Falha ao executar combo de jornadas: {err}"))?;
+        let result: Result<Vec<_>, _> = rows.collect();
+        return result.map_err(|err| format!("Falha ao mapear combo de jornadas: {err}"));
+    }
+
     let definition =
         entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import {
   apurarPeriodo,
   comboList,
@@ -26,6 +27,8 @@ const savingBatida = ref(false);
 const savingOcorrencia = ref(false);
 const error = ref("");
 const message = ref("");
+const batidaModalOpen = ref(false);
+const ocorrenciaModalOpen = ref(false);
 
 const employeeOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
@@ -74,6 +77,28 @@ const funcionarioIdNumero = computed<number | null>(() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 });
 const funcionarioNomeSelecionado = computed(() => employeeOptions.value.find((item) => String(item.id) === filtros.funcionarioId)?.label || "Todos");
+
+function closeBatidaModal() {
+  batidaModalOpen.value = false;
+}
+
+function openNovaBatida(referenceDate?: string) {
+  resetBatida();
+  batidaForm.funcionario_id = filtros.funcionarioId || batidaForm.funcionario_id || "";
+  batidaForm.data_referencia = referenceDate || filtros.dataInicial || new Date().toISOString().slice(0, 10);
+  batidaModalOpen.value = true;
+}
+
+function closeOcorrenciaModal() {
+  ocorrenciaModalOpen.value = false;
+}
+
+function openNovaOcorrencia(referenceDate?: string) {
+  resetOcorrencia();
+  ocorrenciaForm.funcionario_id = filtros.funcionarioId || ocorrenciaForm.funcionario_id || "";
+  ocorrenciaForm.data_referencia = referenceDate || filtros.dataInicial || new Date().toISOString().slice(0, 10);
+  ocorrenciaModalOpen.value = true;
+}
 
 function resetBatida() {
   batidaForm.id = undefined;
@@ -570,6 +595,7 @@ async function salvarBatida() {
     message.value = "Marcação salva com sucesso.";
     logAppInfo("cartao_ponto", "Marcação salva na área de cartão de ponto.");
     resetBatida();
+    closeBatidaModal();
     await carregarCartao();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar marcação.";
@@ -594,6 +620,7 @@ async function salvarOcorrencia() {
     message.value = "Ocorrência salva com sucesso.";
     logAppInfo("cartao_ponto", "Ocorrência salva na área de cartão de ponto.");
     resetOcorrencia();
+    closeOcorrenciaModal();
     await carregarCartao();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar ocorrência.";
@@ -604,6 +631,7 @@ async function salvarOcorrencia() {
 }
 
 function editarBatida(row: GenericRecord) {
+  batidaModalOpen.value = true;
   batidaForm.id = Number(row.id);
   batidaForm.funcionario_id = String(row.funcionario_id || filtros.funcionarioId || "");
   batidaForm.data_referencia = String(row.data_referencia || filtros.dataInicial);
@@ -619,6 +647,7 @@ function editarBatida(row: GenericRecord) {
 }
 
 function editarOcorrencia(row: GenericRecord) {
+  ocorrenciaModalOpen.value = true;
   ocorrenciaForm.id = Number(row.id);
   ocorrenciaForm.funcionario_id = String(row.funcionario_id || filtros.funcionarioId || "");
   ocorrenciaForm.data_referencia = String(row.data_referencia || filtros.dataInicial);
@@ -630,9 +659,7 @@ function editarOcorrencia(row: GenericRecord) {
 }
 
 function addBatidaFromGrid(referenceDate?: string) {
-  resetBatida();
-  batidaForm.funcionario_id = filtros.funcionarioId || "";
-  batidaForm.data_referencia = referenceDate || filtros.dataInicial || new Date().toISOString().slice(0, 10);
+  openNovaBatida(referenceDate);
 }
 
 async function removerBatida(row: GenericRecord) {
@@ -742,85 +769,9 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="grid columns-2 mobile-columns-1">
-      <div class="card grid page-gap">
-        <div class="section-title">Lançamento/edição de marcação</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field">
-            <label>Data</label>
-            <input v-model="batidaForm.data_referencia" type="date" />
-          </div>
-          <div class="field">
-            <label>Hora</label>
-            <input v-model="batidaForm.hora" type="time" />
-          </div>
-          <div class="field">
-            <label>Tipo</label>
-            <select v-model="batidaForm.tipo">
-              <option value="entrada">Entrada</option>
-              <option value="saida">Saída</option>
-              <option value="intervalo_saida">Intervalo saída</option>
-              <option value="intervalo_retorno">Intervalo retorno</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Justificativa</label>
-            <select v-model="batidaForm.justificativa_id">
-              <option value="">Sem justificativa</option>
-              <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-          </div>
-          <div class="field span-2">
-            <label>Observação</label>
-            <textarea v-model="batidaForm.observacao" rows="3" placeholder="Detalhes da marcação manual"></textarea>
-          </div>
-          <div class="field checkbox-line"><input v-model="batidaForm.manual_ajuste" class="checkbox-input" type="checkbox" /><label>Ajuste manual</label></div>
-          <div class="field checkbox-line"><input v-model="batidaForm.validado" class="checkbox-input" type="checkbox" /><label>Validado</label></div>
-        </div>
-        <div class="actions">
-          <button class="primary" :disabled="savingBatida" @click="salvarBatida">{{ savingBatida ? 'Salvando...' : batidaForm.id ? 'Atualizar marcação' : 'Salvar marcação' }}</button>
-          <button class="secondary" @click="resetBatida">Limpar</button>
-        </div>
-      </div>
-
-      <div class="card grid page-gap">
-        <div class="section-title">Justificativas e ocorrências</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field">
-            <label>Data</label>
-            <input v-model="ocorrenciaForm.data_referencia" type="date" />
-          </div>
-          <div class="field">
-            <label>Tipo de ocorrência</label>
-            <select v-model="ocorrenciaForm.tipo">
-              <option value="ajuste_manual">Ajuste manual</option>
-              <option value="atestado">Atestado</option>
-              <option value="falta_justificada">Falta justificada</option>
-              <option value="abono">Abono</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Justificativa</label>
-            <select v-model="ocorrenciaForm.justificativa_id">
-              <option value="">Sem justificativa</option>
-              <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Minutos abonados</label>
-            <input v-model.number="ocorrenciaForm.minutos_abonados" min="0" type="number" />
-          </div>
-          <div class="field span-2">
-            <label>Observação</label>
-            <textarea v-model="ocorrenciaForm.observacao" rows="3" placeholder="Detalhes da ocorrência"></textarea>
-          </div>
-          <div class="field checkbox-line"><input v-model="ocorrenciaForm.abonar_dia" class="checkbox-input" type="checkbox" /><label>Abonar dia</label></div>
-        </div>
-        <div class="actions">
-          <button class="primary" :disabled="savingOcorrencia" @click="salvarOcorrencia">{{ savingOcorrencia ? 'Salvando...' : ocorrenciaForm.id ? 'Atualizar ocorrência' : 'Salvar ocorrência' }}</button>
-          <button class="secondary" @click="resetOcorrencia">Limpar</button>
-        </div>
-      </div>
+    <div class="actions">
+      <button class="secondary" @click="openNovaBatida()">Nova marcação</button>
+      <button class="secondary" @click="openNovaOcorrencia()">Nova ocorrência</button>
     </div>
 
     <div class="card table-wrap">
@@ -893,6 +844,95 @@ onMounted(async () => {
         </tbody>
       </table>
     </div>
+
+    <AppModal
+      :open="batidaModalOpen"
+      :title="batidaForm.id ? 'Editar marcação' : 'Nova marcação'"
+      subtitle="Fluxo de inclusão e edição convertido para modal, mantendo a visão operacional do cartão."
+      width="lg"
+      @close="closeBatidaModal"
+    >
+      <div class="grid columns-2 mobile-columns-1">
+        <div class="field">
+          <label>Data</label>
+          <input v-model="batidaForm.data_referencia" type="date" />
+        </div>
+        <div class="field">
+          <label>Hora</label>
+          <input v-model="batidaForm.hora" type="time" />
+        </div>
+        <div class="field">
+          <label>Tipo</label>
+          <select v-model="batidaForm.tipo">
+            <option value="entrada">Entrada</option>
+            <option value="saida">Saída</option>
+            <option value="intervalo_saida">Intervalo saída</option>
+            <option value="intervalo_retorno">Intervalo retorno</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Justificativa</label>
+          <select v-model="batidaForm.justificativa_id">
+            <option value="">Sem justificativa</option>
+            <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+          </select>
+        </div>
+        <div class="field span-2">
+          <label>Observação</label>
+          <textarea v-model="batidaForm.observacao" rows="3" placeholder="Detalhes da marcação manual"></textarea>
+        </div>
+        <div class="field checkbox-line"><input v-model="batidaForm.manual_ajuste" class="checkbox-input" type="checkbox" /><label>Ajuste manual</label></div>
+        <div class="field checkbox-line"><input v-model="batidaForm.validado" class="checkbox-input" type="checkbox" /><label>Validado</label></div>
+      </div>
+      <div class="actions">
+        <button class="primary" :disabled="savingBatida" @click="salvarBatida">{{ savingBatida ? 'Salvando...' : batidaForm.id ? 'Atualizar marcação' : 'Salvar marcação' }}</button>
+        <button class="secondary" @click="resetBatida">Limpar</button>
+      </div>
+    </AppModal>
+
+    <AppModal
+      :open="ocorrenciaModalOpen"
+      :title="ocorrenciaForm.id ? 'Editar ocorrência' : 'Nova ocorrência'"
+      subtitle="Fluxo de inclusão e edição convertido para modal, mantendo a listagem operacional atual."
+      width="lg"
+      @close="closeOcorrenciaModal"
+    >
+      <div class="grid columns-2 mobile-columns-1">
+        <div class="field">
+          <label>Data</label>
+          <input v-model="ocorrenciaForm.data_referencia" type="date" />
+        </div>
+        <div class="field">
+          <label>Tipo de ocorrência</label>
+          <select v-model="ocorrenciaForm.tipo">
+            <option value="ajuste_manual">Ajuste manual</option>
+            <option value="atestado">Atestado</option>
+            <option value="falta_justificada">Falta justificada</option>
+            <option value="abono">Abono</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Justificativa</label>
+          <select v-model="ocorrenciaForm.justificativa_id">
+            <option value="">Sem justificativa</option>
+            <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Minutos abonados</label>
+          <input v-model.number="ocorrenciaForm.minutos_abonados" min="0" type="number" />
+        </div>
+        <div class="field span-2">
+          <label>Observação</label>
+          <textarea v-model="ocorrenciaForm.observacao" rows="3" placeholder="Detalhes da ocorrência"></textarea>
+        </div>
+        <div class="field checkbox-line"><input v-model="ocorrenciaForm.abonar_dia" class="checkbox-input" type="checkbox" /><label>Abonar dia</label></div>
+      </div>
+      <div class="actions">
+        <button class="primary" :disabled="savingOcorrencia" @click="salvarOcorrencia">{{ savingOcorrencia ? 'Salvando...' : ocorrenciaForm.id ? 'Atualizar ocorrência' : 'Salvar ocorrência' }}</button>
+        <button class="secondary" @click="resetOcorrencia">Limpar</button>
+      </div>
+    </AppModal>
 
     <iframe v-if="reportHtml" class="report-frame" :src="`data:text/html;charset=utf-8,${encodeURIComponent(reportHtml)}`" title="Prévia cartão de ponto" />
   </div>

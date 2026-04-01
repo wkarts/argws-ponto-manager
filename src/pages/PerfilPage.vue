@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import AppModal from "../components/AppModal.vue";
 import {
   deleteProfile,
   getProfile,
@@ -20,6 +21,7 @@ const saving = ref(false);
 const error = ref("");
 const search = ref("");
 const onlyActive = ref(true);
+const modalOpen = ref(false);
 
 function defaultForm() {
   return {
@@ -44,6 +46,15 @@ async function ensureSession() {
   }
 }
 
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  modalOpen.value = true;
+}
+
 function resetForm() {
   Object.assign(form, defaultForm());
 }
@@ -58,7 +69,6 @@ async function load() {
   loading.value = true;
   error.value = "";
   try {
-    await ensureSession();
     rows.value = await listProfiles(session.sessionToken!, {
       search: search.value,
       onlyActive: onlyActive.value
@@ -86,6 +96,7 @@ async function editRow(id: number) {
       ativo: Number(record.ativo) === 1 || record.ativo === true,
       permission_keys: toStringArray(record.permission_keys)
     });
+    modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar perfil.";
     logAppError("perfis", "Falha ao carregar perfil para edição.", { id, error: error.value });
@@ -100,6 +111,7 @@ async function persist() {
     await ensureSession();
     await saveProfile(session.sessionToken!, { ...form });
     await load();
+    closeModal();
     resetForm();
     logAppInfo("perfis", "Perfil salvo com sucesso.");
   } catch (err) {
@@ -117,7 +129,10 @@ async function removeRow(id: number) {
     await ensureSession();
     await deleteProfile(session.sessionToken!, id);
     await load();
-    if (Number(form.id) === id) resetForm();
+    if (Number(form.id) === id) {
+      resetForm();
+      closeModal();
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir perfil.";
     logAppError("perfis", "Falha ao excluir perfil.", { id, error: error.value });
@@ -139,56 +154,16 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Perfis de acesso</h2>
-        <div class="muted-text">Monte grupos de permissão para operação, RH, auditoria e administração.</div>
+        <div class="muted-text">Listagem fixa com cadastro e edição padronizados em modal.</div>
       </div>
       <div class="actions">
-        <button class="secondary" :disabled="!canManage" @click="resetForm">Novo perfil</button>
+        <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo perfil</button>
       </div>
     </div>
 
     <div v-if="!session.can('perfis:view')" class="alert error">Você não possui permissão para visualizar perfis.</div>
     <div v-else class="grid page-gap">
       <div v-if="error" class="alert error">{{ error }}</div>
-
-      <div class="card grid page-gap">
-        <div class="section-title">Dados do perfil</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field">
-            <label>Nome *</label>
-            <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Ex.: Operação RH" />
-          </div>
-          <div class="field checkbox-line top-gap-26"><input v-model="form.perfil_master" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil master</label></div>
-          <div class="field span-2">
-            <label>Descrição</label>
-            <textarea v-model="form.descricao" rows="3" :disabled="!canManage" placeholder="Escopo e finalidade do perfil"></textarea>
-          </div>
-          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil ativo</label></div>
-        </div>
-
-        <div class="section-title">Permissões</div>
-        <div class="permissions-grid">
-          <label v-for="permission in permissions" :key="String(permission.key)" class="permission-card">
-            <input
-              v-model="form.permission_keys"
-              class="checkbox-input"
-              type="checkbox"
-              :disabled="!canManage || form.perfil_master"
-              :value="String(permission.key)"
-            />
-            <div>
-              <strong>{{ permission.label }}</strong>
-              <div class="muted-row">{{ permission.key }}</div>
-            </div>
-          </label>
-        </div>
-
-        <div class="actions">
-          <button class="primary" :disabled="saving || !canManage" @click="persist">
-            {{ saving ? "Salvando..." : form.id ? "Atualizar perfil" : "Salvar perfil" }}
-          </button>
-          <button class="secondary" @click="resetForm">Limpar</button>
-        </div>
-      </div>
 
       <div class="card grid page-gap">
         <div class="toolbar">
@@ -247,5 +222,53 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar perfil de acesso' : 'Novo perfil de acesso'"
+      subtitle="A manutenção do perfil foi movida para modal sem alterar o fluxo da listagem."
+      width="xl"
+      @close="closeModal"
+    >
+      <div class="grid page-gap">
+        <div class="section-title">Dados do perfil</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Nome *</label>
+            <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Ex.: Operação RH" />
+          </div>
+          <div class="field checkbox-line top-gap-26"><input v-model="form.perfil_master" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil master</label></div>
+          <div class="field span-2">
+            <label>Descrição</label>
+            <textarea v-model="form.descricao" rows="3" :disabled="!canManage" placeholder="Escopo e finalidade do perfil"></textarea>
+          </div>
+          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil ativo</label></div>
+        </div>
+
+        <div class="section-title">Permissões</div>
+        <div class="permissions-grid">
+          <label v-for="permission in permissions" :key="String(permission.key)" class="permission-card">
+            <input
+              v-model="form.permission_keys"
+              class="checkbox-input"
+              type="checkbox"
+              :disabled="!canManage || form.perfil_master"
+              :value="String(permission.key)"
+            />
+            <div>
+              <strong>{{ permission.label }}</strong>
+              <div class="muted-row">{{ permission.key }}</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving || !canManage" @click="persist">
+            {{ saving ? "Salvando..." : form.id ? "Atualizar perfil" : "Salvar perfil" }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+    </AppModal>
   </div>
 </template>

@@ -48,6 +48,8 @@ const cadastros = computed(() => [
   entityConfigs.centro_custos,
   entityConfigs.horarios,
   entityConfigs.escalas,
+  entityConfigs.feriados,
+  entityConfigs.jornada_contextos_regras,
   entityConfigs.equipamentos,
   entityConfigs.eventos,
   entityConfigs.justificativas,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import {
   comboJornadas,
   comboList,
@@ -21,6 +22,7 @@ const error = ref("");
 const search = ref("");
 const filterEmpresaId = ref<number | null>(null);
 const onlyActive = ref(true);
+const modalOpen = ref(false);
 
 const companyOptions = ref<ComboOption[]>([]);
 const departamentoOptions = ref<ComboOption[]>([]);
@@ -68,6 +70,16 @@ function defaultForm() {
 
 const form = reactive(defaultForm());
 
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  if (session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
+  modalOpen.value = true;
+}
+
 function resetForm() {
   Object.assign(form, defaultForm());
 }
@@ -103,7 +115,7 @@ async function load() {
   try {
     rows.value = await listEmployees({
       search: search.value,
-      empresaId: filterEmpresaId.value ?? session.activeCompanyId ?? null,
+      empresaId: filterEmpresaId.value,
       onlyActive: onlyActive.value
     });
   } catch (err) {
@@ -127,6 +139,7 @@ async function editRow(id: number) {
       jornada_id: toSelectValue(record.jornada_id),
       ativo: Number(record.ativo) === 1 || record.ativo === true
     });
+    modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar funcionário.";
   }
@@ -138,6 +151,7 @@ async function persist() {
   try {
     await saveEmployee({ ...form });
     await load();
+    closeModal();
     resetForm();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar funcionário.";
@@ -153,27 +167,29 @@ async function removeRow(id: number) {
     await load();
     if (Number(form.id) === id) {
       resetForm();
+      closeModal();
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao excluir funcionário.";
   }
 }
 
-watch(() => session.activeCompanyId, (value) => {
-  filterEmpresaId.value = value ?? null;
-  if (!form.empresa_id && value) form.empresa_id = String(value);
-  load();
-});
+watch(
+  () => session.activeCompanyId,
+  (value) => {
+    if (value && !filterEmpresaId.value) {
+      filterEmpresaId.value = value;
+    }
+    if (value && !form.empresa_id) {
+      form.empresa_id = String(value);
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(async () => {
-  filterEmpresaId.value = session.activeCompanyId ?? null;
-  if (!form.empresa_id && session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
-  try {
-    await loadOptions();
-    await load();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao inicializar cadastro de funcionários.";
-  }
+  await loadOptions();
+  await load();
 });
 </script>
 
@@ -182,202 +198,14 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de funcionários</h2>
-        <div class="muted-text">Gerencie dados cadastrais, lotação, jornada de trabalho e vínculos operacionais.</div>
+        <div class="muted-text">Listagem principal preservada com inclusão e edição em modal.</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="resetForm">Novo cadastro</button>
+        <button class="secondary" @click="openNewModal">Novo cadastro</button>
       </div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">Vínculo e identificação</div>
-      <div class="grid columns-2 mobile-columns-1">
-        <div class="field">
-          <label>Empresa *</label>
-          <select v-model="form.empresa_id">
-            <option value="">Selecione</option>
-            <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Matrícula *</label>
-          <input v-model="form.matricula" type="text" placeholder="Matrícula interna" />
-        </div>
-        <div class="field">
-          <label>Nome completo *</label>
-          <input v-model="form.nome" type="text" placeholder="Nome do funcionário" />
-        </div>
-        <div class="field">
-          <label>Nome social</label>
-          <input v-model="form.nome_social" type="text" placeholder="Nome social" />
-        </div>
-        <div class="field">
-          <label>CPF *</label>
-          <input v-model="form.documento" type="text" placeholder="000.000.000-00" />
-        </div>
-        <div class="field">
-          <label>RG</label>
-          <input v-model="form.rg" type="text" placeholder="RG" />
-        </div>
-        <div class="field">
-          <label>PIS / PASEP</label>
-          <input v-model="form.pis" type="text" placeholder="000.00000.00-0" />
-        </div>
-        <div class="grid columns-2 nested-grid mobile-columns-1">
-          <div class="field">
-            <label>Sexo</label>
-            <select v-model="form.sexo">
-              <option value="">Selecione</option>
-              <option value="M">Masculino</option>
-              <option value="F">Feminino</option>
-              <option value="O">Outro</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Estado civil</label>
-            <select v-model="form.estado_civil">
-              <option value="">Selecione</option>
-              <option value="solteiro">Solteiro(a)</option>
-              <option value="casado">Casado(a)</option>
-              <option value="divorciado">Divorciado(a)</option>
-              <option value="viuvo">Viúvo(a)</option>
-              <option value="uniao_estavel">União estável</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title">Contato e datas</div>
-      <div class="grid columns-2 mobile-columns-1">
-        <div class="field">
-          <label>E-mail</label>
-          <input v-model="form.email" type="email" placeholder="funcionario@empresa.com" />
-        </div>
-        <div class="grid columns-2 nested-grid mobile-columns-1">
-          <div class="field">
-            <label>Telefone</label>
-            <input v-model="form.telefone" type="text" placeholder="(00) 0000-0000" />
-          </div>
-          <div class="field">
-            <label>Celular</label>
-            <input v-model="form.celular" type="text" placeholder="(00) 00000-0000" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Data de nascimento</label>
-          <input v-model="form.data_nascimento" type="date" />
-        </div>
-        <div class="grid columns-2 nested-grid mobile-columns-1">
-          <div class="field">
-            <label>Data de admissão *</label>
-            <input v-model="form.data_admissao" type="date" />
-          </div>
-          <div class="field">
-            <label>Data de desligamento</label>
-            <input v-model="form.data_demissao" type="date" />
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title">Lotação, horário e jornada</div>
-      <div class="grid columns-2 mobile-columns-1">
-        <div class="field">
-          <label>Departamento</label>
-          <select v-model="form.departamento_id">
-            <option value="">Selecione</option>
-            <option v-for="item in departamentoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Função</label>
-          <select v-model="form.funcao_id">
-            <option value="">Selecione</option>
-            <option v-for="item in funcaoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Centro de custo</label>
-          <select v-model="form.centro_custo_id">
-            <option value="">Selecione</option>
-            <option v-for="item in centroCustoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Jornada de trabalho</label>
-          <select v-model="form.jornada_id">
-            <option value="">Selecione</option>
-            <option v-for="item in jornadaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Horário auxiliar</label>
-          <select v-model="form.horario_id">
-            <option value="">Selecione</option>
-            <option v-for="item in horarioOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Escala auxiliar</label>
-          <select v-model="form.escala_id">
-            <option value="">Selecione</option>
-            <option v-for="item in escalaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="section-title">Endereço e observações</div>
-      <div class="grid columns-2 mobile-columns-1">
-        <div class="field">
-          <label>CEP</label>
-          <input v-model="form.cep" type="text" />
-        </div>
-        <div class="grid columns-2 nested-grid mobile-columns-1">
-          <div class="field">
-            <label>UF</label>
-            <input v-model="form.estado" type="text" maxlength="2" />
-          </div>
-          <div class="field">
-            <label>Cidade</label>
-            <input v-model="form.cidade" type="text" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Endereço</label>
-          <input v-model="form.endereco" type="text" />
-        </div>
-        <div class="grid columns-2 nested-grid mobile-columns-1">
-          <div class="field">
-            <label>Número</label>
-            <input v-model="form.numero" type="text" />
-          </div>
-          <div class="field">
-            <label>Complemento</label>
-            <input v-model="form.complemento" type="text" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Bairro</label>
-          <input v-model="form.bairro" type="text" />
-        </div>
-        <div class="field span-2">
-          <label>Observações</label>
-          <textarea v-model="form.observacoes" rows="3" />
-        </div>
-        <div class="field checkbox-line span-2">
-          <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
-          <label>Funcionário ativo</label>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="primary" :disabled="saving" @click="persist">
-          {{ saving ? "Salvando..." : form.id ? "Atualizar funcionário" : "Salvar funcionário" }}
-        </button>
-        <button class="secondary" @click="resetForm">Limpar</button>
-      </div>
-    </div>
 
     <div class="card grid page-gap">
       <div class="toolbar">
@@ -454,5 +282,201 @@ onMounted(async () => {
         </table>
       </div>
     </div>
+
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar funcionário' : 'Novo funcionário'"
+      subtitle="Fluxo convertido para modal sem alterar a estrutura do cadastro legado já estabilizado."
+      width="xl"
+      @close="closeModal"
+    >
+      <div class="grid page-gap">
+        <div class="section-title">Dados principais</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Empresa *</label>
+            <select v-model="form.empresa_id">
+              <option value="">Selecione</option>
+              <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Matrícula</label>
+            <input v-model="form.matricula" type="text" placeholder="Matrícula interna" />
+          </div>
+          <div class="field">
+            <label>Nome completo *</label>
+            <input v-model="form.nome" type="text" placeholder="Nome do funcionário" />
+          </div>
+          <div class="field">
+            <label>Nome social</label>
+            <input v-model="form.nome_social" type="text" placeholder="Nome social" />
+          </div>
+          <div class="field">
+            <label>CPF *</label>
+            <input v-model="form.documento" type="text" placeholder="000.000.000-00" />
+          </div>
+          <div class="field">
+            <label>RG</label>
+            <input v-model="form.rg" type="text" placeholder="RG" />
+          </div>
+          <div class="field">
+            <label>PIS / PASEP</label>
+            <input v-model="form.pis" type="text" placeholder="000.00000.00-0" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Sexo</label>
+              <select v-model="form.sexo">
+                <option value="">Selecione</option>
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+                <option value="O">Outro</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Estado civil</label>
+              <select v-model="form.estado_civil">
+                <option value="">Selecione</option>
+                <option value="solteiro">Solteiro(a)</option>
+                <option value="casado">Casado(a)</option>
+                <option value="divorciado">Divorciado(a)</option>
+                <option value="viuvo">Viúvo(a)</option>
+                <option value="uniao_estavel">União estável</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Contato e datas</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>E-mail</label>
+            <input v-model="form.email" type="email" placeholder="funcionario@empresa.com" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Telefone</label>
+              <input v-model="form.telefone" type="text" placeholder="(00) 0000-0000" />
+            </div>
+            <div class="field">
+              <label>Celular</label>
+              <input v-model="form.celular" type="text" placeholder="(00) 00000-0000" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Data de nascimento</label>
+            <input v-model="form.data_nascimento" type="date" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Data de admissão *</label>
+              <input v-model="form.data_admissao" type="date" />
+            </div>
+            <div class="field">
+              <label>Data de desligamento</label>
+              <input v-model="form.data_demissao" type="date" />
+            </div>
+          </div>
+        </div>
+
+        <div class="section-title">Lotação, horário e jornada</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Departamento</label>
+            <select v-model="form.departamento_id">
+              <option value="">Selecione</option>
+              <option v-for="item in departamentoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Função</label>
+            <select v-model="form.funcao_id">
+              <option value="">Selecione</option>
+              <option v-for="item in funcaoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Centro de custo</label>
+            <select v-model="form.centro_custo_id">
+              <option value="">Selecione</option>
+              <option v-for="item in centroCustoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Jornada de trabalho</label>
+            <select v-model="form.jornada_id">
+              <option value="">Selecione</option>
+              <option v-for="item in jornadaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Horário auxiliar</label>
+            <select v-model="form.horario_id">
+              <option value="">Selecione</option>
+              <option v-for="item in horarioOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Escala auxiliar</label>
+            <select v-model="form.escala_id">
+              <option value="">Selecione</option>
+              <option v-for="item in escalaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section-title">Endereço e observações</div>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>CEP</label>
+            <input v-model="form.cep" type="text" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>UF</label>
+              <input v-model="form.estado" type="text" maxlength="2" />
+            </div>
+            <div class="field">
+              <label>Cidade</label>
+              <input v-model="form.cidade" type="text" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Endereço</label>
+            <input v-model="form.endereco" type="text" />
+          </div>
+          <div class="grid columns-2 nested-grid mobile-columns-1">
+            <div class="field">
+              <label>Número</label>
+              <input v-model="form.numero" type="text" />
+            </div>
+            <div class="field">
+              <label>Complemento</label>
+              <input v-model="form.complemento" type="text" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Bairro</label>
+            <input v-model="form.bairro" type="text" />
+          </div>
+          <div class="field span-2">
+            <label>Observações</label>
+            <textarea v-model="form.observacoes" rows="3" />
+          </div>
+          <div class="field checkbox-line span-2">
+            <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
+            <label>Funcionário ativo</label>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" :disabled="saving" @click="persist">
+            {{ saving ? "Salvando..." : form.id ? "Atualizar funcionário" : "Salvar funcionário" }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
+    </AppModal>
   </div>
 </template>

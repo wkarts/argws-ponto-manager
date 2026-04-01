@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppModal from "../components/AppModal.vue";
 import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listEmployees, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "../stores/session";
@@ -10,6 +11,7 @@ const justificativaOptions = ref<ComboOption[]>([]);
 const rows = ref<Record<string, unknown>[]>([]);
 const message = ref("");
 const error = ref("");
+const modalOpen = ref(false);
 
 function textValue(value: unknown): string | number | readonly string[] | null | undefined {
   if (typeof value === "string" || typeof value === "number") return value;
@@ -37,6 +39,16 @@ const form = reactive<Record<string, unknown>>({
   anexo_mime: "",
   anexo_base64: ""
 });
+
+function closeModal() {
+  modalOpen.value = false;
+}
+
+function openNewModal() {
+  resetForm();
+  if (funcionarioOptions.value.length && !form.funcionario_id) form.funcionario_id = funcionarioOptions.value[0].id;
+  modalOpen.value = true;
+}
 
 function resetForm() {
   form.id = undefined;
@@ -70,6 +82,7 @@ async function load() {
 
 function editRow(row: Record<string, unknown>) {
   Object.assign(form, row);
+  modalOpen.value = true;
 }
 
 async function persist() {
@@ -79,6 +92,7 @@ async function persist() {
     await saveOcorrencia({ ...form });
     await load();
     resetForm();
+    closeModal();
     message.value = "Ocorrência/justificativa salva com sucesso.";
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar ocorrência.";
@@ -129,76 +143,15 @@ onMounted(async () => {
         <h2 style="margin: 0;">Tratamento de ponto</h2>
         <div class="muted">Justificativas, faltas, atestados, abonos e anexos. Para lançar batidas esquecidas ou autorizadas, use também a tela de <RouterLink to="/batidas">batidas</RouterLink>.</div>
       </div>
+      <div class="actions">
+        <button class="secondary" @click="openNewModal">Nova ocorrência</button>
+      </div>
     </div>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="grid columns-2 mobile-columns-1">
-      <div class="card">
-        <h3 style="margin-top: 0;">Ocorrência / justificativa</h3>
-        <form class="grid" @submit.prevent="persist">
-          <div class="field">
-            <label>Funcionário</label>
-            <select v-model="form.funcionario_id">
-              <option value="">Selecione</option>
-              <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-            </select>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Data</label>
-              <input v-model="form.data_referencia" type="date" />
-            </div>
-            <div class="field">
-              <label>Tipo</label>
-              <select v-model="form.tipo">
-                <option value="atestado">Atestado</option>
-                <option value="falta_justificada">Falta justificada</option>
-                <option value="falta_nao_justificada">Falta não justificada</option>
-                <option value="abono">Abono</option>
-                <option value="ajuste_manual">Ajuste manual / esquecimento de marcação</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid columns-2 mobile-columns-1">
-            <div class="field">
-              <label>Justificativa</label>
-              <select v-model="form.justificativa_id">
-                <option value="">Selecione</option>
-                <option v-for="item in justificativaOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Minutos abonados</label>
-              <input v-model="form.minutos_abonados" type="number" min="0" />
-            </div>
-          </div>
-
-          <div class="actions">
-            <label class="actions"><input v-model="form.abonar_dia" type="checkbox" class="checkbox-input" /> Abonar o dia inteiro</label>
-          </div>
-
-          <div class="field">
-            <label>Observação</label>
-            <textarea :value="textValue(form.observacao)" rows="3" @input="form.observacao = ($event.target as HTMLTextAreaElement).value" />
-          </div>
-
-          <div class="field">
-            <label>Anexo / atestado</label>
-            <input type="file" @change="onFileSelected" />
-            <small class="muted" v-if="form.anexo_nome">Arquivo selecionado: {{ String(form.anexo_nome) }}</small>
-          </div>
-
-          <div class="actions">
-            <button class="primary" type="submit">Salvar</button>
-            <button class="secondary" type="button" @click="resetForm">Limpar</button>
-          </div>
-        </form>
-      </div>
-
+    <div class="grid columns-1">
       <div class="card">
         <h3 style="margin-top: 0;">Filtros</h3>
         <div class="grid">
@@ -266,5 +219,74 @@ onMounted(async () => {
         </table>
       </div>
     </div>
+    <AppModal
+      :open="modalOpen"
+      :title="form.id ? 'Editar ocorrência / justificativa' : 'Nova ocorrência / justificativa'"
+      subtitle="Inclusão e edição convertidas para modal, preservando a listagem e os filtros atuais."
+      width="lg"
+      @close="closeModal"
+    >
+      <form class="grid" @submit.prevent="persist">
+        <div class="field">
+          <label>Funcionário</label>
+          <select v-model="form.funcionario_id">
+            <option value="">Selecione</option>
+            <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Data</label>
+            <input v-model="form.data_referencia" type="date" />
+          </div>
+          <div class="field">
+            <label>Tipo</label>
+            <select v-model="form.tipo">
+              <option value="atestado">Atestado</option>
+              <option value="falta_justificada">Falta justificada</option>
+              <option value="falta_nao_justificada">Falta não justificada</option>
+              <option value="abono">Abono</option>
+              <option value="ajuste_manual">Ajuste manual / esquecimento de marcação</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Justificativa</label>
+            <select v-model="form.justificativa_id">
+              <option value="">Selecione</option>
+              <option v-for="item in justificativaOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Minutos abonados</label>
+            <input v-model="form.minutos_abonados" type="number" min="0" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <label class="actions"><input v-model="form.abonar_dia" type="checkbox" class="checkbox-input" /> Abonar o dia inteiro</label>
+        </div>
+
+        <div class="field">
+          <label>Observação</label>
+          <textarea :value="textValue(form.observacao)" rows="3" @input="form.observacao = ($event.target as HTMLTextAreaElement).value" />
+        </div>
+
+        <div class="field">
+          <label>Anexo / atestado</label>
+          <input type="file" @change="onFileSelected" />
+          <small class="muted" v-if="form.anexo_nome">Arquivo selecionado: {{ String(form.anexo_nome) }}</small>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit">{{ form.id ? 'Atualizar' : 'Salvar' }}</button>
+          <button class="secondary" type="button" @click="resetForm">Limpar</button>
+        </div>
+      </form>
+    </AppModal>
+
   </div>
 </template>
