@@ -56,6 +56,14 @@ pub struct ApuracaoRequest {
     pub empresa_id: Option<i64>,
     #[serde(rename = "funcionarioId")]
     pub funcionario_id: Option<i64>,
+    #[serde(rename = "funcionarioIds")]
+    pub funcionario_ids: Option<Vec<i64>>,
+    #[serde(rename = "employeeStatus")]
+    pub employee_status: Option<String>,
+    #[serde(rename = "competenciaAno")]
+    pub competencia_ano: Option<i32>,
+    #[serde(rename = "competenciaMes")]
+    pub competencia_mes: Option<u32>,
     #[serde(rename = "dataInicial")]
     pub data_inicial: Option<String>,
     #[serde(rename = "dataFinal")]
