@@ -848,6 +848,7 @@ onMounted(async () => {
     <AppModal
       :open="batidaModalOpen"
       :title="batidaForm.id ? 'Editar marcação' : 'Nova marcação'"
+      subtitle="Fluxo de inclusão e edição convertido para modal, mantendo a visão operacional do cartão."
       width="lg"
       @close="closeBatidaModal"
     >
@@ -892,6 +893,7 @@ onMounted(async () => {
     <AppModal
       :open="ocorrenciaModalOpen"
       :title="ocorrenciaForm.id ? 'Editar ocorrência' : 'Nova ocorrência'"
+      subtitle="Fluxo de inclusão e edição convertido para modal, mantendo a listagem operacional atual."
       width="lg"
       @close="closeOcorrenciaModal"
     >

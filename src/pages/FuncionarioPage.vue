@@ -198,6 +198,7 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de funcionários</h2>
+        <div class="muted-text">Listagem principal preservada com inclusão e edição em modal.</div>
       </div>
       <div class="actions">
         <button class="secondary" @click="openNewModal">Novo cadastro</button>
@@ -285,6 +286,7 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar funcionário' : 'Novo funcionário'"
+      subtitle="Fluxo convertido para modal sem alterar a estrutura do cadastro legado já estabilizado."
       width="xl"
       @close="closeModal"
     >

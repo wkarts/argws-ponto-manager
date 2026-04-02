@@ -450,3 +450,349 @@ pub fn company_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, St
 
     Ok(affected > 0)
 }
+
+fn get_setting_url(
+    conn: &rusqlite::Connection,
+    key: &str,
+    default_value: &str,
+) -> Result<String, String> {
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar configuração {key}: {err}"))?;
+
+    Ok(raw
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| default_value.to_string()))
+}
+
+fn optional_json_string(value: Option<&Value>) -> Option<String> {
+    value.and_then(|item| match item {
+        Value::String(text) => Some(text.trim().to_string()).filter(|text| !text.is_empty()),
+        Value::Number(number) => Some(number.to_string()),
+        _ => None,
+    })
+}
+
+fn optional_json_bool(value: Option<&Value>) -> Option<bool> {
+    value.and_then(|item| match item {
+        Value::Bool(flag) => Some(*flag),
+        Value::Number(number) => Some(number.as_i64().unwrap_or_default() != 0),
+        Value::String(text) => Some(matches!(
+            text.trim(),
+            "1" | "true" | "TRUE" | "sim" | "SIM" | "ativo" | "ATIVO"
+        )),
+        _ => None,
+    })
+}
+
+fn parse_publica_ws_response(
+    body: &str,
+    uf_hint: Option<&str>,
+) -> Result<Map<String, Value>, String> {
+    let parsed: Value = serde_json::from_str(body)
+        .map_err(|err| format!("Falha ao interpretar resposta do CNPJ.ws: {err}"))?;
+
+    let root = parsed
+        .as_object()
+        .ok_or_else(|| "Resposta inválida do CNPJ.ws.".to_string())?;
+    let estabelecimento = root
+        .get("estabelecimento")
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| "Resposta do CNPJ.ws sem estabelecimento.".to_string())?;
+
+    let estado_obj = estabelecimento
+        .get("estado")
+        .and_then(|value| value.as_object());
+    let cidade_obj = estabelecimento
+        .get("cidade")
+        .and_then(|value| value.as_object());
+    let current_uf = uf_hint
+        .map(|value| value.trim().to_uppercase())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            optional_json_string(estado_obj.and_then(|value| value.get("sigla")))
+                .map(|value| value.to_uppercase())
+        });
+
+    let mut inscricao_estadual = None;
+    if let Some(list) = estabelecimento
+        .get("inscricoes_estaduais")
+        .and_then(|value| value.as_array())
+    {
+        if let Some(target_uf) = current_uf.as_deref() {
+            for item in list {
+                let state_sigla = item
+                    .get("estado")
+                    .and_then(|value| value.get("sigla"))
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_uppercase())
+                    .unwrap_or_default();
+                let ativo = optional_json_bool(item.get("ativo"));
+                let ie = optional_json_string(item.get("inscricao_estadual"));
+                if state_sigla == target_uf && ativo.unwrap_or(true) {
+                    inscricao_estadual = ie;
+                    break;
+                }
+            }
+        }
+        if inscricao_estadual.is_none() {
+            inscricao_estadual = list
+                .iter()
+                .find_map(|item| optional_json_string(item.get("inscricao_estadual")));
+        }
+    }
+
+    let mut result = Map::new();
+    result.insert(
+        "nome".to_string(),
+        Value::String(optional_json_string(root.get("razao_social")).unwrap_or_default()),
+    );
+    result.insert(
+        "nome_fantasia".to_string(),
+        Value::String(
+            optional_json_string(estabelecimento.get("nome_fantasia")).unwrap_or_default(),
+        ),
+    );
+    result.insert(
+        "documento".to_string(),
+        Value::String(
+            optional_json_string(root.get("cnpj_raiz")).unwrap_or_default()
+                + &optional_json_string(root.get("cnpj_ordem")).unwrap_or_default()
+                + &optional_json_string(root.get("cnpj_digito_verificador")).unwrap_or_default(),
+        ),
+    );
+    result.insert(
+        "inscricao_estadual".to_string(),
+        Value::String(inscricao_estadual.unwrap_or_else(|| "ISENTO".to_string())),
+    );
+    result.insert(
+        "telefone".to_string(),
+        Value::String(
+            format!(
+                "{}{}",
+                optional_json_string(estabelecimento.get("ddd1")).unwrap_or_default(),
+                optional_json_string(estabelecimento.get("telefone1")).unwrap_or_default(),
+            )
+            .trim()
+            .to_string(),
+        ),
+    );
+    result.insert(
+        "email".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("email")).unwrap_or_default()),
+    );
+    result.insert(
+        "cep".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("cep")).unwrap_or_default()),
+    );
+    result.insert(
+        "endereco".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("logradouro")).unwrap_or_default()),
+    );
+    result.insert(
+        "numero".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("numero")).unwrap_or_default()),
+    );
+    result.insert(
+        "complemento".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("complemento")).unwrap_or_default()),
+    );
+    result.insert(
+        "bairro".to_string(),
+        Value::String(optional_json_string(estabelecimento.get("bairro")).unwrap_or_default()),
+    );
+    result.insert(
+        "cidade".to_string(),
+        Value::String(
+            optional_json_string(cidade_obj.and_then(|value| value.get("nome")))
+                .unwrap_or_default(),
+        ),
+    );
+    result.insert(
+        "estado".to_string(),
+        Value::String(current_uf.unwrap_or_default()),
+    );
+    result.insert(
+        "inscricao_municipal".to_string(),
+        Value::String(
+            optional_json_string(estabelecimento.get("inscricao_municipal")).unwrap_or_default(),
+        ),
+    );
+    result.insert(
+        "source".to_string(),
+        Value::String("publica_cnpj_ws".to_string()),
+    );
+    Ok(result)
+}
+
+fn parse_receita_ws_response(body: &str) -> Result<Map<String, Value>, String> {
+    let parsed: Value = serde_json::from_str(body)
+        .map_err(|err| format!("Falha ao interpretar resposta do ReceitaWS: {err}"))?;
+
+    let root = parsed
+        .as_object()
+        .ok_or_else(|| "Resposta inválida do ReceitaWS.".to_string())?;
+
+    if let Some(status) = optional_json_string(root.get("status")) {
+        if status.eq_ignore_ascii_case("ERROR") {
+            return Err(optional_json_string(root.get("message"))
+                .unwrap_or_else(|| "ReceitaWS retornou erro.".to_string()));
+        }
+    }
+
+    let mut result = Map::new();
+    result.insert(
+        "nome".to_string(),
+        Value::String(optional_json_string(root.get("nome")).unwrap_or_default()),
+    );
+    result.insert(
+        "nome_fantasia".to_string(),
+        Value::String(optional_json_string(root.get("fantasia")).unwrap_or_default()),
+    );
+    result.insert(
+        "documento".to_string(),
+        Value::String(optional_json_string(root.get("cnpj")).unwrap_or_default()),
+    );
+    result.insert(
+        "inscricao_estadual".to_string(),
+        Value::String(optional_json_string(root.get("ie")).unwrap_or_else(|| "ISENTO".to_string())),
+    );
+    result.insert(
+        "telefone".to_string(),
+        Value::String(optional_json_string(root.get("telefone")).unwrap_or_default()),
+    );
+    result.insert(
+        "email".to_string(),
+        Value::String(optional_json_string(root.get("email")).unwrap_or_default()),
+    );
+    result.insert(
+        "cep".to_string(),
+        Value::String(optional_json_string(root.get("cep")).unwrap_or_default()),
+    );
+    result.insert(
+        "endereco".to_string(),
+        Value::String(optional_json_string(root.get("logradouro")).unwrap_or_default()),
+    );
+    result.insert(
+        "numero".to_string(),
+        Value::String(optional_json_string(root.get("numero")).unwrap_or_default()),
+    );
+    result.insert(
+        "complemento".to_string(),
+        Value::String(optional_json_string(root.get("complemento")).unwrap_or_default()),
+    );
+    result.insert(
+        "bairro".to_string(),
+        Value::String(optional_json_string(root.get("bairro")).unwrap_or_default()),
+    );
+    result.insert(
+        "cidade".to_string(),
+        Value::String(optional_json_string(root.get("municipio")).unwrap_or_default()),
+    );
+    result.insert(
+        "estado".to_string(),
+        Value::String(
+            optional_json_string(root.get("uf"))
+                .unwrap_or_default()
+                .to_uppercase(),
+        ),
+    );
+    result.insert(
+        "source".to_string(),
+        Value::String("receita_ws".to_string()),
+    );
+    Ok(result)
+}
+
+async fn fetch_json_text(url: String) -> Result<String, String> {
+    reqwest::Client::new()
+        .get(url)
+        .send()
+        .await
+        .map_err(|err| format!("Falha ao consultar serviço público: {err}"))?
+        .error_for_status()
+        .map_err(|err| format!("Serviço público retornou erro: {err}"))?
+        .text()
+        .await
+        .map_err(|err| format!("Falha ao ler resposta do serviço público: {err}"))
+}
+
+#[tauri::command]
+pub async fn company_lookup_cnpj(
+    state: State<'_, SharedState>,
+    documento: String,
+    uf: Option<String>,
+) -> Result<Map<String, Value>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let digits = only_digits(&documento);
+    if digits.len() != 14 {
+        return Err("Informe um CNPJ válido com 14 dígitos para consulta.".to_string());
+    }
+
+    let publica_base = get_setting_url(
+        &conn,
+        "company_lookup_publica_url",
+        "https://publica.cnpj.ws/cnpj/",
+    )?;
+    let receita_base = get_setting_url(
+        &conn,
+        "company_lookup_receita_url",
+        "https://www.receitaws.com.br/v1/cnpj/",
+    )?;
+    let uf_hint = uf
+        .map(|value| value.trim().to_uppercase())
+        .filter(|value| !value.is_empty());
+
+    let publica_url = format!("{}/{}", publica_base.trim_end_matches('/'), digits);
+    let publica_error = match fetch_json_text(publica_url)
+        .await
+        .and_then(|body| parse_publica_ws_response(&body, uf_hint.as_deref()))
+    {
+        Ok(result) => return Ok(result),
+        Err(err) => err,
+    };
+
+    let receita_url = format!("{}/{}", receita_base.trim_end_matches('/'), digits);
+    match fetch_json_text(receita_url)
+        .await
+        .and_then(|body| parse_receita_ws_response(&body))
+    {
+        Ok(result) => Ok(result),
+        Err(err) => Err(format!(
+            "Falha ao consultar CNPJ nos serviços públicos. Último erro: {}; erro anterior: {}",
+            err, publica_error
+        )),
+    }
+}
+
+#[tauri::command]
+pub async fn company_lookup_ie(
+    state: State<'_, SharedState>,
+    documento: String,
+    uf: Option<String>,
+) -> Result<Map<String, Value>, String> {
+    let mut payload = company_lookup_cnpj(state, documento, uf.clone()).await?;
+    if optional_json_string(payload.get("inscricao_estadual"))
+        .unwrap_or_default()
+        .is_empty()
+    {
+        payload.insert(
+            "inscricao_estadual".to_string(),
+            Value::String("ISENTO".to_string()),
+        );
+    }
+    if let Some(value) = uf.filter(|value| !value.trim().is_empty()) {
+        payload.insert(
+            "estado".to_string(),
+            Value::String(value.trim().to_uppercase()),
+        );
+    }
+    Ok(payload)
+}

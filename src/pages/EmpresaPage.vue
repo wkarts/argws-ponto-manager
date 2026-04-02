@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
-import { deleteCompany, getCompany, listCompanies, saveCompany, type GenericRecord } from "../services/crud";
+import {
+  deleteCompany,
+  getCompany,
+  listCompanies,
+  lookupCompanyCnpj,
+  lookupCompanyIe,
+  saveCompany,
+  type GenericRecord,
+} from "../services/crud";
 import { booleanLabel, formatCpfCnpj, formatPhone } from "../services/format";
 
 const rows = ref<GenericRecord[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const lookupCnpjLoading = ref(false);
+const lookupIeLoading = ref(false);
 const error = ref("");
 const search = ref("");
 const onlyActive = ref(false);
@@ -49,6 +59,56 @@ function openNewModal() {
 
 function resetForm() {
   Object.assign(form, defaultForm());
+}
+
+function assignIfPresent(key: keyof typeof form, value: unknown) {
+  if (value == null) return;
+  const text = String(value).trim();
+  if (!text) return;
+  (form[key] as unknown as string) = text;
+}
+
+function applyLookupResult(payload: GenericRecord) {
+  assignIfPresent("nome", payload.nome);
+  assignIfPresent("nome_fantasia", payload.nome_fantasia || payload.fantasia);
+  assignIfPresent("documento", payload.documento || form.documento);
+  assignIfPresent("inscricao_estadual", payload.inscricao_estadual || payload.ie);
+  assignIfPresent("inscricao_municipal", payload.inscricao_municipal);
+  assignIfPresent("telefone", payload.telefone);
+  assignIfPresent("email", payload.email);
+  assignIfPresent("cep", payload.cep);
+  assignIfPresent("endereco", payload.endereco || payload.logradouro);
+  assignIfPresent("numero", payload.numero);
+  assignIfPresent("complemento", payload.complemento);
+  assignIfPresent("bairro", payload.bairro);
+  assignIfPresent("cidade", payload.cidade || payload.municipio);
+  assignIfPresent("estado", payload.estado || payload.uf);
+}
+
+async function consultCnpj() {
+  lookupCnpjLoading.value = true;
+  error.value = "";
+  try {
+    const payload = await lookupCompanyCnpj(form.documento, form.estado || null);
+    applyLookupResult(payload);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao consultar CNPJ.";
+  } finally {
+    lookupCnpjLoading.value = false;
+  }
+}
+
+async function consultIe() {
+  lookupIeLoading.value = true;
+  error.value = "";
+  try {
+    const payload = await lookupCompanyIe(form.documento, form.estado || null);
+    applyLookupResult(payload);
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao consultar IE.";
+  } finally {
+    lookupIeLoading.value = false;
+  }
 }
 
 async function load() {
@@ -129,7 +189,6 @@ onMounted(load);
       <div class="toolbar">
         <div>
           <h3>Empresas cadastradas</h3>
-          <div class="muted-text">Use a listagem para localizar, editar e revisar empresas usuárias.</div>
         </div>
         <div class="actions align-end">
           <div class="field min-field">
@@ -204,11 +263,19 @@ onMounted(load);
             <label>Nome fantasia</label>
             <input v-model="form.nome_fantasia" type="text" placeholder="Nome fantasia" />
           </div>
-          <div class="field">
+          <div class="field span-2">
             <label>CNPJ / CPF *</label>
-            <input v-model="form.documento" type="text" placeholder="00.000.000/0000-00" />
+            <div class="actions stretch-on-mobile">
+              <input v-model="form.documento" type="text" placeholder="00.000.000/0000-00" />
+              <button class="secondary" type="button" :disabled="lookupCnpjLoading || saving" @click="consultCnpj">
+                {{ lookupCnpjLoading ? "Consultando..." : "Consultar CNPJ" }}
+              </button>
+              <button class="secondary" type="button" :disabled="lookupIeLoading || saving" @click="consultIe">
+                {{ lookupIeLoading ? "Consultando..." : "Consultar IE" }}
+              </button>
+            </div>
           </div>
-          <div class="grid columns-2 nested-grid mobile-columns-1">
+          <div class="grid columns-2 nested-grid mobile-columns-1 span-2">
             <div class="field">
               <label>Inscrição estadual</label>
               <input v-model="form.inscricao_estadual" type="text" placeholder="Inscrição estadual" />

@@ -1,8 +1,8 @@
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use rusqlite::{params, Connection, OptionalExtension};
 
-#[derive(Debug, Clone)]
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub struct ResolvedSchedule {
     pub jornada_id: Option<i64>,
     pub jornada_nome: String,

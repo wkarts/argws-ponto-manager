@@ -15,6 +15,7 @@ mod commands {
     pub mod employees;
     pub mod entities;
     pub mod feriados;
+    pub mod holiday_sources;
     pub mod jornadas;
     pub mod licensing;
     pub mod punches;
@@ -63,6 +64,8 @@ pub fn run() {
             commands::companies::company_get,
             commands::companies::company_save,
             commands::companies::company_delete,
+            commands::companies::company_lookup_cnpj,
+            commands::companies::company_lookup_ie,
             commands::licensing::licensing_status,
             commands::licensing::licensing_load_settings,
             commands::licensing::licensing_save_settings,
@@ -81,6 +84,9 @@ pub fn run() {
             commands::feriados::feriado_get,
             commands::feriados::feriado_save,
             commands::feriados::feriado_delete,
+            commands::holiday_sources::holiday_source_load_settings,
+            commands::holiday_sources::holiday_source_save_settings,
+            commands::holiday_sources::holiday_source_import_company_year,
             commands::entities::entity_list,
             commands::entities::entity_save,
             commands::entities::entity_delete,
