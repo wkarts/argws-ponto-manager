@@ -45,13 +45,20 @@ fn export_employee_line(brand: &str, row: &Map<String, Value>) -> String {
     let cpf = row.get("documento").and_then(Value::as_str).unwrap_or("");
     let pis = row.get("pis").and_then(Value::as_str).unwrap_or("");
     match brand {
-        "henry" => format!(
-            "{prefix}|FUNC|{empresa_id}|{}|{}|{}|{}",
-            matricula,
-            nome.replace('|', " "),
-            only_digits(cpf),
-            only_digits(pis)
-        ),
+        "henry" => {
+            let cpf_digits = only_digits(cpf);
+            let matricula_henry = if matricula.trim().is_empty() {
+                cpf_digits.clone()
+            } else {
+                only_digits(matricula)
+            };
+            format!(
+                "1+1+I[0{}[{}[1[1[{}",
+                cpf_digits,
+                nome.replace('[', " ").replace('|', " "),
+                matricula_henry
+            )
+        }
         "evo" => format!(
             "{prefix};COLAB;{empresa_id};{};{};{};{}",
             matricula,
@@ -123,6 +130,7 @@ pub fn rep_export_funcionarios_txt(
     brand: String,
     empresa_id: i64,
 ) -> Result<Map<String, Value>, String> {
+    let brand = brand.to_lowercase();
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
@@ -140,7 +148,8 @@ pub fn rep_export_funcionarios_txt(
         .prepare(
             "SELECT id, empresa_id, matricula, nome, documento, pis
              FROM funcionarios
-             WHERE empresa_id = ?1 AND COALESCE(ativo, 1) = 1
+             WHERE empresa_id = ?1
+               AND COALESCE(ativo, 1) = 1
              ORDER BY nome ASC",
         )
         .map_err(|err| format!("Falha ao preparar funcionários para exportação REP: {err}"))?;
@@ -151,27 +160,36 @@ pub fn rep_export_funcionarios_txt(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("Falha ao mapear funcionários para exportação REP: {err}"))?;
 
-    let mut lines = vec![format!(
-        "{}|EMPRESA|{}",
-        brand_header(&brand.to_lowercase()),
-        empresa_nome.replace('|', " ")
-    )];
+    let mut lines = if brand == "henry" {
+        Vec::new()
+    } else {
+        vec![format!(
+            "{}|EMPRESA|{}",
+            brand_header(&brand),
+            empresa_nome.replace('|', " ")
+        )]
+    };
     for row in &rows {
-        lines.push(export_employee_line(&brand.to_lowercase(), row));
+        lines.push(export_employee_line(&brand, row));
     }
 
     let mut response = Map::new();
-    response.insert("brand".to_string(), Value::from(brand.to_lowercase()));
+    response.insert("brand".to_string(), Value::from(brand.clone()));
     response.insert("empresa_id".to_string(), Value::from(empresa_id));
     response.insert("total".to_string(), Value::from(rows.len() as i64));
     response.insert(
         "file_name".to_string(),
-        Value::from(format!(
-            "rep_funcionarios_{}_{}.txt",
-            brand.to_lowercase(),
-            empresa_id
-        )),
+        Value::from(if brand == "henry" {
+            "rep_colaboraador.txt".to_string()
+        } else {
+            format!("rep_funcionarios_{}_{}.txt", brand, empresa_id)
+        }),
     );
-    response.insert("content".to_string(), Value::from(lines.join("\r\n")));
+    let content = if brand == "henry" {
+        format!("\n\n{}", lines.join("\r\n"))
+    } else {
+        lines.join("\r\n")
+    };
+    response.insert("content".to_string(), Value::from(content));
     Ok(response)
 }
