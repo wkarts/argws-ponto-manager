@@ -93,6 +93,21 @@ export interface BancoHorasProcessResponse {
 
 export type GenericRecord = Record<string, unknown>;
 
+export interface FeriadoRecord extends GenericRecord {
+  id?: number;
+  data?: string;
+  descricao?: string;
+  contexto_tipo?: string;
+  empresa_id?: number | null;
+  departamento_id?: number | null;
+  regra_jornada?: string | null;
+  regra_compensacao?: string | null;
+  observacoes?: string | null;
+  ativo?: boolean | number;
+  empresa_ids?: number[];
+  departamento_ids?: number[];
+}
+
 export async function listEntity(entity: string, search = ""): Promise<GenericRecord[]> {
   return invokeCommand<GenericRecord[]>("entity_list", { entity, search });
 }
@@ -372,4 +387,20 @@ export async function exportRepEmpresaTxt(brand: string, empresaId: number): Pro
 
 export async function exportRepFuncionariosTxt(brand: string, empresaId: number): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("rep_export_funcionarios_txt", { brand, empresa_id: empresaId });
+}
+
+export async function listFeriados(search = ""): Promise<FeriadoRecord[]> {
+  return invokeCommand<FeriadoRecord[]>("feriado_list", { search });
+}
+
+export async function getFeriado(id: number): Promise<FeriadoRecord> {
+  return invokeCommand<FeriadoRecord>("feriado_get", { id });
+}
+
+export async function saveFeriado(payload: FeriadoRecord): Promise<FeriadoRecord> {
+  return invokeCommand<FeriadoRecord>("feriado_save", { payload });
+}
+
+export async function deleteFeriado(id: number): Promise<boolean> {
+  return invokeCommand<boolean>("feriado_delete", { id });
 }

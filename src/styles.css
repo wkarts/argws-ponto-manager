@@ -363,3 +363,46 @@ tbody td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; 
   .app-modal-card { max-height: calc(100vh - 20px); border-radius: 12px; }
   .app-modal-header, .app-modal-body { padding: 12px; }
 }
+
+.feriado-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.field-checkbox {
+  display: flex;
+  align-items: end;
+}
+
+.muted-box {
+  border: 1px solid #dbe3ee;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px 14px;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+}
+
+.small-text {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .feriado-form {
+    grid-template-columns: 1fr;
+  }
+}

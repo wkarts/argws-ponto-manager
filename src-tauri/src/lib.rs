@@ -13,6 +13,7 @@ mod commands {
     pub mod banco_horas;
     pub mod companies;
     pub mod employees;
+    pub mod feriados;
     pub mod entities;
     pub mod jornadas;
     pub mod licensing;
@@ -76,6 +77,10 @@ pub fn run() {
             commands::employees::employee_get,
             commands::employees::employee_save,
             commands::employees::employee_delete,
+            commands::feriados::feriado_list,
+            commands::feriados::feriado_get,
+            commands::feriados::feriado_save,
+            commands::feriados::feriado_delete,
             commands::entities::entity_list,
             commands::entities::entity_save,
             commands::entities::entity_delete,
