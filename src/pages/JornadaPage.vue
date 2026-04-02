@@ -164,7 +164,6 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de jornadas de trabalho</h2>
-        <div class="muted-text">Listagem preservada com manutenção da jornada em modal.</div>
       </div>
       <div class="actions">
         <button class="secondary" @click="openNewModal">Nova jornada</button>
@@ -224,7 +223,6 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar jornada de trabalho' : 'Nova jornada de trabalho'"
-      subtitle="Fluxo convertido para modal, mantendo a mesma estrutura funcional do cadastro existente."
       width="xl"
       @close="closeModal"
     >

@@ -42,8 +42,7 @@ const form = reactive<FeriadoRecord>({
 });
 
 const subtitle = computed(() => {
-  if (viewMode.value) return "Consulta em modal, preservando a listagem principal do módulo.";
-  return "Cadastro dedicado de feriados com vínculo por empresa e departamento.";
+  return "";
 });
 
 function resetForm() {
@@ -194,7 +193,6 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2 style="margin: 0;">Tabela de feriados</h2>
-        <div class="muted">Módulo dedicado com manutenção em modal e contexto organizacional.</div>
       </div>
       <div class="actions">
         <input v-model="search" placeholder="Pesquisar feriado..." @keyup.enter="load" />
