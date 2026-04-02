@@ -92,11 +92,26 @@ fn validate_iso_date(date: &str) -> bool {
     chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
 }
 
-fn is_valid_cpf(value: &str) -> bool {
+fn normalize_cpf(value: &str) -> Option<String> {
     let digits = only_digits(value);
-    if digits.len() != 11 {
-        return false;
+    if digits.len() == 11 {
+        return Some(digits);
     }
+
+    if digits.len() > 11 {
+        let extra = digits.len() - 11;
+        if digits.chars().take(extra).all(|ch| ch == '0') {
+            return Some(digits[extra..].to_string());
+        }
+    }
+
+    None
+}
+
+fn is_valid_cpf(value: &str) -> bool {
+    let Some(digits) = normalize_cpf(value) else {
+        return false;
+    };
 
     let bytes = digits.as_bytes();
     if bytes.iter().all(|b| *b == bytes[0]) {
@@ -317,7 +332,8 @@ pub fn employee_save(
         get_string(&payload, "nome").ok_or_else(|| "Informe o nome do funcionário.".to_string())?;
     let documento_raw = get_string(&payload, "documento")
         .ok_or_else(|| "Informe o CPF do funcionário.".to_string())?;
-    let documento = only_digits(&documento_raw);
+    let documento = normalize_cpf(&documento_raw)
+        .ok_or_else(|| "CPF do funcionário é inválido.".to_string())?;
     let data_admissao = get_string(&payload, "data_admissao")
         .ok_or_else(|| "Informe a data de admissão.".to_string())?;
 
