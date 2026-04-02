@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
@@ -332,8 +333,8 @@ onMounted(async () => {
         </div>
 
         <div class="actions">
-          <label class="actions"><input v-model="form.manual_ajuste" type="checkbox" class="checkbox-input" /> Ajuste manual autorizado</label>
-          <label class="actions"><input v-model="form.validado" type="checkbox" class="checkbox-input" /> Validado</label>
+          <AppSwitch v-model="form.manual_ajuste" label="Ajuste manual autorizado" />
+          <AppSwitch v-model="form.validado" label="Validado" />
         </div>
 
         <div class="actions">

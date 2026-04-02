@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboList,
   deleteUser,
@@ -210,7 +211,7 @@ onMounted(async () => {
               <label>Buscar</label>
               <input v-model="search" type="text" placeholder="Nome, login ou e-mail" @keyup.enter="load" />
             </div>
-            <div class="field checkbox-line compact-checkbox"><input v-model="onlyActive" class="checkbox-input" type="checkbox" /><label>Somente ativos</label></div>
+            <AppSwitch v-model="onlyActive" label="Somente ativos" />
             <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
           </div>
         </div>
@@ -325,10 +326,10 @@ onMounted(async () => {
             <label>Observações</label>
             <textarea v-model="form.observacoes" rows="4" :disabled="!canManage" placeholder="Observações internas sobre o usuário"></textarea>
           </div>
-          <div class="field checkbox-line"><input v-model="form.master_user" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário master</label></div>
-          <div class="field checkbox-line"><input v-model="form.administrador" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Administrador</label></div>
-          <div class="field checkbox-line"><input v-model="form.senha_provisoria" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Senha provisória / exigir troca</label></div>
-          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Usuário ativo</label></div>
+          <AppSwitch v-model="form.master_user" label="Usuário master" :disabled="!canManage" />
+          <AppSwitch v-model="form.administrador" label="Administrador" :disabled="!canManage" />
+          <AppSwitch v-model="form.senha_provisoria" label="Senha provisória / exigir troca" :disabled="!canManage" />
+          <AppSwitch v-model="form.ativo" label="Usuário ativo" :disabled="!canManage" />
         </div>
 
         <div class="actions">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { deleteBatida, listBatidas, listEmployees, saveBatida, saveOcorrencia, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -292,14 +293,8 @@ onMounted(async () => {
         </div>
 
         <div class="grid columns-2 mobile-columns-1 full-width">
-          <label class="checkbox-field">
-            <input v-model="rowForm.manual_ajuste" type="checkbox" />
-            <span>Ajuste manual</span>
-          </label>
-          <label class="checkbox-field">
-            <input v-model="rowForm.validado" type="checkbox" />
-            <span>Validado</span>
-          </label>
+          <AppSwitch v-model="rowForm.manual_ajuste" label="Ajuste manual" />
+          <AppSwitch v-model="rowForm.validado" label="Validado" />
         </div>
 
         <div class="actions modal-actions full-width">

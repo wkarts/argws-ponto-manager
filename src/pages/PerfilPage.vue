@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   deleteProfile,
   getProfile,
@@ -176,7 +177,7 @@ onMounted(async () => {
               <label>Buscar</label>
               <input v-model="search" type="text" placeholder="Nome ou descrição" @keyup.enter="load" />
             </div>
-            <div class="field checkbox-line compact-checkbox"><input v-model="onlyActive" class="checkbox-input" type="checkbox" /><label>Somente ativos</label></div>
+            <AppSwitch v-model="onlyActive" label="Somente ativos" />
             <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
           </div>
         </div>
@@ -237,12 +238,12 @@ onMounted(async () => {
             <label>Nome *</label>
             <input v-model="form.nome" type="text" :disabled="!canManage" placeholder="Ex.: Operação RH" />
           </div>
-          <div class="field checkbox-line top-gap-26"><input v-model="form.perfil_master" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil master</label></div>
+          <AppSwitch v-model="form.perfil_master" label="Perfil master" :disabled="!canManage" />
           <div class="field span-2">
             <label>Descrição</label>
             <textarea v-model="form.descricao" rows="3" :disabled="!canManage" placeholder="Escopo e finalidade do perfil"></textarea>
           </div>
-          <div class="field checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="!canManage" /><label>Perfil ativo</label></div>
+          <AppSwitch v-model="form.ativo" label="Perfil ativo" :disabled="!canManage" />
         </div>
 
         <div class="section-title">Permissões</div>

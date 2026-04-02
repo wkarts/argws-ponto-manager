@@ -45,7 +45,7 @@
       <ul class="summary-list">
         <li><strong>Central de relatórios:</strong> exportações analíticas por período e empresa.</li>
         <li><strong>Exportação REP:</strong> geração dos arquivos para atendimento operacional e legal.</li>
-        <li><strong>Fila de sincronização:</strong> acompanhamento de eventos pendentes/integrados.</li>
+        <li><strong>Fila técnica de sincronização:</strong> painel técnico para auditoria de integrações pendentes. Não é etapa obrigatória do uso diário quando o banco local já recebeu os dados.</li>
       </ul>
     </div>
 

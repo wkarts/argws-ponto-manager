@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   checkLicensingRuntime,
   enableSupportGuardTotp,
@@ -324,14 +325,8 @@ onMounted(loadPage);
         </label>
       </div>
       <div class="checkbox-grid licensing-checkboxes">
-        <label class="checkbox-inline">
-          <input type="checkbox" :checked="Boolean(settings.auto_register_machine)" :disabled="settingsProtected" @change="setBool('auto_register_machine', ($event.target as HTMLInputElement).checked)" />
-          <span>Permitir auto cadastro de empresa/dispositivo</span>
-        </label>
-        <label class="checkbox-inline">
-          <input type="checkbox" v-model="disabledMode" :disabled="settingsProtected" />
-          <span>Desabilitar licenciamento na aplicação</span>
-        </label>
+        <AppSwitch :model-value="Boolean(settings.auto_register_machine)" label="Permitir auto cadastro de empresa/dispositivo" :disabled="settingsProtected" @update:model-value="setBool('auto_register_machine', $event)" />
+        <AppSwitch v-model="disabledMode" label="Desabilitar licenciamento na aplicação" :disabled="settingsProtected" />
       </div>
       <div class="actions wrap">
         <button class="primary" :disabled="saving || checking || settingsProtected" @click="saveSettingsAction">Salvar configurações</button>

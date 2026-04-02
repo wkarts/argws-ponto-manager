@@ -65,7 +65,6 @@ const operacao = computed(() => [
   session.can("banco_horas:view") ? { title: "Banco de horas", route: "/banco-horas" } : null,
   session.can("fechamentos:view") ? { title: "Fechamento mensal", route: "/fechamentos" } : null,
   { title: "Tratamento em lote", route: "/batidas-lote" },
-  session.can("sync:view") ? { title: "Fila de sincronização", route: "/sync-queue" } : null,
 ].filter(Boolean) as { title: string; route: string }[]);
 
 const relatorios = computed(() => [
@@ -80,10 +79,11 @@ const documentacao = computed(() => [
 
 const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
+  session.can("sync:view") ? { title: "Fila técnica de sincronização", route: "/sync-queue" } : null,
   { title: "Licenciamento", route: "/licenciamento" },
   { title: "Sobre", route: "/sobre" },
   { title: "Logs da aplicação", route: "/logs" },
-]);
+].filter(Boolean) as { title: string; route: string }[]);
 
 const pageTitle = computed(() => {
   const path = route.path;

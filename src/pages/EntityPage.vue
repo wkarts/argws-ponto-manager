@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
 import { booleanLabel } from "../services/format";
@@ -213,7 +214,7 @@ watch(
     >
       <form class="grid" @submit.prevent="persist">
         <div v-for="field in config.fields" :key="field.key" class="field">
-          <label :for="field.key">
+          <label v-if="field.type !== 'checkbox'" :for="field.key">
             {{ field.label }}
             <span v-if="field.required" class="required">*</span>
           </label>
@@ -227,12 +228,10 @@ watch(
             @input="onTextareaInput(field.key, $event)"
           />
 
-          <input
+          <AppSwitch
             v-else-if="field.type === 'checkbox'"
-            :id="field.key"
             v-model="form[field.key]"
-            type="checkbox"
-            class="checkbox-input"
+            :label="field.label"
           />
 
           <select

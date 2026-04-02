@@ -69,6 +69,33 @@ fn only_digits(value: &str) -> String {
     value.chars().filter(|ch| ch.is_ascii_digit()).collect()
 }
 
+fn normalize_document_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .collect::<String>()
+        .to_uppercase()
+}
+
+fn normalize_optional_registration(value: Option<String>) -> Option<String> {
+    value
+        .map(|text| text.trim().to_string())
+        .filter(|text| !text.is_empty())
+        .map(|text| {
+            let upper = text.to_uppercase();
+            if upper == "ISENTO" {
+                upper
+            } else {
+                let digits = only_digits(&upper);
+                if !digits.is_empty() && digits.len() == upper.chars().filter(|ch| ch.is_ascii_digit()).count() {
+                    digits
+                } else {
+                    upper
+                }
+            }
+        })
+}
+
 fn normalize_upper_uf(value: Option<String>) -> Option<String> {
     value
         .map(|text| text.to_uppercase())
@@ -155,11 +182,18 @@ fn is_valid_cnpj(value: &str) -> bool {
 }
 
 fn validate_company_document(document: &str) -> bool {
-    let digits = only_digits(document);
+    let normalized = normalize_document_key(document);
+    if normalized.len() < 3 {
+        return false;
+    }
+
+    let digits = only_digits(&normalized);
     match digits.len() {
-        11 => is_valid_cpf(&digits),
-        14 => is_valid_cnpj(&digits),
-        _ => false,
+        11 if digits.len() == normalized.len() => is_valid_cpf(&digits),
+        14 if digits.len() == normalized.len() => is_valid_cnpj(&digits),
+        0 => normalized.len() >= 3 && normalized.len() <= 20,
+        _ if digits.len() == normalized.len() => digits.len() >= 3 && digits.len() <= 20,
+        _ => normalized.len() >= 3 && normalized.len() <= 20,
     }
 }
 
@@ -244,11 +278,11 @@ pub fn company_save(
     let nome = get_string(&payload, "nome")
         .ok_or_else(|| "Informe a razão social da empresa.".to_string())?;
     let documento_raw = get_string(&payload, "documento")
-        .ok_or_else(|| "Informe o CNPJ/CPF da empresa usuária.".to_string())?;
-    let documento = only_digits(&documento_raw);
+        .ok_or_else(|| "Informe o documento da empresa usuária.".to_string())?;
+    let documento = normalize_document_key(&documento_raw);
 
     if !validate_company_document(&documento) {
-        return Err("Documento inválido para empresa usuária.".to_string());
+        return Err("Documento inválido para empresa usuária. Informe CPF/CNPJ válido ou identificador interno compatível com o cadastro local.".to_string());
     }
 
     let email = get_string(&payload, "email");
@@ -267,7 +301,7 @@ pub fn company_save(
 
     let duplicate_id: Option<i64> = conn
         .query_row(
-            "SELECT id FROM empresas WHERE documento = ?1 AND (?2 IS NULL OR id <> ?2) LIMIT 1",
+            "SELECT id FROM empresas WHERE UPPER(REPLACE(REPLACE(REPLACE(COALESCE(documento, ''), '.', ''), '-', ''), '/', '')) = ?1 AND (?2 IS NULL OR id <> ?2) LIMIT 1",
             params![documento, id],
             |row| row.get(0),
         )
@@ -279,9 +313,8 @@ pub fn company_save(
     }
 
     let nome_fantasia = get_string(&payload, "nome_fantasia");
-    let inscricao_estadual =
-        get_string(&payload, "inscricao_estadual").map(|value| only_digits(&value));
-    let inscricao_municipal = get_string(&payload, "inscricao_municipal");
+    let inscricao_estadual = normalize_optional_registration(get_string(&payload, "inscricao_estadual"));
+    let inscricao_municipal = normalize_optional_registration(get_string(&payload, "inscricao_municipal"));
     let telefone = get_string(&payload, "telefone").map(|value| only_digits(&value));
     let responsavel_nome = get_string(&payload, "responsavel_nome");
     let responsavel_telefone =

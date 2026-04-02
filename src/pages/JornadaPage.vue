@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboList,
   deleteJornada,
@@ -295,10 +296,10 @@ onMounted(async () => {
         </div>
 
         <div class="grid columns-2 mobile-columns-1">
-          <label class="checkbox-line"><input v-model="form.banco_horas_ativo" class="checkbox-input" type="checkbox" /> Banco de horas ativo</label>
-          <label class="checkbox-line"><input v-model="form.exige_marcacao_intervalo" class="checkbox-input" type="checkbox" /> Exige marcação de intervalo</label>
-          <label class="checkbox-line"><input v-model="form.compensa_atraso_com_extra" class="checkbox-input" type="checkbox" /> Compensa atraso com extra</label>
-          <label class="checkbox-line"><input v-model="form.ativo" class="checkbox-input" type="checkbox" /> Jornada ativa</label>
+          <AppSwitch v-model="form.banco_horas_ativo" label="Banco de horas ativo" />
+          <AppSwitch v-model="form.exige_marcacao_intervalo" label="Exige marcação de intervalo" />
+          <AppSwitch v-model="form.compensa_atraso_com_extra" label="Compensa atraso com extra" />
+          <AppSwitch v-model="form.ativo" label="Jornada ativa" />
         </div>
 
         <div class="section-title">Distribuição semanal</div>
@@ -325,7 +326,7 @@ onMounted(async () => {
                 <td><input v-model="day.saida_2" type="time" :disabled="day.folga" /></td>
                 <td><input v-model="day.carga_prevista_minutos" type="number" min="0" :disabled="day.folga" /></td>
                 <td><input v-model="day.intervalo_minutos" type="number" min="0" :disabled="day.folga" /></td>
-                <td><input v-model="day.folga" type="checkbox" /></td>
+                <td><AppSwitch v-model="day.folga" label="" /></td>
               </tr>
             </tbody>
           </table>

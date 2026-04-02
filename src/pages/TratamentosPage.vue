@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listEmployees, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "../stores/session";
@@ -267,7 +268,7 @@ onMounted(async () => {
         </div>
 
         <div class="actions">
-          <label class="actions"><input v-model="form.abonar_dia" type="checkbox" class="checkbox-input" /> Abonar o dia inteiro</label>
+          <AppSwitch v-model="form.abonar_dia" label="Abonar o dia inteiro" />
         </div>
 
         <div class="field">
