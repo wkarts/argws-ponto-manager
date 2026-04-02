@@ -11,6 +11,7 @@ import TratamentosPage from "../pages/TratamentosPage.vue";
 import FechamentoMensalPage from "../pages/FechamentoMensalPage.vue";
 import UsuarioPage from "../pages/UsuarioPage.vue";
 import PerfilPage from "../pages/PerfilPage.vue";
+import FeriadoPage from "../pages/FeriadoPage.vue";
 import LoginPage from "../pages/LoginPage.vue";
 import PunchesPage from "../pages/PunchesPage.vue";
 import ApuracaoPage from "../pages/ApuracaoPage.vue";
@@ -43,7 +44,7 @@ const permissionByEntity: Record<string, string> = {
 };
 
 const genericEntityRoutes: RouteRecordRaw[] = Object.values(entityConfigs)
-  .filter((entity) => !["empresas", "funcionarios", "usuarios"].includes(entity.key))
+  .filter((entity) => !["empresas", "funcionarios", "usuarios", "feriados"].includes(entity.key))
   .map((entity) => ({
     path: entity.route,
     component: EntityPage,
@@ -63,6 +64,7 @@ const routes: RouteRecordRaw[] = [
       { path: "usuarios", component: UsuarioPage, meta: { permission: "usuarios:view" } },
       { path: "perfis", component: PerfilPage, meta: { permission: "perfis:view" } },
       { path: "jornadas", component: JornadaPage, meta: { permission: "jornadas:view" } },
+      { path: "feriados", component: FeriadoPage, meta: { permission: "feriados:view" } },
       { path: "afd", component: AfdImportPage, meta: { permission: "afd:import" } },
       { path: "banco-horas", component: BancoHorasPage, meta: { permission: "banco_horas:view" } },
       { path: "tratamentos", component: TratamentosPage, meta: { permission: "tratamentos:view" } },

@@ -222,7 +222,6 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar ocorrência / justificativa' : 'Nova ocorrência / justificativa'"
-      subtitle="Inclusão e edição convertidas para modal, preservando a listagem e os filtros atuais."
       width="lg"
       @close="closeModal"
     >

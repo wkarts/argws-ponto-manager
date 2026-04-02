@@ -285,6 +285,24 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (departamento_id) REFERENCES departamentos(id)
         );
 
+        CREATE TABLE IF NOT EXISTS feriados_empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feriado_id INTEGER NOT NULL,
+            empresa_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (feriado_id) REFERENCES feriados(id) ON DELETE CASCADE,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS feriados_departamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feriado_id INTEGER NOT NULL,
+            departamento_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (feriado_id) REFERENCES feriados(id) ON DELETE CASCADE,
+            FOREIGN KEY (departamento_id) REFERENCES departamentos(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS jornada_contextos_regras (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             descricao TEXT NOT NULL,

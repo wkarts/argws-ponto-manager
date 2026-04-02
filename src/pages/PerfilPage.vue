@@ -154,7 +154,6 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Perfis de acesso</h2>
-        <div class="muted-text">Listagem fixa com cadastro e edição padronizados em modal.</div>
       </div>
       <div class="actions">
         <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo perfil</button>
@@ -226,7 +225,6 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar perfil de acesso' : 'Novo perfil de acesso'"
-      subtitle="A manutenção do perfil foi movida para modal sem alterar o fluxo da listagem."
       width="xl"
       @close="closeModal"
     >

@@ -499,7 +499,26 @@ pub fn apurar_periodo_internal(
 
             let schedule = resolve_schedule_for_employee(conn, funcionario.id, &current_date)?;
             let mut calc = calculate_day(&schedule, &batidas);
-            let occurrence_data = load_day_occurrences(conn, funcionario.id, &current_date)?;
+            let mut occurrence_data = load_day_occurrences(conn, funcionario.id, &current_date)?;
+
+            if schedule.is_holiday {
+                if let Some(label) = &schedule.holiday_label {
+                    occurrence_data.labels.push(format!("Feriado: {label}"));
+                    calc.mensagens
+                        .push(format!("Data tratada como feriado: {label}."));
+                } else {
+                    calc.mensagens
+                        .push("Data tratada como feriado.".to_string());
+                }
+                if let Some(regra) = &schedule.holiday_compensation {
+                    calc.mensagens
+                        .push(format!("Regra de compensação do feriado: {regra}."));
+                }
+                if let Some(regra) = &schedule.holiday_jornada_rule {
+                    calc.mensagens
+                        .push(format!("Tratamento de jornada do feriado: {regra}."));
+                }
+            }
 
             if occurrence_data.abonar_dia {
                 if calc.worked_minutes < calc.expected_minutes {
@@ -535,9 +554,13 @@ pub fn apurar_periodo_internal(
                 || !batidas.is_empty()
                 || !calc.mensagens.is_empty()
                 || !occurrence_data.labels.is_empty()
+                || schedule.is_holiday
                 || (schedule.is_day_off && !batidas.is_empty())
             {
-                if schedule.is_day_off && !batidas.is_empty() {
+                if schedule.is_holiday && !batidas.is_empty() {
+                    calc.mensagens
+                        .push("Batidas registradas em data marcada como feriado.".to_string());
+                } else if schedule.is_day_off && !batidas.is_empty() {
                     calc.mensagens
                         .push("Batidas registradas em dia configurado como folga.".to_string());
                 }

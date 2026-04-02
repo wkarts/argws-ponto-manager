@@ -117,7 +117,6 @@ onMounted(load);
     <div class="toolbar">
       <div>
         <h2>Cadastro de empresa usuária</h2>
-        <div class="muted-text">Listagem preservada na tela principal com inclusão e edição em modal.</div>
       </div>
       <div class="actions">
         <button class="secondary" @click="openNewModal">Novo cadastro</button>
@@ -191,7 +190,6 @@ onMounted(load);
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar empresa usuária' : 'Nova empresa usuária'"
-      subtitle="Fluxo convertido para manutenção em modal sem alterar a listagem existente."
       width="xl"
       @close="closeModal"
     >
