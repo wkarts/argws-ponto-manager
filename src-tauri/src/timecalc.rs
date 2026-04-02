@@ -396,7 +396,11 @@ pub fn calculate_day(schedule: &ResolvedSchedule, batidas: &[String]) -> DailyCa
     let mut saida_antecipada_minutos = 0i64;
     if let (Some(last), Some(expected_end)) = (
         batidas.last().and_then(|value| parse_hhmm_minutes(value)),
-        schedule.saida_2.as_deref().and_then(parse_hhmm_minutes).or_else(|| schedule.saida_1.as_deref().and_then(parse_hhmm_minutes)),
+        schedule
+            .saida_2
+            .as_deref()
+            .and_then(parse_hhmm_minutes)
+            .or_else(|| schedule.saida_1.as_deref().and_then(parse_hhmm_minutes)),
     ) {
         let tolerated = expected_end - schedule.tolerancia_saida_minutos;
         if last < tolerated {
