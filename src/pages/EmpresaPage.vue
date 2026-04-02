@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   deleteCompany,
   getCompany,
@@ -195,10 +196,7 @@ onMounted(load);
             <label>Buscar</label>
             <input v-model="search" type="text" placeholder="Nome, documento ou cidade" @keyup.enter="load" />
           </div>
-          <div class="field checkbox-line compact-checkbox">
-            <input v-model="onlyActive" class="checkbox-input" type="checkbox" />
-            <label>Somente ativas</label>
-          </div>
+          <AppSwitch v-model="onlyActive" label="Somente ativas" />
           <button class="secondary" :disabled="loading" @click="load">
             {{ loading ? "Carregando..." : "Atualizar" }}
           </button>
@@ -264,9 +262,9 @@ onMounted(load);
             <input v-model="form.nome_fantasia" type="text" placeholder="Nome fantasia" />
           </div>
           <div class="field span-2">
-            <label>CNPJ / CPF *</label>
+            <label>Documento da entidade *</label>
             <div class="actions stretch-on-mobile">
-              <input v-model="form.documento" type="text" placeholder="00.000.000/0000-00" />
+              <input v-model="form.documento" type="text" placeholder="CNPJ, CPF ou identificador interno" />
               <button class="secondary" type="button" :disabled="lookupCnpjLoading || saving" @click="consultCnpj">
                 {{ lookupCnpjLoading ? "Consultando..." : "Consultar CNPJ" }}
               </button>
@@ -284,6 +282,9 @@ onMounted(load);
               <label>Inscrição municipal</label>
               <input v-model="form.inscricao_municipal" type="text" placeholder="Inscrição municipal" />
             </div>
+          </div>
+          <div class="form-hint span-2">
+            Para integrações fiscais, prefira CNPJ ou CPF válidos. Em cadastros internos/localizados, o sistema também aceita identificador simplificado quando a entidade não possui documento fiscal completo.
           </div>
         </div>
 
@@ -349,9 +350,8 @@ onMounted(load);
             <label>Observações</label>
             <textarea v-model="form.observacoes" rows="4" placeholder="Informações adicionais da empresa"></textarea>
           </div>
-          <div class="field checkbox-line span-2">
-            <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
-            <label>Empresa ativa</label>
+          <div class="field span-2">
+            <AppSwitch v-model="form.ativo" label="Empresa ativa" />
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listEmployees, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "../stores/session";
@@ -13,12 +14,24 @@ const message = ref("");
 const error = ref("");
 const modalOpen = ref(false);
 
-function textValue(value: unknown): string | number | readonly string[] | null | undefined {
+type FormFieldValue = string | number | boolean | undefined;
+type TextBindableValue = string | number | readonly string[] | null | undefined;
+
+function textValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   return value == null ? undefined : String(value);
 }
 
+function switchValue(value: FormFieldValue): boolean | number | string | undefined {
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") return value;
+  return undefined;
+}
+
+function normalizeFormValue(value: unknown, fallback: FormFieldValue): FormFieldValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  return value == null ? fallback : String(value);
+}
 
 const filters = reactive({
   funcionarioId: "",
@@ -26,7 +39,7 @@ const filters = reactive({
   dataFinal: ""
 });
 
-const form = reactive<Record<string, unknown>>({
+const form = reactive<Record<string, FormFieldValue>>({
   id: undefined,
   funcionario_id: "",
   data_referencia: "",
@@ -81,7 +94,17 @@ async function load() {
 }
 
 function editRow(row: Record<string, unknown>) {
-  Object.assign(form, row);
+  form.id = normalizeFormValue(row.id, undefined);
+  form.funcionario_id = normalizeFormValue(row.funcionario_id, "");
+  form.data_referencia = normalizeFormValue(row.data_referencia, "");
+  form.tipo = normalizeFormValue(row.tipo, "atestado");
+  form.justificativa_id = normalizeFormValue(row.justificativa_id, "");
+  form.abonar_dia = normalizeFormValue(row.abonar_dia, true);
+  form.minutos_abonados = normalizeFormValue(row.minutos_abonados, 0);
+  form.observacao = normalizeFormValue(row.observacao, "");
+  form.anexo_nome = normalizeFormValue(row.anexo_nome, "");
+  form.anexo_mime = normalizeFormValue(row.anexo_mime, "");
+  form.anexo_base64 = normalizeFormValue(row.anexo_base64, "");
   modalOpen.value = true;
 }
 
@@ -267,7 +290,7 @@ onMounted(async () => {
         </div>
 
         <div class="actions">
-          <label class="actions"><input v-model="form.abonar_dia" type="checkbox" class="checkbox-input" /> Abonar o dia inteiro</label>
+          <AppSwitch :model-value="switchValue(form.abonar_dia)" label="Abonar o dia inteiro" @update:model-value="form.abonar_dia = $event" />
         </div>
 
         <div class="field">

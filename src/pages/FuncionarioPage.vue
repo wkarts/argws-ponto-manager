@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboJornadas,
   comboList,
@@ -225,10 +226,7 @@ onMounted(async () => {
               <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
             </select>
           </div>
-          <div class="field checkbox-line compact-checkbox">
-            <input v-model="onlyActive" class="checkbox-input" type="checkbox" />
-            <label>Somente ativos</label>
-          </div>
+          <AppSwitch v-model="onlyActive" label="Somente ativos" />
           <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
         </div>
       </div>
@@ -464,9 +462,8 @@ onMounted(async () => {
             <label>Observações</label>
             <textarea v-model="form.observacoes" rows="3" />
           </div>
-          <div class="field checkbox-line span-2">
-            <input v-model="form.ativo" class="checkbox-input" type="checkbox" />
-            <label>Funcionário ativo</label>
+          <div class="field span-2">
+            <AppSwitch v-model="form.ativo" label="Funcionário ativo" />
           </div>
         </div>
 

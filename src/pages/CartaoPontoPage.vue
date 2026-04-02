@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   apurarPeriodo,
   comboList,
@@ -881,8 +882,8 @@ onMounted(async () => {
           <label>Observação</label>
           <textarea v-model="batidaForm.observacao" rows="3" placeholder="Detalhes da marcação manual"></textarea>
         </div>
-        <div class="field checkbox-line"><input v-model="batidaForm.manual_ajuste" class="checkbox-input" type="checkbox" /><label>Ajuste manual</label></div>
-        <div class="field checkbox-line"><input v-model="batidaForm.validado" class="checkbox-input" type="checkbox" /><label>Validado</label></div>
+        <AppSwitch v-model="batidaForm.manual_ajuste" label="Ajuste manual" />
+        <AppSwitch v-model="batidaForm.validado" label="Validado" />
       </div>
       <div class="actions">
         <button class="primary" :disabled="savingBatida" @click="salvarBatida">{{ savingBatida ? 'Salvando...' : batidaForm.id ? 'Atualizar marcação' : 'Salvar marcação' }}</button>
@@ -926,7 +927,7 @@ onMounted(async () => {
           <label>Observação</label>
           <textarea v-model="ocorrenciaForm.observacao" rows="3" placeholder="Detalhes da ocorrência"></textarea>
         </div>
-        <div class="field checkbox-line"><input v-model="ocorrenciaForm.abonar_dia" class="checkbox-input" type="checkbox" /><label>Abonar dia</label></div>
+        <AppSwitch v-model="ocorrenciaForm.abonar_dia" label="Abonar dia" />
       </div>
       <div class="actions">
         <button class="primary" :disabled="savingOcorrencia" @click="salvarOcorrencia">{{ savingOcorrencia ? 'Salvando...' : ocorrenciaForm.id ? 'Atualizar ocorrência' : 'Salvar ocorrência' }}</button>

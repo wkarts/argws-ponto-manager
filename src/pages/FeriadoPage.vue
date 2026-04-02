@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboList,
   deleteFeriado,
@@ -396,9 +397,8 @@ onMounted(async () => {
               <option v-for="item in contextoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
             </select>
           </div>
-          <div class="field checkbox-line compact-checkbox">
-            <input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="viewMode" />
-            <label>Ativo</label>
+          <div class="field">
+            <AppSwitch v-model="form.ativo" label="Ativo" :disabled="viewMode" />
           </div>
         </div>
 

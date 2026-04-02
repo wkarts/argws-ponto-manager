@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
 import { booleanLabel } from "../services/format";
@@ -16,20 +17,32 @@ const saving = ref(false);
 const loading = ref(false);
 const error = ref("");
 const modalOpen = ref(false);
-const form = reactive<Record<string, unknown>>({ id: undefined });
+type FormFieldValue = string | number | boolean | undefined;
+type TextBindableValue = string | number | readonly string[] | null | undefined;
+const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 
-function inputValue(value: unknown): string | number | readonly string[] | null | undefined {
+function inputValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   return value == null ? undefined : String(value);
+}
+
+function switchValue(value: FormFieldValue): boolean | number | string | undefined {
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") return value;
+  return undefined;
+}
+
+function normalizeFormValue(value: unknown, fallback: FormFieldValue): FormFieldValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  return value == null ? fallback : String(value);
 }
 
 function onTextareaInput(key: string, event: Event) {
   form[key] = (event.target as HTMLTextAreaElement).value;
 }
 
-function defaultFieldValue(field: EntityField): unknown {
+function defaultFieldValue(field: EntityField): FormFieldValue {
   if (field.type === "checkbox") return true;
   return "";
 }
@@ -103,9 +116,10 @@ async function load() {
 function editRow(row: Record<string, unknown>) {
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
-    form[field.key] = row[field.key] ?? defaultFieldValue(field);
+    const fallback = defaultFieldValue(field);
+    form[field.key] = normalizeFormValue(row[field.key], fallback);
   }
-  form.id = row.id;
+  form.id = normalizeFormValue(row.id, undefined);
   modalOpen.value = true;
 }
 
@@ -213,7 +227,7 @@ watch(
     >
       <form class="grid" @submit.prevent="persist">
         <div v-for="field in config.fields" :key="field.key" class="field">
-          <label :for="field.key">
+          <label v-if="field.type !== 'checkbox'" :for="field.key">
             {{ field.label }}
             <span v-if="field.required" class="required">*</span>
           </label>
@@ -227,12 +241,11 @@ watch(
             @input="onTextareaInput(field.key, $event)"
           />
 
-          <input
+          <AppSwitch
             v-else-if="field.type === 'checkbox'"
-            :id="field.key"
-            v-model="form[field.key]"
-            type="checkbox"
-            class="checkbox-input"
+            :model-value="switchValue(form[field.key])"
+            :label="field.label"
+            @update:model-value="form[field.key] = $event"
           />
 
           <select
