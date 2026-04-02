@@ -11,7 +11,8 @@ use crate::{
 };
 
 const SETTINGS_KEY: &str = "holiday_source_settings";
-const EMBEDDED_HOLIDAYS_2026: &str = include_str!("../resources/feriados/feriados_2026_bundle.json");
+const EMBEDDED_HOLIDAYS_2026: &str =
+    include_str!("../resources/feriados/feriados_2026_bundle.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct HolidaySourceSettings {
@@ -74,7 +75,10 @@ fn load_settings(conn: &rusqlite::Connection) -> Result<HolidaySourceSettings, S
     }
 }
 
-fn save_settings(conn: &rusqlite::Connection, settings: &HolidaySourceSettings) -> Result<(), String> {
+fn save_settings(
+    conn: &rusqlite::Connection,
+    settings: &HolidaySourceSettings,
+) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
     let raw = serde_json::to_string(settings)
         .map_err(|err| format!("Falha ao serializar configurações de feriados: {err}"))?;
@@ -101,7 +105,11 @@ fn sanitize_settings(input: Map<String, Value>) -> HolidaySourceSettings {
 
     let year = input
         .get("year")
-        .and_then(|value| value.as_i64().or_else(|| value.as_str().and_then(|item| item.parse::<i64>().ok())))
+        .and_then(|value| {
+            value
+                .as_i64()
+                .or_else(|| value.as_str().and_then(|item| item.parse::<i64>().ok()))
+        })
         .map(|value| value as i32)
         .filter(|value| *value >= 2000 && *value <= 2100)
         .unwrap_or(current.year);
@@ -167,7 +175,13 @@ fn find_city_code(dataset: &HolidayDataset, city: &str) -> Option<i64> {
         .map(|item| item.codigo_ibge)
 }
 
-fn render_url_template(template: &str, empresa_id: i64, year: i32, uf: &str, cidade: &str) -> String {
+fn render_url_template(
+    template: &str,
+    empresa_id: i64,
+    year: i32,
+    uf: &str,
+    cidade: &str,
+) -> String {
     template
         .replace("{empresa_id}", &empresa_id.to_string())
         .replace("{year}", &year.to_string())
@@ -176,14 +190,18 @@ fn render_url_template(template: &str, empresa_id: i64, year: i32, uf: &str, cid
         .replace("{city}", cidade)
 }
 
-fn load_dataset(settings: &HolidaySourceSettings, empresa_id: i64, uf: &str, cidade: &str) -> Result<HolidayDataset, String> {
+fn load_dataset(
+    settings: &HolidaySourceSettings,
+    empresa_id: i64,
+    uf: &str,
+    cidade: &str,
+) -> Result<HolidayDataset, String> {
     let raw = match settings.mode.as_str() {
         "embedded" => EMBEDDED_HOLIDAYS_2026.to_string(),
         "remote_json" => {
-            let template = settings
-                .remote_json_url
-                .as_deref()
-                .ok_or_else(|| "Informe a URL JSON remota nas configurações de feriados.".to_string())?;
+            let template = settings.remote_json_url.as_deref().ok_or_else(|| {
+                "Informe a URL JSON remota nas configurações de feriados.".to_string()
+            })?;
             let url = render_url_template(template, empresa_id, settings.year, uf, cidade);
             Client::new()
                 .get(url)
@@ -216,7 +234,11 @@ fn load_dataset(settings: &HolidaySourceSettings, empresa_id: i64, uf: &str, cid
         .map_err(|err| format!("Falha ao interpretar dataset de feriados: {err}"))
 }
 
-fn relation_exists(conn: &rusqlite::Connection, feriado_id: i64, empresa_id: i64) -> Result<bool, String> {
+fn relation_exists(
+    conn: &rusqlite::Connection,
+    feriado_id: i64,
+    empresa_id: i64,
+) -> Result<bool, String> {
     let exists: Option<i64> = conn
         .query_row(
             "SELECT 1 FROM feriados_empresas WHERE feriado_id = ?1 AND empresa_id = ?2 LIMIT 1",
@@ -228,7 +250,12 @@ fn relation_exists(conn: &rusqlite::Connection, feriado_id: i64, empresa_id: i64
     Ok(exists.is_some())
 }
 
-fn upsert_relation(conn: &rusqlite::Connection, feriado_id: i64, empresa_id: i64, now: &str) -> Result<(), String> {
+fn upsert_relation(
+    conn: &rusqlite::Connection,
+    feriado_id: i64,
+    empresa_id: i64,
+    now: &str,
+) -> Result<(), String> {
     if relation_exists(conn, feriado_id, empresa_id)? {
         return Ok(());
     }
@@ -300,7 +327,9 @@ fn upsert_holiday_for_company(
 }
 
 #[tauri::command]
-pub fn holiday_source_load_settings(state: State<'_, SharedState>) -> Result<Map<String, Value>, String> {
+pub fn holiday_source_load_settings(
+    state: State<'_, SharedState>,
+) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let settings = load_settings(&conn)?;
@@ -352,14 +381,21 @@ pub fn holiday_source_import_company_year(
         .optional()
         .map_err(|err| format!("Falha ao consultar empresa para importação de feriados: {err}"))?;
 
-    let (uf, cidade) = company.ok_or_else(|| "Empresa não encontrada para importação de feriados.".to_string())?;
+    let (uf, cidade) =
+        company.ok_or_else(|| "Empresa não encontrada para importação de feriados.".to_string())?;
     let uf = uf.trim().to_uppercase();
     let cidade = cidade.trim().to_string();
     if uf.is_empty() {
-        return Err("A empresa ativa não possui UF cadastrada para importar feriados estaduais.".to_string());
+        return Err(
+            "A empresa ativa não possui UF cadastrada para importar feriados estaduais."
+                .to_string(),
+        );
     }
     if cidade.is_empty() {
-        return Err("A empresa ativa não possui cidade cadastrada para importar feriados municipais.".to_string());
+        return Err(
+            "A empresa ativa não possui cidade cadastrada para importar feriados municipais."
+                .to_string(),
+        );
     }
 
     let dataset = load_dataset(&settings, empresa_id, &uf, &cidade)?;
@@ -376,14 +412,23 @@ pub fn holiday_source_import_company_year(
         }
     }
 
-    for item in dataset.estadual.iter().filter(|item| item.uf.as_deref().unwrap_or_default().eq_ignore_ascii_case(&uf)) {
+    for item in dataset.estadual.iter().filter(|item| {
+        item.uf
+            .as_deref()
+            .unwrap_or_default()
+            .eq_ignore_ascii_case(&uf)
+    }) {
         if upsert_holiday_for_company(&conn, empresa_id, item, "ESTADUAL", &now)? {
             imported_estadual += 1;
         }
     }
 
     if let Some(code) = city_code {
-        for item in dataset.municipal.iter().filter(|item| item.codigo_ibge.unwrap_or_default() == code) {
+        for item in dataset
+            .municipal
+            .iter()
+            .filter(|item| item.codigo_ibge.unwrap_or_default() == code)
+        {
             if upsert_holiday_for_company(&conn, empresa_id, item, "MUNICIPAL", &now)? {
                 imported_municipal += 1;
             }
@@ -403,8 +448,20 @@ pub fn holiday_source_import_company_year(
         "total_importado": imported_nacional + imported_estadual + imported_municipal,
     });
 
-    write_audit(&conn, "feriados", "import_default_holidays", Some(empresa_id), &payload)?;
-    enqueue_sync(&conn, "feriados", "import_default_holidays", Some(empresa_id), &payload)?;
+    write_audit(
+        &conn,
+        "feriados",
+        "import_default_holidays",
+        Some(empresa_id),
+        &payload,
+    )?;
+    enqueue_sync(
+        &conn,
+        "feriados",
+        "import_default_holidays",
+        Some(empresa_id),
+        &payload,
+    )?;
 
     match payload {
         Value::Object(map) => Ok(map),
