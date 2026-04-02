@@ -1,3 +1,17 @@
+# [1.8.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.7.0...v1.8.0) (2026-04-02)
+
+
+### Bug Fixes
+
+* **ci:** corrige falha no clippy (-D warnings) em timecalc (dead_code) ([3df421a](https://github.com/wkarts/argws-ponto-manager/commit/3df421abaa0f8111147c9d401f8bd48ca6f2f1f6))
+* **feriados:** corrige typecheck da tela e ajusta formatação do backend no CI ([acbd95c](https://github.com/wkarts/argws-ponto-manager/commit/acbd95c46821a7d6566f5e6bebec07019a24bd2e))
+* **feriados:** corrige typecheck da tela e ajusta formatação do backend no CI ([11e5325](https://github.com/wkarts/argws-ponto-manager/commit/11e5325c999702f6568a3ec1ebbaf5a5a601438f))
+
+
+### Features
+
+* **feriados:** integra módulo dedicado de feriados com modal e apuração contextual ([05ee565](https://github.com/wkarts/argws-ponto-manager/commit/05ee565c41997eb63fec4076dbf14fce66971385))
+
 # [1.7.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.6.2...v1.7.0) (2026-04-01)
 
 
