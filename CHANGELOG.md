@@ -1,3 +1,12 @@
+## [1.8.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.1...v1.8.2) (2026-04-02)
+
+
+### Bug Fixes
+
+* **ui:** corrige typecheck final de formulários, switches e textareas ([0071dd5](https://github.com/wkarts/argws-ponto-manager/commit/0071dd54a1d45f757c8dcfd50e5f3d81d109e5ae))
+* **ui:** corrige typecheck nas páginas de cadastro e ajusta fmt de companies.rs ([84aaed8](https://github.com/wkarts/argws-ponto-manager/commit/84aaed8889d738b9581d61de637feb03fb1c56fd))
+* **ui:** refina sincronização técnica, substitui booleanos por switch e corrige validação de documento da empresa ([16db455](https://github.com/wkarts/argws-ponto-manager/commit/16db455e55159d5810b9fcc129d00ef381fd3d95))
+
 ## [1.8.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.0...v1.8.1) (2026-04-02)
 
 
