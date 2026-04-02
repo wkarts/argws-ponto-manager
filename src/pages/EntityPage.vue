@@ -17,27 +17,32 @@ const saving = ref(false);
 const loading = ref(false);
 const error = ref("");
 const modalOpen = ref(false);
-type PrimitiveFieldValue = string | number | boolean | null | undefined;
-const form = reactive<Record<string, PrimitiveFieldValue>>({ id: undefined });
+type FormFieldValue = string | number | boolean | undefined;
+type TextBindableValue = string | number | readonly string[] | null | undefined;
+const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 
-function normalizePrimitiveValue(value: unknown): PrimitiveFieldValue {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-    return value;
-  }
-
+function inputValue(value: unknown): TextBindableValue {
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   return value == null ? undefined : String(value);
 }
 
-function inputValue(value: unknown): string | number | boolean | undefined {
-  return normalizePrimitiveValue(value);
+function switchValue(value: FormFieldValue): boolean | number | string | undefined {
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") return value;
+  return undefined;
+}
+
+function normalizeFormValue(value: unknown, fallback: FormFieldValue): FormFieldValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  return value == null ? fallback : String(value);
 }
 
 function onTextareaInput(key: string, event: Event) {
   form[key] = (event.target as HTMLTextAreaElement).value;
 }
 
-function defaultFieldValue(field: EntityField): PrimitiveFieldValue {
+function defaultFieldValue(field: EntityField): FormFieldValue {
   if (field.type === "checkbox") return true;
   return "";
 }
@@ -111,10 +116,10 @@ async function load() {
 function editRow(row: Record<string, unknown>) {
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
-    const value = row[field.key];
-    form[field.key] = value == null ? defaultFieldValue(field) : normalizePrimitiveValue(value);
+    const fallback = defaultFieldValue(field);
+    form[field.key] = normalizeFormValue(row[field.key], fallback);
   }
-  form.id = normalizePrimitiveValue(row.id);
+  form.id = normalizeFormValue(row.id, undefined);
   modalOpen.value = true;
 }
 
@@ -238,8 +243,9 @@ watch(
 
           <AppSwitch
             v-else-if="field.type === 'checkbox'"
-            v-model="form[field.key]"
+            :model-value="switchValue(form[field.key])"
             :label="field.label"
+            @update:model-value="form[field.key] = $event"
           />
 
           <select

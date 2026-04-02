@@ -87,9 +87,7 @@ fn normalize_optional_registration(value: Option<String>) -> Option<String> {
                 upper
             } else {
                 let digits = only_digits(&upper);
-                if !digits.is_empty()
-                    && digits.len() == upper.chars().filter(|ch| ch.is_ascii_digit()).count()
-                {
+                if !digits.is_empty() && digits.len() == upper.chars().filter(|ch| ch.is_ascii_digit()).count() {
                     digits
                 } else {
                     upper
@@ -315,10 +313,8 @@ pub fn company_save(
     }
 
     let nome_fantasia = get_string(&payload, "nome_fantasia");
-    let inscricao_estadual =
-        normalize_optional_registration(get_string(&payload, "inscricao_estadual"));
-    let inscricao_municipal =
-        normalize_optional_registration(get_string(&payload, "inscricao_municipal"));
+    let inscricao_estadual = normalize_optional_registration(get_string(&payload, "inscricao_estadual"));
+    let inscricao_municipal = normalize_optional_registration(get_string(&payload, "inscricao_municipal"));
     let telefone = get_string(&payload, "telefone").map(|value| only_digits(&value));
     let responsavel_nome = get_string(&payload, "responsavel_nome");
     let responsavel_telefone =

@@ -15,9 +15,23 @@ const message = ref("");
 const error = ref("");
 const modalOpen = ref(false);
 
-function textValue(value: unknown): string | number | boolean | undefined {
-  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+type FormFieldValue = string | number | boolean | undefined;
+type TextBindableValue = string | number | readonly string[] | null | undefined;
+
+function textValue(value: unknown): TextBindableValue {
+  if (typeof value === "string" || typeof value === "number") return value;
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
   return value == null ? undefined : String(value);
+}
+
+function switchValue(value: FormFieldValue): boolean | number | string | undefined {
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") return value;
+  return undefined;
+}
+
+function normalizeFormValue(value: unknown, fallback: FormFieldValue): FormFieldValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+  return value == null ? fallback : String(value);
 }
 
 function selectedFuncionarioId(): number | null {
@@ -33,9 +47,7 @@ const filters = reactive({
   dataFinal: ""
 });
 
-type PrimitiveFieldValue = string | number | boolean | null | undefined;
-
-const form = reactive<Record<string, PrimitiveFieldValue>>({
+const form = reactive<Record<string, FormFieldValue>>({
   id: undefined,
   funcionario_id: "",
   equipamento_id: "",
@@ -110,7 +122,18 @@ async function load() {
 }
 
 function editRow(row: Record<string, unknown>) {
-  Object.assign(form, row);
+  form.id = normalizeFormValue(row.id, undefined);
+  form.funcionario_id = normalizeFormValue(row.funcionario_id, "");
+  form.equipamento_id = normalizeFormValue(row.equipamento_id, "");
+  form.justificativa_id = normalizeFormValue(row.justificativa_id, "");
+  form.manual_ajuste = normalizeFormValue(row.manual_ajuste, false);
+  form.validado = normalizeFormValue(row.validado, true);
+  form.data_referencia = normalizeFormValue(row.data_referencia, "");
+  form.hora = normalizeFormValue(row.hora, "");
+  form.nsr = normalizeFormValue(row.nsr, "");
+  form.origem = normalizeFormValue(row.origem, "manual");
+  form.observacao = normalizeFormValue(row.observacao, "");
+  form.tipo = normalizeFormValue(row.tipo, "entrada");
   modalOpen.value = true;
 }
 
@@ -334,8 +357,8 @@ onMounted(async () => {
         </div>
 
         <div class="actions">
-          <AppSwitch v-model="form.manual_ajuste" label="Ajuste manual autorizado" />
-          <AppSwitch v-model="form.validado" label="Validado" />
+          <AppSwitch :model-value="switchValue(form.manual_ajuste)" label="Ajuste manual autorizado" @update:model-value="form.manual_ajuste = $event" />
+          <AppSwitch :model-value="switchValue(form.validado)" label="Validado" @update:model-value="form.validado = $event" />
         </div>
 
         <div class="actions">
