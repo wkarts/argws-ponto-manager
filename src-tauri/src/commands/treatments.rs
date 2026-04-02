@@ -499,6 +499,10 @@ pub fn fechamento_gerar_relatorio(
         &ApuracaoRequest {
             empresa_id: None,
             funcionario_id: Some(funcionario_id),
+            funcionario_ids: None,
+            employee_status: None,
+            competencia_ano: None,
+            competencia_mes: None,
             data_inicial: Some(inicio.format("%Y-%m-%d").to_string()),
             data_final: Some(fim.format("%Y-%m-%d").to_string()),
         },

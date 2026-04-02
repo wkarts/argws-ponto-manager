@@ -419,14 +419,28 @@ pub fn apurar_periodo_internal(
     conn: &rusqlite::Connection,
     payload: &ApuracaoRequest,
 ) -> Result<ApuracaoResumo, String> {
-    let data_inicial = payload
-        .data_inicial
-        .clone()
-        .ok_or_else(|| "dataInicial é obrigatória.".to_string())?;
-    let data_final = payload
-        .data_final
-        .clone()
-        .ok_or_else(|| "dataFinal é obrigatória.".to_string())?;
+    let (data_inicial, data_final) = if let (Some(data_inicial), Some(data_final)) =
+        (payload.data_inicial.clone(), payload.data_final.clone())
+    {
+        (data_inicial, data_final)
+    } else if let (Some(ano), Some(mes)) = (payload.competencia_ano, payload.competencia_mes) {
+        let inicio_competencia = NaiveDate::from_ymd_opt(ano, mes, 1)
+            .ok_or_else(|| "Competência inválida para apuração.".to_string())?;
+        let (next_year, next_month) = if mes == 12 {
+            (ano + 1, 1)
+        } else {
+            (ano, mes + 1)
+        };
+        let inicio_proxima = NaiveDate::from_ymd_opt(next_year, next_month, 1)
+            .ok_or_else(|| "Competência inválida para apuração.".to_string())?;
+        let fim_competencia = inicio_proxima - Duration::days(1);
+        (
+            inicio_competencia.format("%Y-%m-%d").to_string(),
+            fim_competencia.format("%Y-%m-%d").to_string(),
+        )
+    } else {
+        return Err("Informe dataInicial/dataFinal ou competenciaAno/competenciaMes.".to_string());
+    };
 
     let inicio = parse_iso_date(&data_inicial)?;
     let fim = parse_iso_date(&data_final)?;
@@ -437,9 +451,19 @@ pub fn apurar_periodo_internal(
     let mut funcionarios_sql = String::from(
         "SELECT f.id, f.nome
          FROM funcionarios f
-         WHERE f.ativo = 1",
+         WHERE 1 = 1",
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
+    if let Some(status) = payload.employee_status.as_deref() {
+        match status {
+            "todos" => {}
+            "inativos" => funcionarios_sql.push_str(" AND f.ativo = 0"),
+            _ => funcionarios_sql.push_str(" AND f.ativo = 1"),
+        }
+    } else {
+        funcionarios_sql.push_str(" AND f.ativo = 1");
+    }
+
     if let Some(empresa_id) = payload.empresa_id {
         funcionarios_sql.push_str(" AND f.empresa_id = ?");
         params_vec.push(rusqlite::types::Value::Integer(empresa_id));
@@ -447,6 +471,20 @@ pub fn apurar_periodo_internal(
     if let Some(funcionario_id) = payload.funcionario_id {
         funcionarios_sql.push_str(" AND f.id = ?");
         params_vec.push(rusqlite::types::Value::Integer(funcionario_id));
+    }
+    if let Some(funcionario_ids) = payload.funcionario_ids.as_ref() {
+        let ids: Vec<i64> = funcionario_ids
+            .iter()
+            .copied()
+            .filter(|id| *id > 0)
+            .collect();
+        if !ids.is_empty() {
+            let placeholders = vec!["?"; ids.len()].join(",");
+            funcionarios_sql.push_str(&format!(" AND f.id IN ({placeholders})"));
+            for id in ids {
+                params_vec.push(rusqlite::types::Value::Integer(id));
+            }
+        }
     }
     funcionarios_sql.push_str(" ORDER BY f.nome ASC");
 

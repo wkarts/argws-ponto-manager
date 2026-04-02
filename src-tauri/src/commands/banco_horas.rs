@@ -102,6 +102,10 @@ pub fn banco_horas_processar_periodo(
         &ApuracaoRequest {
             empresa_id: payload.empresa_id,
             funcionario_id: payload.funcionario_id,
+            funcionario_ids: None,
+            employee_status: None,
+            competencia_ano: None,
+            competencia_mes: None,
             data_inicial: Some(payload.data_inicial.clone()),
             data_final: Some(payload.data_final.clone()),
         },
