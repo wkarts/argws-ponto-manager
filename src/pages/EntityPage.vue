@@ -17,20 +17,27 @@ const saving = ref(false);
 const loading = ref(false);
 const error = ref("");
 const modalOpen = ref(false);
-const form = reactive<Record<string, unknown>>({ id: undefined });
+type PrimitiveFieldValue = string | number | boolean | null | undefined;
+const form = reactive<Record<string, PrimitiveFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 
-function inputValue(value: unknown): string | number | readonly string[] | null | undefined {
-  if (typeof value === "string" || typeof value === "number") return value;
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+function normalizePrimitiveValue(value: unknown): PrimitiveFieldValue {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
   return value == null ? undefined : String(value);
+}
+
+function inputValue(value: unknown): string | number | boolean | undefined {
+  return normalizePrimitiveValue(value);
 }
 
 function onTextareaInput(key: string, event: Event) {
   form[key] = (event.target as HTMLTextAreaElement).value;
 }
 
-function defaultFieldValue(field: EntityField): unknown {
+function defaultFieldValue(field: EntityField): PrimitiveFieldValue {
   if (field.type === "checkbox") return true;
   return "";
 }
@@ -104,9 +111,10 @@ async function load() {
 function editRow(row: Record<string, unknown>) {
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
-    form[field.key] = row[field.key] ?? defaultFieldValue(field);
+    const value = row[field.key];
+    form[field.key] = value == null ? defaultFieldValue(field) : normalizePrimitiveValue(value);
   }
-  form.id = row.id;
+  form.id = normalizePrimitiveValue(row.id);
   modalOpen.value = true;
 }
 

@@ -15,9 +15,8 @@ const message = ref("");
 const error = ref("");
 const modalOpen = ref(false);
 
-function textValue(value: unknown): string | number | readonly string[] | null | undefined {
-  if (typeof value === "string" || typeof value === "number") return value;
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+function textValue(value: unknown): string | number | boolean | undefined {
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   return value == null ? undefined : String(value);
 }
 
@@ -34,7 +33,9 @@ const filters = reactive({
   dataFinal: ""
 });
 
-const form = reactive<Record<string, unknown>>({
+type PrimitiveFieldValue = string | number | boolean | null | undefined;
+
+const form = reactive<Record<string, PrimitiveFieldValue>>({
   id: undefined,
   funcionario_id: "",
   equipamento_id: "",
