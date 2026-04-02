@@ -483,18 +483,12 @@ fn optional_json_bool(value: Option<&Value>) -> Option<bool> {
     value.and_then(|item| match item {
         Value::Bool(flag) => Some(*flag),
         Value::Number(number) => Some(number.as_i64().unwrap_or_default() != 0),
-        Value::String(text) => Some(matches!(
-            text.trim(),
-            "1" | "true" | "TRUE" | "sim" | "SIM" | "ativo" | "ATIVO"
-        )),
+        Value::String(text) => Some(matches!(text.trim(), "1" | "true" | "TRUE" | "sim" | "SIM" | "ativo" | "ATIVO")),
         _ => None,
     })
 }
 
-fn parse_publica_ws_response(
-    body: &str,
-    uf_hint: Option<&str>,
-) -> Result<Map<String, Value>, String> {
+fn parse_publica_ws_response(body: &str, uf_hint: Option<&str>) -> Result<Map<String, Value>, String> {
     let parsed: Value = serde_json::from_str(body)
         .map_err(|err| format!("Falha ao interpretar resposta do CNPJ.ws: {err}"))?;
 
@@ -506,25 +500,15 @@ fn parse_publica_ws_response(
         .and_then(|value| value.as_object())
         .ok_or_else(|| "Resposta do CNPJ.ws sem estabelecimento.".to_string())?;
 
-    let estado_obj = estabelecimento
-        .get("estado")
-        .and_then(|value| value.as_object());
-    let cidade_obj = estabelecimento
-        .get("cidade")
-        .and_then(|value| value.as_object());
+    let estado_obj = estabelecimento.get("estado").and_then(|value| value.as_object());
+    let cidade_obj = estabelecimento.get("cidade").and_then(|value| value.as_object());
     let current_uf = uf_hint
         .map(|value| value.trim().to_uppercase())
         .filter(|value| !value.is_empty())
-        .or_else(|| {
-            optional_json_string(estado_obj.and_then(|value| value.get("sigla")))
-                .map(|value| value.to_uppercase())
-        });
+        .or_else(|| optional_json_string(estado_obj.and_then(|value| value.get("sigla"))).map(|value| value.to_uppercase()));
 
     let mut inscricao_estadual = None;
-    if let Some(list) = estabelecimento
-        .get("inscricoes_estaduais")
-        .and_then(|value| value.as_array())
-    {
+    if let Some(list) = estabelecimento.get("inscricoes_estaduais").and_then(|value| value.as_array()) {
         if let Some(target_uf) = current_uf.as_deref() {
             for item in list {
                 let state_sigla = item
@@ -542,30 +526,19 @@ fn parse_publica_ws_response(
             }
         }
         if inscricao_estadual.is_none() {
-            inscricao_estadual = list
-                .iter()
-                .find_map(|item| optional_json_string(item.get("inscricao_estadual")));
+            inscricao_estadual = list.iter().find_map(|item| optional_json_string(item.get("inscricao_estadual")));
         }
     }
 
     let mut result = Map::new();
-    result.insert(
-        "nome".to_string(),
-        Value::String(optional_json_string(root.get("razao_social")).unwrap_or_default()),
-    );
+    result.insert("nome".to_string(), Value::String(optional_json_string(root.get("razao_social")).unwrap_or_default()));
     result.insert(
         "nome_fantasia".to_string(),
-        Value::String(
-            optional_json_string(estabelecimento.get("nome_fantasia")).unwrap_or_default(),
-        ),
+        Value::String(optional_json_string(estabelecimento.get("nome_fantasia")).unwrap_or_default()),
     );
     result.insert(
         "documento".to_string(),
-        Value::String(
-            optional_json_string(root.get("cnpj_raiz")).unwrap_or_default()
-                + &optional_json_string(root.get("cnpj_ordem")).unwrap_or_default()
-                + &optional_json_string(root.get("cnpj_digito_verificador")).unwrap_or_default(),
-        ),
+        Value::String(optional_json_string(root.get("cnpj_raiz")).unwrap_or_default() + &optional_json_string(root.get("cnpj_ordem")).unwrap_or_default() + &optional_json_string(root.get("cnpj_digito_verificador")).unwrap_or_default()),
     );
     result.insert(
         "inscricao_estadual".to_string(),
@@ -609,10 +582,7 @@ fn parse_publica_ws_response(
     );
     result.insert(
         "cidade".to_string(),
-        Value::String(
-            optional_json_string(cidade_obj.and_then(|value| value.get("nome")))
-                .unwrap_or_default(),
-        ),
+        Value::String(optional_json_string(cidade_obj.and_then(|value| value.get("nome"))).unwrap_or_default()),
     );
     result.insert(
         "estado".to_string(),
@@ -620,9 +590,7 @@ fn parse_publica_ws_response(
     );
     result.insert(
         "inscricao_municipal".to_string(),
-        Value::String(
-            optional_json_string(estabelecimento.get("inscricao_municipal")).unwrap_or_default(),
-        ),
+        Value::String(optional_json_string(estabelecimento.get("inscricao_municipal")).unwrap_or_default()),
     );
     result.insert(
         "source".to_string(),
@@ -641,16 +609,12 @@ fn parse_receita_ws_response(body: &str) -> Result<Map<String, Value>, String> {
 
     if let Some(status) = optional_json_string(root.get("status")) {
         if status.eq_ignore_ascii_case("ERROR") {
-            return Err(optional_json_string(root.get("message"))
-                .unwrap_or_else(|| "ReceitaWS retornou erro.".to_string()));
+            return Err(optional_json_string(root.get("message")).unwrap_or_else(|| "ReceitaWS retornou erro.".to_string()));
         }
     }
 
     let mut result = Map::new();
-    result.insert(
-        "nome".to_string(),
-        Value::String(optional_json_string(root.get("nome")).unwrap_or_default()),
-    );
+    result.insert("nome".to_string(), Value::String(optional_json_string(root.get("nome")).unwrap_or_default()));
     result.insert(
         "nome_fantasia".to_string(),
         Value::String(optional_json_string(root.get("fantasia")).unwrap_or_default()),
@@ -697,11 +661,7 @@ fn parse_receita_ws_response(body: &str) -> Result<Map<String, Value>, String> {
     );
     result.insert(
         "estado".to_string(),
-        Value::String(
-            optional_json_string(root.get("uf"))
-                .unwrap_or_default()
-                .to_uppercase(),
-        ),
+        Value::String(optional_json_string(root.get("uf")).unwrap_or_default().to_uppercase()),
     );
     result.insert(
         "source".to_string(),
@@ -736,48 +696,25 @@ pub async fn company_lookup_cnpj(
         return Err("Informe um CNPJ válido com 14 dígitos para consulta.".to_string());
     }
 
-    let publica_base = get_setting_url(
-        &conn,
-        "company_lookup_publica_url",
-        "https://publica.cnpj.ws/cnpj/",
-    )?;
-    let receita_base = get_setting_url(
-        &conn,
-        "company_lookup_receita_url",
-        "https://www.receitaws.com.br/v1/cnpj/",
-    )?;
-    let uf_hint = uf
-        .map(|value| value.trim().to_uppercase())
-        .filter(|value| !value.is_empty());
+    let publica_base = get_setting_url(&conn, "company_lookup_publica_url", "https://publica.cnpj.ws/cnpj/")?;
+    let receita_base = get_setting_url(&conn, "company_lookup_receita_url", "https://www.receitaws.com.br/v1/cnpj/")?;
+    let uf_hint = uf.map(|value| value.trim().to_uppercase()).filter(|value| !value.is_empty());
 
-    let mut last_error = String::new();
-
-    let publica_url = format!(
-        "{}{}",
-        publica_base.trim_end_matches('/'),
-        format!("/{}", digits)
-    );
-    match fetch_json_text(publica_url)
+    let publica_url = format!("{}/{}", publica_base.trim_end_matches('/'), digits);
+    let publica_error = match fetch_json_text(publica_url)
         .await
         .and_then(|body| parse_publica_ws_response(&body, uf_hint.as_deref()))
     {
         Ok(result) => return Ok(result),
-        Err(err) => last_error = err,
-    }
+        Err(err) => err,
+    };
 
-    let receita_url = format!(
-        "{}{}",
-        receita_base.trim_end_matches('/'),
-        format!("/{}", digits)
-    );
-    match fetch_json_text(receita_url)
-        .await
-        .and_then(|body| parse_receita_ws_response(&body))
-    {
+    let receita_url = format!("{}/{}", receita_base.trim_end_matches('/'), digits);
+    match fetch_json_text(receita_url).await.and_then(|body| parse_receita_ws_response(&body)) {
         Ok(result) => Ok(result),
         Err(err) => Err(format!(
             "Falha ao consultar CNPJ nos serviços públicos. Último erro: {}; erro anterior: {}",
-            err, last_error
+            err, publica_error
         )),
     }
 }
@@ -789,20 +726,14 @@ pub async fn company_lookup_ie(
     uf: Option<String>,
 ) -> Result<Map<String, Value>, String> {
     let mut payload = company_lookup_cnpj(state, documento, uf.clone()).await?;
-    if optional_json_string(payload.get("inscricao_estadual"))
-        .unwrap_or_default()
-        .is_empty()
-    {
+    if optional_json_string(payload.get("inscricao_estadual")).unwrap_or_default().is_empty() {
         payload.insert(
             "inscricao_estadual".to_string(),
             Value::String("ISENTO".to_string()),
         );
     }
     if let Some(value) = uf.filter(|value| !value.trim().is_empty()) {
-        payload.insert(
-            "estado".to_string(),
-            Value::String(value.trim().to_uppercase()),
-        );
+        payload.insert("estado".to_string(), Value::String(value.trim().to_uppercase()));
     }
     Ok(payload)
 }

@@ -13,9 +13,9 @@ mod commands {
     pub mod banco_horas;
     pub mod companies;
     pub mod employees;
-    pub mod entities;
     pub mod feriados;
     pub mod holiday_sources;
+    pub mod entities;
     pub mod jornadas;
     pub mod licensing;
     pub mod punches;

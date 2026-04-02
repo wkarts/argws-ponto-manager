@@ -504,19 +504,15 @@ pub fn apurar_periodo_internal(
             if schedule.is_holiday {
                 if let Some(label) = &schedule.holiday_label {
                     occurrence_data.labels.push(format!("Feriado: {label}"));
-                    calc.mensagens
-                        .push(format!("Data tratada como feriado: {label}."));
+                    calc.mensagens.push(format!("Data tratada como feriado: {label}."));
                 } else {
-                    calc.mensagens
-                        .push("Data tratada como feriado.".to_string());
+                    calc.mensagens.push("Data tratada como feriado.".to_string());
                 }
                 if let Some(regra) = &schedule.holiday_compensation {
-                    calc.mensagens
-                        .push(format!("Regra de compensação do feriado: {regra}."));
+                    calc.mensagens.push(format!("Regra de compensação do feriado: {regra}."));
                 }
                 if let Some(regra) = &schedule.holiday_jornada_rule {
-                    calc.mensagens
-                        .push(format!("Tratamento de jornada do feriado: {regra}."));
+                    calc.mensagens.push(format!("Tratamento de jornada do feriado: {regra}."));
                 }
             }
 

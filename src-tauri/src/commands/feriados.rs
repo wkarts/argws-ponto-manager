@@ -87,6 +87,7 @@ fn validate_iso_date(date: &str) -> bool {
     chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").is_ok()
 }
 
+
 fn dedup_sorted_ids(ids: Vec<i64>) -> Vec<i64> {
     let mut set = BTreeSet::new();
     for id in ids {
@@ -140,8 +141,9 @@ fn sync_relation_ids(
     conn.execute(&delete_sql, [feriado_id])
         .map_err(|err| format!("Falha ao limpar relacionamentos de {table}: {err}"))?;
 
-    let insert_sql =
-        format!("INSERT INTO {table} (feriado_id, {foreign_key}, created_at) VALUES (?1, ?2, ?3)");
+    let insert_sql = format!(
+        "INSERT INTO {table} (feriado_id, {foreign_key}, created_at) VALUES (?1, ?2, ?3)"
+    );
     for id in ids {
         conn.execute(&insert_sql, params![feriado_id, id, now])
             .map_err(|err| format!("Falha ao gravar relacionamento em {table}: {err}"))?;
@@ -186,12 +188,7 @@ fn feriado_payload_by_id(
     );
     let departamento_ids = merge_primary_with_relation(
         primary_departamento_id,
-        &load_relation_ids(
-            conn,
-            "feriados_departamentos",
-            "departamento_id",
-            feriado_id,
-        )?,
+        &load_relation_ids(conn, "feriados_departamentos", "departamento_id", feriado_id)?,
     );
 
     let empresas_labels = {
@@ -241,7 +238,10 @@ fn feriado_payload_by_id(
     let empresa_ids_value = empresa_ids.iter().copied().map(Value::from).collect();
     let departamento_ids_value = departamento_ids.iter().copied().map(Value::from).collect();
 
-    record.insert("empresa_ids".to_string(), Value::Array(empresa_ids_value));
+    record.insert(
+        "empresa_ids".to_string(),
+        Value::Array(empresa_ids_value),
+    );
     record.insert(
         "departamento_ids".to_string(),
         Value::Array(departamento_ids_value),
@@ -252,13 +252,7 @@ fn feriado_payload_by_id(
     );
     record.insert(
         "departamentos_labels".to_string(),
-        Value::Array(
-            departamentos_labels
-                .iter()
-                .cloned()
-                .map(Value::from)
-                .collect(),
-        ),
+        Value::Array(departamentos_labels.iter().cloned().map(Value::from).collect()),
     );
     record.insert(
         "empresa_nome".to_string(),
@@ -311,10 +305,7 @@ pub fn feriado_list(
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
 
-    if let Some(search) = search
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-    {
+    if let Some(search) = search.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
         sql.push_str(
             " AND (
                 f.data LIKE ?1 OR
@@ -333,10 +324,7 @@ pub fn feriado_list(
         .prepare(&sql)
         .map_err(|err| format!("Falha ao preparar listagem de feriados: {err}"))?;
     let rows = stmt
-        .query_map(
-            rusqlite::params_from_iter(params_vec.iter()),
-            row_to_json_map,
-        )
+        .query_map(rusqlite::params_from_iter(params_vec.iter()), row_to_json_map)
         .map_err(|err| format!("Falha ao consultar listagem de feriados: {err}"))?;
 
     let base_rows = rows
@@ -350,10 +338,7 @@ pub fn feriado_list(
 
         row.insert(
             "empresa_nome".to_string(),
-            payload
-                .get("empresa_nome")
-                .cloned()
-                .unwrap_or_else(|| Value::from("")),
+            payload.get("empresa_nome").cloned().unwrap_or_else(|| Value::from("")),
         );
         row.insert(
             "departamento_nome".to_string(),
@@ -397,7 +382,10 @@ pub fn feriado_list(
 }
 
 #[tauri::command]
-pub fn feriado_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String, Value>, String> {
+pub fn feriado_get(
+    state: State<'_, SharedState>,
+    id: i64,
+) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     feriado_payload_by_id(&conn, id)
@@ -417,8 +405,8 @@ pub fn feriado_save(
         .ok_or_else(|| "Data do feriado é obrigatória.".to_string())?;
     let descricao = parse_string(payload.get("descricao"))
         .ok_or_else(|| "Descrição do feriado é obrigatória.".to_string())?;
-    let contexto_tipo =
-        parse_string(payload.get("contexto_tipo")).unwrap_or_else(|| "global".to_string());
+    let contexto_tipo = parse_string(payload.get("contexto_tipo"))
+        .unwrap_or_else(|| "global".to_string());
 
     if !validate_iso_date(&data) {
         return Err("Data do feriado inválida. Utilize YYYY-MM-DD.".to_string());
@@ -426,8 +414,7 @@ pub fn feriado_save(
 
     let empresa_id_input = parse_i64(payload.get("empresa_id"));
     let departamento_id_input = parse_i64(payload.get("departamento_id"));
-    let mut empresa_ids =
-        merge_primary_with_relation(empresa_id_input, &parse_i64_vec(payload.get("empresa_ids")));
+    let mut empresa_ids = merge_primary_with_relation(empresa_id_input, &parse_i64_vec(payload.get("empresa_ids")));
     let mut departamento_ids = merge_primary_with_relation(
         departamento_id_input,
         &parse_i64_vec(payload.get("departamento_ids")),
@@ -466,10 +453,7 @@ pub fn feriado_save(
                         .to_string(),
                 );
             }
-            (
-                first_or_none(&empresa_ids),
-                first_or_none(&departamento_ids),
-            )
+            (first_or_none(&empresa_ids), first_or_none(&departamento_ids))
         }
         other => {
             return Err(format!("Contexto de feriado inválido: {other}"));
@@ -538,14 +522,7 @@ pub fn feriado_save(
         conn.last_insert_rowid()
     };
 
-    sync_relation_ids(
-        &conn,
-        "feriados_empresas",
-        "empresa_id",
-        record_id,
-        &empresa_ids,
-        &now,
-    )?;
+    sync_relation_ids(&conn, "feriados_empresas", "empresa_id", record_id, &empresa_ids, &now)?;
     sync_relation_ids(
         &conn,
         "feriados_departamentos",
@@ -558,26 +535,17 @@ pub fn feriado_save(
     let saved = feriado_payload_by_id(&conn, record_id)?;
     let payload_value = Value::Object(saved.clone());
     let action_name = if id.is_some() { "update" } else { "create" };
-    write_audit(
-        &conn,
-        "feriados",
-        action_name,
-        Some(record_id),
-        &payload_value,
-    )?;
-    enqueue_sync(
-        &conn,
-        "feriados",
-        action_name,
-        Some(record_id),
-        &payload_value,
-    )?;
+    write_audit(&conn, "feriados", action_name, Some(record_id), &payload_value)?;
+    enqueue_sync(&conn, "feriados", action_name, Some(record_id), &payload_value)?;
 
     Ok(saved)
 }
 
 #[tauri::command]
-pub fn feriado_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, String> {
+pub fn feriado_delete(
+    state: State<'_, SharedState>,
+    id: i64,
+) -> Result<bool, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
@@ -587,9 +555,7 @@ pub fn feriado_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, St
         .map_err(|err| format!("Falha ao excluir feriado: {err}"))?;
 
     if affected > 0 {
-        let value = payload
-            .map(Value::Object)
-            .unwrap_or_else(|| json!({ "id": id }));
+        let value = payload.map(Value::Object).unwrap_or_else(|| json!({ "id": id }));
         write_audit(&conn, "feriados", "delete", Some(id), &value)?;
         enqueue_sync(&conn, "feriados", "delete", Some(id), &value)?;
     }
