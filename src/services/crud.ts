@@ -93,6 +93,13 @@ export interface BancoHorasProcessResponse {
 
 export type GenericRecord = Record<string, unknown>;
 
+export interface HolidaySourceSettings extends GenericRecord {
+  mode?: string;
+  year?: number;
+  remote_json_url?: string | null;
+  api_url?: string | null;
+}
+
 export interface FeriadoRecord extends GenericRecord {
   id?: number;
   data?: string;
@@ -403,4 +410,24 @@ export async function saveFeriado(payload: FeriadoRecord): Promise<FeriadoRecord
 
 export async function deleteFeriado(id: number): Promise<boolean> {
   return invokeCommand<boolean>("feriado_delete", { id });
+}
+
+export async function lookupCompanyCnpj(documento: string, uf?: string | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("company_lookup_cnpj", { documento, uf: uf ?? null });
+}
+
+export async function lookupCompanyIe(documento: string, uf?: string | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("company_lookup_ie", { documento, uf: uf ?? null });
+}
+
+export async function loadHolidaySourceSettings(): Promise<HolidaySourceSettings> {
+  return invokeCommand<HolidaySourceSettings>("holiday_source_load_settings");
+}
+
+export async function saveHolidaySourceSettings(payload: HolidaySourceSettings): Promise<HolidaySourceSettings> {
+  return invokeCommand<HolidaySourceSettings>("holiday_source_save_settings", { payload });
+}
+
+export async function importCompanyDefaultHolidays(empresaId: number, year?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("holiday_source_import_company_year", { empresa_id: empresaId, year: year ?? null });
 }

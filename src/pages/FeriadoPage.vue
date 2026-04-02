@@ -5,17 +5,26 @@ import {
   comboList,
   deleteFeriado,
   getFeriado,
+  importCompanyDefaultHolidays,
   listFeriados,
+  loadHolidaySourceSettings,
   saveFeriado,
+  saveHolidaySourceSettings,
   type ComboOption,
   type FeriadoRecord,
+  type HolidaySourceSettings,
 } from "../services/crud";
 import { booleanLabel } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
+const session = useSessionStore();
 const rows = ref<FeriadoRecord[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const importing = ref(false);
+const savingSource = ref(false);
 const error = ref("");
+const info = ref("");
 const search = ref("");
 const modalOpen = ref(false);
 const viewMode = ref(false);
@@ -25,6 +34,13 @@ const departamentosOptions = ref<ComboOption[]>([]);
 const contextoOptions = ref<ComboOption[]>([]);
 const regrasJornadaOptions = ref<ComboOption[]>([]);
 const regrasCompensacaoOptions = ref<ComboOption[]>([]);
+
+const sourceSettings = reactive<HolidaySourceSettings>({
+  mode: "embedded",
+  year: 2026,
+  remote_json_url: "",
+  api_url: "",
+});
 
 const form = reactive<FeriadoRecord>({
   id: undefined,
@@ -45,6 +61,17 @@ const subtitle = computed(() => {
   if (viewMode.value) return "Detalhes do feriado e da abrangência aplicada.";
   return "Cadastro de feriados com abrangência por empresa e departamento.";
 });
+
+const activeCompanyLabel = computed(() => session.activeCompanyName || "Empresa ativa");
+
+function toNullableNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const numeric = Number(text);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
 
 function resetForm() {
   form.id = undefined;
@@ -101,6 +128,51 @@ async function loadOptions() {
   regrasCompensacaoOptions.value = regrasCompensacao;
 }
 
+async function loadSourceSettings() {
+  const payload = await loadHolidaySourceSettings();
+  sourceSettings.mode = String(payload.mode || "embedded");
+  sourceSettings.year = Number(payload.year || 2026);
+  sourceSettings.remote_json_url = String(payload.remote_json_url || "");
+  sourceSettings.api_url = String(payload.api_url || "");
+}
+
+async function persistSourceSettings() {
+  savingSource.value = true;
+  error.value = "";
+  info.value = "";
+  try {
+    const saved = await saveHolidaySourceSettings({ ...sourceSettings });
+    sourceSettings.mode = String(saved.mode || sourceSettings.mode || "embedded");
+    sourceSettings.year = Number(saved.year || sourceSettings.year || 2026);
+    sourceSettings.remote_json_url = String(saved.remote_json_url || "");
+    sourceSettings.api_url = String(saved.api_url || "");
+    info.value = "Configuração da fonte de feriados salva.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao salvar configuração da fonte de feriados.";
+  } finally {
+    savingSource.value = false;
+  }
+}
+
+async function importDefaultHolidays() {
+  if (!session.activeCompanyId) {
+    error.value = "Selecione uma empresa ativa para importar os feriados padrão de 2026.";
+    return;
+  }
+  importing.value = true;
+  error.value = "";
+  info.value = "";
+  try {
+    const result = await importCompanyDefaultHolidays(session.activeCompanyId, Number(sourceSettings.year || 2026));
+    info.value = `Importação concluída para ${activeCompanyLabel.value}: ${Number(result.total_importado || 0)} feriado(s) novo(s).`;
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao importar feriados padrão.";
+  } finally {
+    importing.value = false;
+  }
+}
+
 async function load() {
   loading.value = true;
   error.value = "";
@@ -127,10 +199,10 @@ async function openEdit(row: FeriadoRecord, readOnly = false) {
     form.data = String(payload.data ?? "");
     form.descricao = String(payload.descricao ?? "");
     form.contexto_tipo = String(payload.contexto_tipo ?? "global");
-    form.empresa_id = payload.empresa_id == null || payload.empresa_id === "" ? null : Number(payload.empresa_id);
-    form.departamento_id = payload.departamento_id == null || payload.departamento_id === "" ? null : Number(payload.departamento_id);
-    form.regra_jornada = payload.regra_jornada == null || payload.regra_jornada === "" ? null : String(payload.regra_jornada);
-    form.regra_compensacao = payload.regra_compensacao == null || payload.regra_compensacao === "" ? null : String(payload.regra_compensacao);
+    form.empresa_id = toNullableNumber(payload.empresa_id);
+    form.departamento_id = toNullableNumber(payload.departamento_id);
+    form.regra_jornada = payload.regra_jornada == null || String(payload.regra_jornada).trim() === "" ? null : String(payload.regra_jornada);
+    form.regra_compensacao = payload.regra_compensacao == null || String(payload.regra_compensacao).trim() === "" ? null : String(payload.regra_compensacao);
     form.observacoes = String(payload.observacoes ?? "");
     form.ativo = Boolean(Number(payload.ativo ?? 1));
     form.empresa_ids = normalizeIds(payload.empresa_ids);
@@ -185,6 +257,7 @@ async function removeRow(id: number) {
 
 onMounted(async () => {
   await loadOptions();
+  await loadSourceSettings();
   await load();
 });
 </script>
@@ -204,6 +277,46 @@ onMounted(async () => {
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
+    <div v-else-if="info" class="alert success">{{ info }}</div>
+
+    <div class="card grid page-gap">
+      <div class="toolbar">
+        <div>
+          <h3 style="margin: 0;">Fonte padrão de feriados</h3>
+          <div class="muted">A build distribui o JSON 2026 embarcado. Você pode manter o modo local ou apontar uma URL/API própria.</div>
+        </div>
+        <div class="actions">
+          <button class="secondary" :disabled="savingSource" @click="persistSourceSettings">
+            {{ savingSource ? "Salvando..." : "Salvar configuração" }}
+          </button>
+          <button class="secondary" :disabled="importing" @click="importDefaultHolidays">
+            {{ importing ? "Importando..." : `Importar 2026 para ${activeCompanyLabel}` }}
+          </button>
+        </div>
+      </div>
+      <div class="grid columns-4 mobile-columns-1">
+        <div class="field">
+          <label>Modo</label>
+          <select v-model="sourceSettings.mode">
+            <option value="embedded">JSON embarcado</option>
+            <option value="remote_json">JSON remoto</option>
+            <option value="api">API própria</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Ano</label>
+          <input v-model="sourceSettings.year" type="number" min="2026" max="2100" />
+        </div>
+        <div class="field span-2">
+          <label>URL JSON remota</label>
+          <input v-model="sourceSettings.remote_json_url" type="text" placeholder="https://seu-servidor/feriados/{year}.json" />
+        </div>
+        <div class="field span-4">
+          <label>URL da API</label>
+          <input v-model="sourceSettings.api_url" type="text" placeholder="https://api.exemplo/feriados?empresa={empresa_id}&ano={year}&uf={uf}&cidade={cidade}" />
+        </div>
+      </div>
+    </div>
 
     <div class="card">
       <h3 style="margin-top: 0;">Listagem</h3>
@@ -262,60 +375,36 @@ onMounted(async () => {
 
     <AppModal
       :open="modalOpen"
-      :title="viewMode ? `Detalhes do feriado` : form.id ? `Editar feriado` : `Novo feriado`"
+      :title="form.id ? 'Editar feriado' : 'Novo feriado'"
       :subtitle="subtitle"
       width="xl"
       @close="closeModal"
     >
-      <form class="grid feriado-form" @submit.prevent="persist">
-        <div class="field">
-          <label for="feriado_data">Data <span class="required">*</span></label>
-          <input id="feriado_data" v-model="form.data" type="date" :disabled="viewMode" />
+      <div class="grid page-gap">
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Data</label>
+            <input v-model="form.data" type="date" :disabled="viewMode" />
+          </div>
+          <div class="field">
+            <label>Descrição</label>
+            <input v-model="form.descricao" type="text" :disabled="viewMode" />
+          </div>
+          <div class="field">
+            <label>Contexto</label>
+            <select v-model="form.contexto_tipo" :disabled="viewMode">
+              <option v-for="item in contextoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field checkbox-line compact-checkbox">
+            <input v-model="form.ativo" class="checkbox-input" type="checkbox" :disabled="viewMode" />
+            <label>Ativo</label>
+          </div>
         </div>
 
-        <div class="field">
-          <label for="feriado_descricao">Descrição <span class="required">*</span></label>
-          <input id="feriado_descricao" v-model="form.descricao" type="text" :disabled="viewMode" />
-        </div>
-
-        <div class="field">
-          <label for="feriado_contexto">Abrangência principal</label>
-          <select id="feriado_contexto" v-model="form.contexto_tipo" :disabled="viewMode">
-            <option v-for="item in contextoOptions" :key="item.id" :value="item.label">{{ item.label }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="feriado_regra_jornada">Tratamento da jornada</label>
-          <select id="feriado_regra_jornada" v-model="form.regra_jornada" :disabled="viewMode">
-            <option :value="null">Selecione</option>
-            <option v-for="item in regrasJornadaOptions" :key="item.id" :value="item.label">{{ item.label }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="feriado_regra_compensacao">Regra de compensação</label>
-          <select id="feriado_regra_compensacao" v-model="form.regra_compensacao" :disabled="viewMode">
-            <option :value="null">Selecione</option>
-            <option v-for="item in regrasCompensacaoOptions" :key="item.id" :value="item.label">{{ item.label }}</option>
-          </select>
-        </div>
-
-        <div class="field field-checkbox">
-          <label>
-            <input v-model="form.ativo" type="checkbox" :disabled="viewMode" />
-            Feriado ativo
-          </label>
-        </div>
-
-        <div class="field full-width">
-          <label for="feriado_observacoes">Observações</label>
-          <textarea id="feriado_observacoes" v-model="form.observacoes" rows="3" :disabled="viewMode" />
-        </div>
-
-        <div class="field full-width">
-          <label>Empresas abrangidas</label>
-          <div class="check-grid muted-box">
+        <div class="section-title">Abrangência por empresa</div>
+        <div class="grid page-gap">
+          <div class="check-grid">
             <label v-for="item in empresasOptions" :key="item.id" class="check-item">
               <input
                 :checked="isChecked('empresa_ids', item.id)"
@@ -330,9 +419,9 @@ onMounted(async () => {
           <div class="muted small-text">Abrangência selecionada: {{ labelsFromIds(empresasOptions, form.empresa_ids) || 'nenhuma' }}</div>
         </div>
 
-        <div class="field full-width">
-          <label>Departamentos abrangidos</label>
-          <div class="check-grid muted-box">
+        <div class="section-title">Abrangência por departamento</div>
+        <div class="grid page-gap">
+          <div class="check-grid">
             <label v-for="item in departamentosOptions" :key="item.id" class="check-item">
               <input
                 :checked="isChecked('departamento_ids', item.id)"
@@ -344,16 +433,38 @@ onMounted(async () => {
             </label>
             <div v-if="departamentosOptions.length === 0" class="muted">Nenhum departamento cadastrado.</div>
           </div>
-          <div class="muted small-text">Abrangência selecionada: {{ labelsFromIds(departamentosOptions, form.departamento_ids) || 'nenhum' }}</div>
+          <div class="muted small-text">Abrangência selecionada: {{ labelsFromIds(departamentosOptions, form.departamento_ids) || 'nenhuma' }}</div>
         </div>
 
-        <div class="actions" v-if="!viewMode">
-          <button class="primary" type="submit" :disabled="saving">
-            {{ saving ? 'Salvando...' : 'Salvar' }}
-          </button>
-          <button class="secondary" type="button" @click="resetForm">Limpar</button>
+        <div class="grid columns-2 mobile-columns-1">
+          <div class="field">
+            <label>Regra de jornada</label>
+            <select v-model="form.regra_jornada" :disabled="viewMode">
+              <option :value="null">Selecione</option>
+              <option v-for="item in regrasJornadaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Regra de compensação</label>
+            <select v-model="form.regra_compensacao" :disabled="viewMode">
+              <option :value="null">Selecione</option>
+              <option v-for="item in regrasCompensacaoOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
         </div>
-      </form>
+
+        <div class="field">
+          <label>Observações</label>
+          <textarea v-model="form.observacoes" rows="4" :disabled="viewMode"></textarea>
+        </div>
+
+        <div v-if="!viewMode" class="actions">
+          <button class="primary" :disabled="saving" @click="persist">
+            {{ saving ? 'Salvando...' : form.id ? 'Atualizar feriado' : 'Salvar feriado' }}
+          </button>
+          <button class="secondary" @click="resetForm">Limpar</button>
+        </div>
+      </div>
     </AppModal>
   </div>
 </template>
