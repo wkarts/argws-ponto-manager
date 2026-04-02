@@ -422,7 +422,7 @@ pub fn calculate_day(schedule: &ResolvedSchedule, batidas: &[String]) -> DailyCa
         expected_minutes: schedule.expected_minutes,
         worked_minutes,
         saldo_minutes,
-        atraso_minutes,
+        atraso_minutes: atraso_minutos,
         extra_minutes,
         saida_antecipada_minutos,
         inconsistente,
