@@ -1,3 +1,10 @@
+## [1.8.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.2...v1.8.3) (2026-04-02)
+
+
+### Bug Fixes
+
+* **employees:** normaliza CPF legado com zero à esquerda no save ([71a484d](https://github.com/wkarts/argws-ponto-manager/commit/71a484d3e95c975ff39f1d29985b61668ef5a32a))
+
 ## [1.8.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.1...v1.8.2) (2026-04-02)
 
 
