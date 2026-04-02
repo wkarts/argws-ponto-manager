@@ -262,6 +262,7 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar batida' : 'Nova batida'"
+      subtitle="Inclusão e edição convertidas para modal, preservando a listagem principal."
       width="lg"
       @close="closeModal"
     >

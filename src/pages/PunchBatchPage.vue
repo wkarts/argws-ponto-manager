@@ -256,6 +256,7 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="rowForm.id ? 'Editar batida em lote' : 'Nova batida em lote'"
+      subtitle="A inclusão e a edição da linha agora seguem o padrão em modal, preservando o salvamento consolidado do lote."
       width="md"
       @close="closeModal"
     >

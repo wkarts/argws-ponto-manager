@@ -42,7 +42,8 @@ const form = reactive<FeriadoRecord>({
 });
 
 const subtitle = computed(() => {
-  return "";
+  if (viewMode.value) return "Detalhes do feriado e da abrangência aplicada.";
+  return "Cadastro de feriados com abrangência por empresa e departamento.";
 });
 
 function resetForm() {
@@ -83,13 +84,6 @@ function normalizeIds(value: unknown): number[] {
   return value
     .map((item) => Number(item))
     .filter((item) => Number.isFinite(item) && item > 0);
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  const normalized = Number(value);
-  return Number.isFinite(normalized) ? normalized : null;
 }
 
 async function loadOptions() {
@@ -133,8 +127,8 @@ async function openEdit(row: FeriadoRecord, readOnly = false) {
     form.data = String(payload.data ?? "");
     form.descricao = String(payload.descricao ?? "");
     form.contexto_tipo = String(payload.contexto_tipo ?? "global");
-    form.empresa_id = toNullableNumber(payload.empresa_id);
-    form.departamento_id = toNullableNumber(payload.departamento_id);
+    form.empresa_id = payload.empresa_id == null || payload.empresa_id === "" ? null : Number(payload.empresa_id);
+    form.departamento_id = payload.departamento_id == null || payload.departamento_id === "" ? null : Number(payload.departamento_id);
     form.regra_jornada = payload.regra_jornada == null || payload.regra_jornada === "" ? null : String(payload.regra_jornada);
     form.regra_compensacao = payload.regra_compensacao == null || payload.regra_compensacao === "" ? null : String(payload.regra_compensacao);
     form.observacoes = String(payload.observacoes ?? "");
@@ -200,6 +194,7 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2 style="margin: 0;">Tabela de feriados</h2>
+        <div class="muted">Cadastro central de feriados e respectivos vínculos de abrangência.</div>
       </div>
       <div class="actions">
         <input v-model="search" placeholder="Pesquisar feriado..." @keyup.enter="load" />
@@ -222,9 +217,9 @@ onMounted(async () => {
               <th>data</th>
               <th>descrição</th>
               <th>contexto</th>
-              <th>empresa base</th>
-              <th>departamento base</th>
               <th>vínculos</th>
+              <th>empresas</th>
+              <th>departamentos</th>
               <th>compensação</th>
               <th>ativo</th>
               <th>ações</th>
@@ -236,12 +231,16 @@ onMounted(async () => {
               <td>{{ row.data }}</td>
               <td>{{ row.descricao }}</td>
               <td>{{ row.contexto_tipo }}</td>
-              <td>{{ row.empresa_nome || "-" }}</td>
-              <td>{{ row.departamento_nome || "-" }}</td>
+              <td>{{ Number(row.empresas_count || 0) }} empresa(s) · {{ Number(row.departamentos_count || 0) }} departamento(s)</td>
               <td>
-                {{ Number(row.empresas_count || 0) }} empresa(s)
-                ·
-                {{ Number(row.departamentos_count || 0) }} departamento(s)
+                {{ Array.isArray(row.empresas_labels) && row.empresas_labels.length
+                  ? row.empresas_labels.join(", ")
+                  : "-" }}
+              </td>
+              <td>
+                {{ Array.isArray(row.departamentos_labels) && row.departamentos_labels.length
+                  ? row.departamentos_labels.join(", ")
+                  : "-" }}
               </td>
               <td>{{ row.regra_compensacao || "-" }}</td>
               <td>{{ booleanLabel(row.ativo) }}</td>
@@ -280,25 +279,9 @@ onMounted(async () => {
         </div>
 
         <div class="field">
-          <label for="feriado_contexto">Contexto</label>
+          <label for="feriado_contexto">Abrangência principal</label>
           <select id="feriado_contexto" v-model="form.contexto_tipo" :disabled="viewMode">
             <option v-for="item in contextoOptions" :key="item.id" :value="item.label">{{ item.label }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="feriado_empresa_base">Empresa base</label>
-          <select id="feriado_empresa_base" v-model="form.empresa_id" :disabled="viewMode">
-            <option :value="null">Selecione</option>
-            <option v-for="item in empresasOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <label for="feriado_departamento_base">Departamento base</label>
-          <select id="feriado_departamento_base" v-model="form.departamento_id" :disabled="viewMode">
-            <option :value="null">Selecione</option>
-            <option v-for="item in departamentosOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
           </select>
         </div>
 
@@ -331,7 +314,7 @@ onMounted(async () => {
         </div>
 
         <div class="field full-width">
-          <label>Empresas vinculadas</label>
+          <label>Empresas abrangidas</label>
           <div class="check-grid muted-box">
             <label v-for="item in empresasOptions" :key="item.id" class="check-item">
               <input
@@ -344,11 +327,11 @@ onMounted(async () => {
             </label>
             <div v-if="empresasOptions.length === 0" class="muted">Nenhuma empresa cadastrada.</div>
           </div>
-          <div class="muted small-text">Selecionadas: {{ labelsFromIds(empresasOptions, form.empresa_ids) || 'nenhuma' }}</div>
+          <div class="muted small-text">Abrangência selecionada: {{ labelsFromIds(empresasOptions, form.empresa_ids) || 'nenhuma' }}</div>
         </div>
 
         <div class="field full-width">
-          <label>Departamentos vinculados</label>
+          <label>Departamentos abrangidos</label>
           <div class="check-grid muted-box">
             <label v-for="item in departamentosOptions" :key="item.id" class="check-item">
               <input
@@ -361,7 +344,7 @@ onMounted(async () => {
             </label>
             <div v-if="departamentosOptions.length === 0" class="muted">Nenhum departamento cadastrado.</div>
           </div>
-          <div class="muted small-text">Selecionados: {{ labelsFromIds(departamentosOptions, form.departamento_ids) || 'nenhum' }}</div>
+          <div class="muted small-text">Abrangência selecionada: {{ labelsFromIds(departamentosOptions, form.departamento_ids) || 'nenhum' }}</div>
         </div>
 
         <div class="actions" v-if="!viewMode">

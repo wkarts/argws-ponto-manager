@@ -160,6 +160,7 @@ watch(
     <div class="toolbar">
       <div>
         <h2 style="margin: 0;">{{ config.title }}</h2>
+        <div class="muted">Cadastro local padronizado com edição e inclusão em modal.</div>
       </div>
 
       <div class="actions">
@@ -206,6 +207,7 @@ watch(
     <AppModal
       :open="modalOpen"
       :title="form.id ? `Editar ${config.title}` : `Novo registro de ${config.title}`"
+      subtitle="Fluxo ajustado para manutenção em modal, preservando a listagem principal."
       width="lg"
       @close="closeModal"
     >

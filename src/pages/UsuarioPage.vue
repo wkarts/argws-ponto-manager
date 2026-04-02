@@ -181,6 +181,7 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Cadastro de usuários</h2>
+        <div class="muted-text">Listagem fixa com manutenção do acesso em modal.</div>
       </div>
       <div class="actions">
         <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo cadastro</button>
@@ -267,6 +268,7 @@ onMounted(async () => {
     <AppModal
       :open="modalOpen"
       :title="form.id ? 'Editar usuário' : 'Novo usuário'"
+      subtitle="Fluxo convertido para modal, preservando as regras atuais de sessão, perfis e empresas."
       width="xl"
       @close="closeModal"
     >
