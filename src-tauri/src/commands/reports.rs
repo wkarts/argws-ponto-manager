@@ -419,15 +419,18 @@ pub fn apurar_periodo_internal(
     conn: &rusqlite::Connection,
     payload: &ApuracaoRequest,
 ) -> Result<ApuracaoResumo, String> {
-    let (data_inicial, data_final) = if let (Some(data_inicial), Some(data_final)) = (
-        payload.data_inicial.clone(),
-        payload.data_final.clone(),
-    ) {
+    let (data_inicial, data_final) = if let (Some(data_inicial), Some(data_final)) =
+        (payload.data_inicial.clone(), payload.data_final.clone())
+    {
         (data_inicial, data_final)
     } else if let (Some(ano), Some(mes)) = (payload.competencia_ano, payload.competencia_mes) {
         let inicio_competencia = NaiveDate::from_ymd_opt(ano, mes, 1)
             .ok_or_else(|| "Competência inválida para apuração.".to_string())?;
-        let (next_year, next_month) = if mes == 12 { (ano + 1, 1) } else { (ano, mes + 1) };
+        let (next_year, next_month) = if mes == 12 {
+            (ano + 1, 1)
+        } else {
+            (ano, mes + 1)
+        };
         let inicio_proxima = NaiveDate::from_ymd_opt(next_year, next_month, 1)
             .ok_or_else(|| "Competência inválida para apuração.".to_string())?;
         let fim_competencia = inicio_proxima - Duration::days(1);
@@ -470,7 +473,11 @@ pub fn apurar_periodo_internal(
         params_vec.push(rusqlite::types::Value::Integer(funcionario_id));
     }
     if let Some(funcionario_ids) = payload.funcionario_ids.as_ref() {
-        let ids: Vec<i64> = funcionario_ids.iter().copied().filter(|id| *id > 0).collect();
+        let ids: Vec<i64> = funcionario_ids
+            .iter()
+            .copied()
+            .filter(|id| *id > 0)
+            .collect();
         if !ids.is_empty() {
             let placeholders = vec!["?"; ids.len()].join(",");
             funcionarios_sql.push_str(&format!(" AND f.id IN ({placeholders})"));
