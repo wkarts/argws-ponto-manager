@@ -85,6 +85,13 @@ function normalizeIds(value: unknown): number[] {
     .filter((item) => Number.isFinite(item) && item > 0);
 }
 
+function toNullableNumber(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const normalized = Number(value);
+  return Number.isFinite(normalized) ? normalized : null;
+}
+
 async function loadOptions() {
   const [empresas, departamentos, contextos, regrasJornada, regrasCompensacao] = await Promise.all([
     comboList("empresas"),
@@ -126,8 +133,8 @@ async function openEdit(row: FeriadoRecord, readOnly = false) {
     form.data = String(payload.data ?? "");
     form.descricao = String(payload.descricao ?? "");
     form.contexto_tipo = String(payload.contexto_tipo ?? "global");
-    form.empresa_id = payload.empresa_id == null || payload.empresa_id === "" ? null : Number(payload.empresa_id);
-    form.departamento_id = payload.departamento_id == null || payload.departamento_id === "" ? null : Number(payload.departamento_id);
+    form.empresa_id = toNullableNumber(payload.empresa_id);
+    form.departamento_id = toNullableNumber(payload.departamento_id);
     form.regra_jornada = payload.regra_jornada == null || payload.regra_jornada === "" ? null : String(payload.regra_jornada);
     form.regra_compensacao = payload.regra_compensacao == null || payload.regra_compensacao === "" ? null : String(payload.regra_compensacao);
     form.observacoes = String(payload.observacoes ?? "");

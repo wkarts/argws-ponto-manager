@@ -13,8 +13,8 @@ mod commands {
     pub mod banco_horas;
     pub mod companies;
     pub mod employees;
-    pub mod feriados;
     pub mod entities;
+    pub mod feriados;
     pub mod jornadas;
     pub mod licensing;
     pub mod punches;

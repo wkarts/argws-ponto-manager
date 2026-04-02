@@ -117,9 +117,8 @@ fn sync_relation_ids(
     conn.execute(&delete_sql, [feriado_id])
         .map_err(|err| format!("Falha ao limpar relacionamentos de {table}: {err}"))?;
 
-    let insert_sql = format!(
-        "INSERT INTO {table} (feriado_id, {foreign_key}, created_at) VALUES (?1, ?2, ?3)"
-    );
+    let insert_sql =
+        format!("INSERT INTO {table} (feriado_id, {foreign_key}, created_at) VALUES (?1, ?2, ?3)");
     for id in ids {
         conn.execute(&insert_sql, params![feriado_id, id, now])
             .map_err(|err| format!("Falha ao gravar relacionamento em {table}: {err}"))?;
@@ -156,8 +155,12 @@ fn feriado_payload_by_id(
         .ok_or_else(|| "Feriado não encontrado após gravação.".to_string())?;
 
     let empresa_ids = load_relation_ids(conn, "feriados_empresas", "empresa_id", feriado_id)?;
-    let departamento_ids =
-        load_relation_ids(conn, "feriados_departamentos", "departamento_id", feriado_id)?;
+    let departamento_ids = load_relation_ids(
+        conn,
+        "feriados_departamentos",
+        "departamento_id",
+        feriado_id,
+    )?;
 
     let empresas_labels = {
         let mut stmt = conn
@@ -244,7 +247,10 @@ pub fn feriado_list(
     );
     let mut params_vec: Vec<rusqlite::types::Value> = Vec::new();
 
-    if let Some(search) = search.map(|value| value.trim().to_string()).filter(|value| !value.is_empty()) {
+    if let Some(search) = search
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
         sql.push_str(
             " AND (
                 f.data LIKE ?1 OR
@@ -263,7 +269,10 @@ pub fn feriado_list(
         .prepare(&sql)
         .map_err(|err| format!("Falha ao preparar listagem de feriados: {err}"))?;
     let rows = stmt
-        .query_map(rusqlite::params_from_iter(params_vec.iter()), row_to_json_map)
+        .query_map(
+            rusqlite::params_from_iter(params_vec.iter()),
+            row_to_json_map,
+        )
         .map_err(|err| format!("Falha ao consultar listagem de feriados: {err}"))?;
 
     rows.collect::<Result<Vec<_>, _>>()
@@ -271,10 +280,7 @@ pub fn feriado_list(
 }
 
 #[tauri::command]
-pub fn feriado_get(
-    state: State<'_, SharedState>,
-    id: i64,
-) -> Result<Map<String, Value>, String> {
+pub fn feriado_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     feriado_payload_by_id(&conn, id)
@@ -294,8 +300,8 @@ pub fn feriado_save(
         .ok_or_else(|| "Data do feriado é obrigatória.".to_string())?;
     let descricao = parse_string(payload.get("descricao"))
         .ok_or_else(|| "Descrição do feriado é obrigatória.".to_string())?;
-    let contexto_tipo = parse_string(payload.get("contexto_tipo"))
-        .unwrap_or_else(|| "global".to_string());
+    let contexto_tipo =
+        parse_string(payload.get("contexto_tipo")).unwrap_or_else(|| "global".to_string());
 
     if !validate_iso_date(&data) {
         return Err("Data do feriado inválida. Utilize YYYY-MM-DD.".to_string());
@@ -403,7 +409,14 @@ pub fn feriado_save(
         conn.last_insert_rowid()
     };
 
-    sync_relation_ids(&conn, "feriados_empresas", "empresa_id", record_id, &empresa_ids, &now)?;
+    sync_relation_ids(
+        &conn,
+        "feriados_empresas",
+        "empresa_id",
+        record_id,
+        &empresa_ids,
+        &now,
+    )?;
     sync_relation_ids(
         &conn,
         "feriados_departamentos",
@@ -416,17 +429,26 @@ pub fn feriado_save(
     let saved = feriado_payload_by_id(&conn, record_id)?;
     let payload_value = Value::Object(saved.clone());
     let action_name = if id.is_some() { "update" } else { "create" };
-    write_audit(&conn, "feriados", action_name, Some(record_id), &payload_value)?;
-    enqueue_sync(&conn, "feriados", action_name, Some(record_id), &payload_value)?;
+    write_audit(
+        &conn,
+        "feriados",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
+    enqueue_sync(
+        &conn,
+        "feriados",
+        action_name,
+        Some(record_id),
+        &payload_value,
+    )?;
 
     Ok(saved)
 }
 
 #[tauri::command]
-pub fn feriado_delete(
-    state: State<'_, SharedState>,
-    id: i64,
-) -> Result<bool, String> {
+pub fn feriado_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
@@ -436,7 +458,9 @@ pub fn feriado_delete(
         .map_err(|err| format!("Falha ao excluir feriado: {err}"))?;
 
     if affected > 0 {
-        let value = payload.map(Value::Object).unwrap_or_else(|| json!({ "id": id }));
+        let value = payload
+            .map(Value::Object)
+            .unwrap_or_else(|| json!({ "id": id }));
         write_audit(&conn, "feriados", "delete", Some(id), &value)?;
         enqueue_sync(&conn, "feriados", "delete", Some(id), &value)?;
     }
