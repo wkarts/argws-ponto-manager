@@ -1,3 +1,16 @@
+## [1.8.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.0...v1.8.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* **build:** ajusta formatação dos módulos fiscais e de empresas para passar no rustfmt ([cf83768](https://github.com/wkarts/argws-ponto-manager/commit/cf8376803878423d7034e09563c87bbae4b30c44))
+* **build:** corrige campo atraso_minutes na montagem de DailyCalculation ([68640c0](https://github.com/wkarts/argws-ponto-manager/commit/68640c002b9cd7b2f07363afaa8a939bf4c95b55))
+* **build:** corrige erros de build e adiciona consulta CNPJ/IE com fonte genérica de feriados ([933e87d](https://github.com/wkarts/argws-ponto-manager/commit/933e87d6631d065152b2b42b043d2d6aa819093c))
+* **build:** corrige falhas de clippy/check e inclui dataset embarcado de feriados 2026 ([99bf2fe](https://github.com/wkarts/argws-ponto-manager/commit/99bf2feedd535bbbaf35f959971102bd7c7e4a87))
+* **build:** corrige falhas de clippy/check e inclui dataset embarcado de feriados 2026 ([6c1f1d0](https://github.com/wkarts/argws-ponto-manager/commit/6c1f1d0b70f5b7e6d6563c8368e3d02f4094fc36))
+* **build:** resolve erro de dead_code na struct ResolvedSchedule ([35b421c](https://github.com/wkarts/argws-ponto-manager/commit/35b421ca812d9bfb6191ecd72f558892b7365c59))
+* **feriados:** organiza abrangência por empresa e departamento com compatibilidade retroativa ([d0adcc5](https://github.com/wkarts/argws-ponto-manager/commit/d0adcc50e1c6e46f00a5049103e9fe19d0da54ae))
+
 # [1.8.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.7.0...v1.8.0) (2026-04-02)
 
 
