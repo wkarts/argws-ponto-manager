@@ -341,12 +341,20 @@ function printOnlyReport(reportHtml: string) {
   }, 250);
 }
 
+async function registrarGeracaoSeguro(payload: Parameters<typeof registerGeneratedReport>[0]) {
+  try {
+    await registerGeneratedReport(payload);
+  } catch {
+    // Não interrompe o fluxo principal de exportação/impressão quando o registro falhar.
+  }
+}
+
 async function exportarExcel() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
   const fileName = `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.xls`;
   await saveWithDialog(reportHtml, fileName, "application/vnd.ms-excel");
-  await registerGeneratedReport({
+  await registrarGeracaoSeguro({
     descricao: "Relatório consolidado de horas",
     tipoRelatorio: "relatorio_horas",
     origemRotina: "relatorios_horas",
@@ -368,21 +376,7 @@ async function exportarPdf() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
   printOnlyReport(reportHtml);
-  await registerGeneratedReport({
-    descricao: "Relatório consolidado de horas",
-    tipoRelatorio: "relatorio_horas",
-    origemRotina: "relatorios_horas",
-    formato: "PDF",
-    fileName: `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.pdf`,
-    mimeType: "application/pdf",
-    competencia: periodoLabel.value,
-    funcionarioId: null,
-    funcionarioNome: null,
-    usuarioLogin: session.user?.login || null,
-    detalhado: filters.visualizacao === "analitico",
-    status: "GERADO",
-  });
-  message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora ou 'Salvar como PDF'.";
+  message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora desejada ou 'Salvar como PDF'.";
 }
 
 function imprimirRelatorio() {
