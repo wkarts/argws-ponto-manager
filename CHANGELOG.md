@@ -1,3 +1,10 @@
+## [1.9.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.1...v1.9.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* **relatorio-horas:** evitar erro ao registrar exportacao PDF ([29b3654](https://github.com/wkarts/argws-ponto-manager/commit/29b3654b03a3b38d7c6a4444f5c6b25c06c7bef9))
+
 ## [1.9.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.0...v1.9.1) (2026-04-03)
 
 
