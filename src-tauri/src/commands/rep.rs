@@ -55,7 +55,7 @@ fn export_employee_line(brand: &str, row: &Map<String, Value>) -> String {
             format!(
                 "1+1+I[0{}[{}[1[1[{}",
                 cpf_digits,
-                nome.replace('[', " ").replace('|', " "),
+                nome.replace(['[', '|'], " "),
                 matricula_henry
             )
         }
