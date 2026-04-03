@@ -41,8 +41,6 @@ const groupState = reactive({
 const cadastros = computed(() => [
   session.can("empresas:view") ? { title: "Empresas", route: "/empresas" } : null,
   session.can("funcionarios:view") ? { title: "Funcionários", route: "/funcionarios" } : null,
-  session.can("usuarios:view") ? { title: "Usuários", route: "/usuarios" } : null,
-  session.can("perfis:view") ? { title: "Perfis de acesso", route: "/perfis" } : null,
   entityConfigs.departamentos,
   entityConfigs.funcoes,
   entityConfigs.centro_custos,
@@ -80,6 +78,8 @@ const documentacao = computed(() => [
 
 const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
+  session.can("usuarios:view") ? { title: "Usuários", route: "/usuarios" } : null,
+  session.can("perfis:view") ? { title: "Perfis de acesso", route: "/perfis" } : null,
   session.can("sync:view") ? { title: "Fila técnica de sincronização", route: "/sync-queue" } : null,
   { title: "Licenciamento", route: "/licenciamento" },
   { title: "Sobre", route: "/sobre" },
