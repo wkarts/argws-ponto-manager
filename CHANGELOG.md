@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.0...v1.9.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* **relatorios:** imprimir e exportar relatório formatado em A4 ([be04dfc](https://github.com/wkarts/argws-ponto-manager/commit/be04dfc98c63ef80d9a8d42a1ec304217d1965bf))
+
 # [1.9.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.8.3...v1.9.0) (2026-04-02)
 
 
