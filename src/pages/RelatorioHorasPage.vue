@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
-import { apurarPeriodo, listEmployees, type ApuracaoDia, type ApuracaoResumo, type ComboOption } from "../services/crud";
+import {
+  apurarPeriodo,
+  listEmployees,
+  registerGeneratedReport,
+  type ApuracaoDia,
+  type ApuracaoResumo,
+  type ComboOption,
+} from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 
@@ -27,28 +34,40 @@ const filters = reactive({
   visualizacao: "sintetico" as ModoVisualizacao,
 });
 
+const periodoLabel = computed(() => {
+  if (filters.modoPeriodo === "competencia") {
+    return `${String(filters.competenciaMes).padStart(2, "0")}/${filters.competenciaAno}`;
+  }
+  return `${filters.dataInicial} até ${filters.dataFinal}`;
+});
+
 const resumoSintetico = computed(() => {
   const rows = result.value?.rows ?? [];
-  const grouped = new Map<number, {
-    funcionarioNome: string;
-    previsto: number;
-    trabalhado: number;
-    saldo: number;
-    extras: number;
-    faltantes: number;
-    bancoCredor: number;
-    bancoDevedor: number;
-    atrasos: number;
-    saidasAntecipadas: number;
-    faltas: number;
-    folgasDescansos: number;
-    abonos: number;
-    ajustesManuais: number;
-  }>();
+  const grouped = new Map<
+    number,
+    {
+      funcionarioId: number;
+      funcionarioNome: string;
+      previsto: number;
+      trabalhado: number;
+      saldo: number;
+      extras: number;
+      faltantes: number;
+      bancoCredor: number;
+      bancoDevedor: number;
+      atrasos: number;
+      saidasAntecipadas: number;
+      faltas: number;
+      folgasDescansos: number;
+      abonos: number;
+      ajustesManuais: number;
+    }
+  >();
 
   for (const row of rows) {
     if (!grouped.has(row.funcionario_id)) {
       grouped.set(row.funcionario_id, {
+        funcionarioId: row.funcionario_id,
         funcionarioNome: row.funcionario_nome,
         previsto: 0,
         trabalhado: 0,
@@ -110,7 +129,9 @@ async function loadEmployees() {
 
 function parseMultiSelect(event: Event) {
   const select = event.target as HTMLSelectElement;
-  filters.selectedIds = Array.from(select.selectedOptions).map((opt) => Number(opt.value)).filter((id) => id > 0);
+  filters.selectedIds = Array.from(select.selectedOptions)
+    .map((opt) => Number(opt.value))
+    .filter((id) => id > 0);
 }
 
 async function gerarRelatorio() {
@@ -140,37 +161,234 @@ async function gerarRelatorio() {
   }
 }
 
-function exportarCsvSintetico() {
-  if (!resumoSintetico.value.length) return;
-  const header = ["colaborador", "previsto", "trabalhado", "saldo", "extras", "faltantes", "banco_credor", "banco_devedor", "atrasos", "saidas_antecipadas", "faltas", "folgas_descansos", "abonos", "ajustes_manuais"];
-  const body = resumoSintetico.value.map((row) => [
-    row.funcionarioNome,
-    row.previsto,
-    row.trabalhado,
-    row.saldo,
-    row.extras,
-    row.faltantes,
-    row.bancoCredor,
-    row.bancoDevedor,
-    row.atrasos,
-    row.saidasAntecipadas,
-    row.faltas,
-    row.folgasDescansos,
-    row.abonos,
-    row.ajustesManuais,
-  ]);
-  const csv = [header, ...body].map((line) => line.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+function safeText(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;");
+}
+
+function buildReportHtml(): string {
+  if (!result.value) return "";
+  const generatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date());
+  const header = `
+    <header>
+      <h1>Relatório consolidado de horas</h1>
+      <div class="meta">Empresa: ${safeText(session.activeCompanyName || "Todas")}</div>
+      <div class="meta">Período: ${safeText(periodoLabel.value)}</div>
+      <div class="meta">Visualização: ${safeText(filters.visualizacao)}</div>
+      <div class="meta">Gerado em: ${safeText(generatedAt)}</div>
+    </header>`;
+
+  const kpis = `
+    <section class="kpis">
+      <div class="kpi"><strong>Colaboradores</strong><span>${result.value.total_funcionarios}</span></div>
+      <div class="kpi"><strong>Dias apurados</strong><span>${result.value.total_dias}</span></div>
+      <div class="kpi"><strong>Previsto</strong><span>${formatMinutes(result.value.total_esperado_minutos)}</span></div>
+      <div class="kpi"><strong>Trabalhado</strong><span>${formatMinutes(result.value.total_trabalhado_minutos)}</span></div>
+      <div class="kpi"><strong>Saldo</strong><span>${formatMinutes(result.value.total_saldo_minutos)}</span></div>
+      <div class="kpi"><strong>Extras</strong><span>${formatMinutes(result.value.total_extra_minutos)}</span></div>
+    </section>`;
+
+  let content = "";
+  if (filters.visualizacao === "sintetico") {
+    const body = resumoSintetico.value
+      .map(
+        (row) => `
+      <tr>
+        <td>${safeText(row.funcionarioNome)}</td>
+        <td>${formatMinutes(row.previsto)}</td>
+        <td>${formatMinutes(row.trabalhado)}</td>
+        <td>${formatMinutes(row.saldo)}</td>
+        <td>${formatMinutes(row.extras)}</td>
+        <td>${formatMinutes(row.faltantes)}</td>
+        <td>${formatMinutes(row.bancoCredor)}</td>
+        <td>${formatMinutes(row.bancoDevedor)}</td>
+        <td>${formatMinutes(row.atrasos)}</td>
+        <td>${formatMinutes(row.saidasAntecipadas)}</td>
+        <td>${row.faltas}</td>
+        <td>${row.folgasDescansos}</td>
+      </tr>`,
+      )
+      .join("");
+
+    content = `
+      <table>
+        <thead>
+          <tr>
+            <th>Colaborador</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Extras</th>
+            <th>Faltantes</th><th>Banco credor</th><th>Banco devedor</th><th>Atrasos</th>
+            <th>Saídas ant.</th><th>Faltas</th><th>Folgas</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>`;
+  } else {
+    content = analiticoPorFuncionario.value
+      .map(
+        ([funcionario, rows]) => `
+      <h2>${safeText(funcionario)}</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th><th>Jornada</th><th>Batidas</th><th>Ocorrências</th><th>Previsto</th><th>Trabalhado</th>
+            <th>Saldo</th><th>Atraso</th><th>Saída ant.</th><th>Extra</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (row) => `
+            <tr>
+              <td>${safeText(row.data)}</td>
+              <td>${safeText(row.jornada_nome)}</td>
+              <td>${safeText(row.batidas.join(" | ") || "-")}</td>
+              <td>${safeText(row.ocorrencias.join(" | ") || "-")}</td>
+              <td>${formatMinutes(row.horario_esperado_minutos)}</td>
+              <td>${formatMinutes(row.trabalhado_minutos)}</td>
+              <td>${formatMinutes(row.saldo_minutos)}</td>
+              <td>${formatMinutes(row.atraso_minutos)}</td>
+              <td>${formatMinutes(row.saida_antecipada_minutos)}</td>
+              <td>${formatMinutes(row.extra_minutos)}</td>
+            </tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>`,
+      )
+      .join("");
+  }
+
+  return `<!DOCTYPE html>
+  <html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Relatório consolidado de horas</title>
+    <style>
+      @page { size: A4 landscape; margin: 10mm; }
+      body { font-family: Arial, sans-serif; color: #0f172a; font-size: 11px; }
+      h1 { margin: 0 0 6px 0; font-size: 20px; }
+      h2 { margin: 18px 0 6px; font-size: 14px; }
+      .meta { color: #334155; margin-bottom: 2px; }
+      .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 12px 0; }
+      .kpi { border: 1px solid #cbd5e1; border-radius: 4px; padding: 6px; }
+      .kpi strong { display: block; color: #334155; margin-bottom: 4px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+      th, td { border: 1px solid #cbd5e1; padding: 4px; vertical-align: top; }
+      th { background: #e2e8f0; }
+    </style>
+  </head>
+  <body>
+    ${header}
+    ${kpis}
+    ${content}
+  </body>
+  </html>`;
+}
+
+function toBase64Utf8(content: string) {
+  return btoa(unescape(encodeURIComponent(content)));
+}
+
+async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
+  const picker = (window as unknown as { showSaveFilePicker?: Function }).showSaveFilePicker;
+  if (picker) {
+    const extension = suggestedName.split(".").pop() || "txt";
+    const handle = await picker({
+      suggestedName,
+      types: [{ description: "Relatório", accept: { [mimeType]: [`.${extension}`] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(content);
+    await writable.close();
+    return;
+  }
+
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `relatorio_horas_sintetico_${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = suggestedName;
+  anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-function imprimir() {
-  window.print();
+function printOnlyReport(reportHtml: string) {
+  const frame = document.createElement("iframe");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentWindow?.document;
+  if (!doc || !frame.contentWindow) {
+    frame.remove();
+    return;
+  }
+
+  doc.open();
+  doc.write(reportHtml);
+  doc.close();
+
+  setTimeout(() => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+    setTimeout(() => frame.remove(), 800);
+  }, 250);
+}
+
+async function exportarExcel() {
+  if (!result.value) return;
+  const reportHtml = buildReportHtml();
+  const fileName = `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.xls`;
+  await saveWithDialog(reportHtml, fileName, "application/vnd.ms-excel");
+  await registerGeneratedReport({
+    descricao: "Relatório consolidado de horas",
+    tipoRelatorio: "relatorio_horas",
+    origemRotina: "relatorios_horas",
+    formato: "XLS",
+    fileName,
+    mimeType: "application/vnd.ms-excel",
+    competencia: periodoLabel.value,
+    funcionarioId: null,
+    funcionarioNome: null,
+    usuarioLogin: session.user?.login || null,
+    detalhado: filters.visualizacao === "analitico",
+    status: "GERADO",
+    contentBase64: toBase64Utf8(reportHtml),
+  });
+  message.value = "Relatório exportado em Excel com layout A4.";
+}
+
+async function exportarPdf() {
+  if (!result.value) return;
+  const reportHtml = buildReportHtml();
+  printOnlyReport(reportHtml);
+  await registerGeneratedReport({
+    descricao: "Relatório consolidado de horas",
+    tipoRelatorio: "relatorio_horas",
+    origemRotina: "relatorios_horas",
+    formato: "PDF",
+    fileName: `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.pdf`,
+    mimeType: "application/pdf",
+    competencia: periodoLabel.value,
+    funcionarioId: null,
+    funcionarioNome: null,
+    usuarioLogin: session.user?.login || null,
+    detalhado: filters.visualizacao === "analitico",
+    status: "GERADO",
+  });
+  message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora ou 'Salvar como PDF'.";
+}
+
+function imprimirRelatorio() {
+  if (!result.value) return;
+  const reportHtml = buildReportHtml();
+  printOnlyReport(reportHtml);
 }
 
 watch(() => session.activeCompanyId, loadEmployees);
@@ -185,8 +403,9 @@ onMounted(loadEmployees);
         <div class="muted">Base para fechamento de folha e envio à contabilidade (modo sintético e analítico).</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="exportarCsvSintetico" :disabled="!resumoSintetico.length">Exportar CSV</button>
-        <button class="primary" @click="imprimir" :disabled="!result">Imprimir</button>
+        <button class="secondary" @click="exportarExcel" :disabled="!result">Exportar Excel</button>
+        <button class="secondary" @click="exportarPdf" :disabled="!result">Exportar PDF</button>
+        <button class="primary" @click="imprimirRelatorio" :disabled="!result">Imprimir relatório</button>
       </div>
     </div>
 
@@ -241,7 +460,7 @@ onMounted(loadEmployees);
           </select>
         </div>
         <div class="actions align-end">
-          <button class="primary" @click="gerarRelatorio" :disabled="loading">{{ loading ? 'Apurando...' : 'Gerar relatório' }}</button>
+          <button class="primary" @click="gerarRelatorio" :disabled="loading">{{ loading ? "Apurando..." : "Gerar relatório" }}</button>
         </div>
       </div>
     </div>
@@ -325,15 +544,15 @@ onMounted(loadEmployees);
               <tr v-for="row in rows" :key="`${row.funcionario_id}-${row.data}`">
                 <td>{{ row.data }}</td>
                 <td>{{ row.jornada_nome }}</td>
-                <td>{{ row.batidas.join(' | ') || '-' }}</td>
-                <td>{{ row.ocorrencias.join(' | ') || '-' }}</td>
+                <td>{{ row.batidas.join(" | ") || "-" }}</td>
+                <td>{{ row.ocorrencias.join(" | ") || "-" }}</td>
                 <td>{{ formatMinutes(row.horario_esperado_minutos) }}</td>
                 <td>{{ formatMinutes(row.trabalhado_minutos) }}</td>
                 <td>{{ formatMinutes(row.saldo_minutos) }}</td>
                 <td>{{ formatMinutes(row.atraso_minutos) }}</td>
                 <td>{{ formatMinutes(row.saida_antecipada_minutos) }}</td>
                 <td>{{ formatMinutes(row.extra_minutos) }}</td>
-                <td>{{ row.mensagens.join(' | ') || '-' }}</td>
+                <td>{{ row.mensagens.join(" | ") || "-" }}</td>
               </tr>
             </tbody>
           </table>
