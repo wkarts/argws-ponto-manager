@@ -26,6 +26,7 @@ const session = useSessionStore();
 const loading = ref(false);
 const savingBatida = ref(false);
 const savingOcorrencia = ref(false);
+const printingAllCompetencia = ref(false);
 const error = ref("");
 const message = ref("");
 const batidaModalOpen = ref(false);
@@ -39,8 +40,12 @@ const apuracaoResumo = ref<ApuracaoResumo | null>(null);
 const reportHtml = ref("");
 const empresaResponsavel = ref("Responsável / RH");
 
+const hoje = new Date();
 const filtros = reactive({
   funcionarioId: "",
+  modoPeriodo: "intervalo" as "intervalo" | "competencia",
+  competenciaMes: hoje.getMonth() + 1,
+  competenciaAno: hoje.getFullYear(),
   dataInicial: new Date().toISOString().slice(0, 10),
   dataFinal: new Date().toISOString().slice(0, 10),
   modeloRelatorio: "cartao_ponto",
@@ -78,6 +83,46 @@ const funcionarioIdNumero = computed<number | null>(() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 });
 const funcionarioNomeSelecionado = computed(() => employeeOptions.value.find((item) => String(item.id) === filtros.funcionarioId)?.label || "Todos");
+const inconsistenciasNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => row.inconsistente).length);
+const diasComOcorrenciaNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => (row.ocorrencias || []).length > 0).length);
+const periodoLabel = computed(() => {
+  if (filtros.modoPeriodo === "competencia") {
+    return `${String(filtros.competenciaMes).padStart(2, "0")}/${filtros.competenciaAno}`;
+  }
+  return `${filtros.dataInicial}..${filtros.dataFinal}`;
+});
+
+function getCompetenciaRange(ano: number, mes: number) {
+  const inicio = new Date(ano, mes - 1, 1);
+  const fim = new Date(ano, mes, 0);
+  return {
+    dataInicial: formatDate(inicio),
+    dataFinal: formatDate(fim),
+  };
+}
+
+function syncPeriodFilters() {
+  if (filtros.modoPeriodo !== "competencia") return;
+  const range = getCompetenciaRange(Number(filtros.competenciaAno), Number(filtros.competenciaMes));
+  filtros.dataInicial = range.dataInicial;
+  filtros.dataFinal = range.dataFinal;
+}
+
+function periodoAtual() {
+  if (filtros.modoPeriodo === "competencia") {
+    return getCompetenciaRange(Number(filtros.competenciaAno), Number(filtros.competenciaMes));
+  }
+  return {
+    dataInicial: filtros.dataInicial,
+    dataFinal: filtros.dataFinal,
+  };
+}
+
+function rowBadgeClass(row: GenericRecord) {
+  const date = String(row.data_referencia || "");
+  const resumo = apuracaoResumo.value?.rows.find((item) => item.data === date);
+  return resumo?.inconsistente ? "row-highlight-warning" : ((resumo?.ocorrencias || []).length ? "row-highlight-info" : "");
+}
 
 function closeBatidaModal() {
   batidaModalOpen.value = false;
@@ -153,6 +198,7 @@ async function carregarBase() {
 }
 
 async function carregarCartao() {
+  syncPeriodFilters();
   loading.value = true;
   error.value = "";
   message.value = "";
@@ -173,8 +219,10 @@ async function carregarCartao() {
       apurarPeriodo({
         empresaId: session.activeCompanyId ?? null,
         funcionarioId: funcionarioIdNumero.value,
-        dataInicial: filtros.dataInicial || null,
-        dataFinal: filtros.dataFinal || null,
+        competenciaAno: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaAno) : null,
+        competenciaMes: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaMes) : null,
+        dataInicial: filtros.modoPeriodo === "competencia" ? null : (filtros.dataInicial || null),
+        dataFinal: filtros.modoPeriodo === "competencia" ? null : (filtros.dataFinal || null),
       }),
     ]);
     batidas.value = rowsBatida;
@@ -281,12 +329,12 @@ function calcIntraFromBatidas(batidasDia: string[]): number {
   return inInterval - outInterval;
 }
 
-function buildDailyRows(initial: Date, final: Date): {
+function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Date): {
   rows: DailyReportRow[];
   totals: Record<string, number>;
 } {
   const apuracaoByDate = new Map<string, ApuracaoDia>();
-  for (const row of apuracaoResumo.value?.rows || []) {
+  for (const row of summary?.rows || []) {
     apuracaoByDate.set(row.data, row);
   }
 
@@ -366,13 +414,13 @@ function buildDailyRows(initial: Date, final: Date): {
   return { rows, totals };
 }
 
-function buildCartaoHtml(): string {
-  if (!filtros.dataInicial || !filtros.dataFinal) return "";
-  const initial = new Date(`${filtros.dataInicial}T00:00:00`);
-  const final = new Date(`${filtros.dataFinal}T00:00:00`);
+function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName: string, dataInicial: string, dataFinal: string): string {
+  if (!dataInicial || !dataFinal) return "";
+  const initial = new Date(`${dataInicial}T00:00:00`);
+  const final = new Date(`${dataFinal}T00:00:00`);
   if (Number.isNaN(initial.getTime()) || Number.isNaN(final.getTime()) || initial > final) return "";
 
-  const { rows: dailyRows, totals } = buildDailyRows(initial, final);
+  const { rows: dailyRows, totals } = buildDailyRows(summary, initial, final);
 
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   const tableByModel: Record<string, string> = {
@@ -442,9 +490,10 @@ function buildCartaoHtml(): string {
         <div>
           <div>${logoSvg}</div>
           <h1>CARTÃO PONTO — ${filtros.modeloRelatorio.replace(/_/g, " " ).toUpperCase()}</h1>
-          <div class="meta">Período: ${filtros.dataInicial.split("-").reverse().join("/")} até ${filtros.dataFinal.split("-").reverse().join("/")}</div>
+          <div class="meta">Período: ${dataInicial.split("-").reverse().join("/")} até ${dataFinal.split("-").reverse().join("/")}</div>
+          <div class="meta">Competência/visão: ${periodoLabel.value}</div>
           <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
-          <div class="meta">Colaborador: ${funcionarioNomeSelecionado.value}</div>
+          <div class="meta">Colaborador: ${employeeName}</div>
         </div>
         <div class="meta">Emitido em ${new Date().toLocaleDateString("pt-BR")}</div>
       </div>
@@ -452,8 +501,129 @@ function buildCartaoHtml(): string {
         ${tableByModel[filtros.modeloRelatorio] || tableByModel.folha_resumida}
       </table>
       ${summaryByModel}
-      <div class="sign"><div class="line">${funcionarioNomeSelecionado.value}</div><div class="line">${empresaResponsavel.value}</div></div>
+      <div class="sign"><div class="line">${employeeName}</div><div class="line">${empresaResponsavel.value}</div></div>
     </body></html>`;
+}
+
+function buildCartaoHtml(): string {
+  const periodo = periodoAtual();
+  return buildCartaoHtmlFromSummary(apuracaoResumo.value, funcionarioNomeSelecionado.value, periodo.dataInicial, periodo.dataFinal);
+}
+
+function sanitizeFilePart(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "") || "relatorio";
+}
+
+function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
+  const content = cards
+    .map((card, index) => {
+      const pageBreak = index < cards.length - 1 ? '<div style="page-break-after: always;"></div>' : "";
+      return `<section data-employee="${card.employeeName}">${card.html}</section>${pageBreak}`;
+    })
+    .join("");
+
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
+    <style>
+      body{margin:0;background:#fff}
+      section{padding:0}
+      @page{size:A4 portrait;margin:10mm}
+    </style></head><body>${content}</body></html>`;
+}
+
+async function generateCompetenciaCardsHtml() {
+  syncPeriodFilters();
+  const periodo = periodoAtual();
+  const targetEmployees = employeeOptions.value.filter((item) => item.id > 0);
+  const cards: { employeeName: string; html: string }[] = [];
+
+  for (const employee of targetEmployees) {
+    const summary = await apurarPeriodo({
+      empresaId: session.activeCompanyId ?? null,
+      funcionarioId: employee.id,
+      competenciaAno: Number(filtros.competenciaAno),
+      competenciaMes: Number(filtros.competenciaMes),
+      dataInicial: null,
+      dataFinal: null,
+    });
+    cards.push({
+      employeeName: employee.label,
+      html: buildCartaoHtmlFromSummary(summary, employee.label, periodo.dataInicial, periodo.dataFinal),
+    });
+  }
+
+  return buildAllCardsHtml(cards);
+}
+
+async function openPrintFrame(html: string) {
+  const frame = document.createElement("iframe");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  document.body.appendChild(frame);
+
+  const doc = frame.contentWindow?.document;
+  if (!doc || !frame.contentWindow) {
+    frame.remove();
+    throw new Error("Não foi possível inicializar o modo de impressão.");
+  }
+
+  doc.open();
+  doc.write(html);
+  doc.close();
+  frame.contentWindow.focus();
+  await new Promise<void>((resolve) => {
+    setTimeout(() => {
+      try {
+        frame.contentWindow?.print();
+      } finally {
+        setTimeout(() => frame.remove(), 1000);
+        resolve();
+      }
+    }, 250);
+  });
+}
+
+async function imprimirTodosCompetencia() {
+  if (filtros.modoPeriodo !== "competencia") {
+    error.value = "Selecione o modo Competência para imprimir todos os cartões do mês.";
+    return;
+  }
+  printingAllCompetencia.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    const html = await generateCompetenciaCardsHtml();
+    await openPrintFrame(html);
+    const fileName = `cartoes_ponto_competencia_${String(filtros.competenciaMes).padStart(2, "0")}_${filtros.competenciaAno}.pdf`;
+    await registerGeneratedReport({
+      descricao: "Cartões de ponto da competência",
+      tipoRelatorio: "cartao_ponto_lote",
+      origemRotina: "cartao_ponto",
+      formato: "PDF",
+      fileName,
+      mimeType: "application/pdf",
+      competencia: periodoLabel.value,
+      funcionarioId: null,
+      funcionarioNome: "Todos os colaboradores",
+      usuarioLogin: session.user?.login || null,
+      detalhado: true,
+      status: "GERADO",
+      contentBase64: toBase64Utf8(html),
+    });
+    message.value = "Impressão de todos os cartões da competência iniciada e registrada em Relatórios Gerados.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao imprimir todos os cartões da competência.";
+  } finally {
+    printingAllCompetencia.value = false;
+  }
 }
 
 async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
@@ -481,7 +651,8 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
 async function exportarHtml() {
   try {
     reportHtml.value = buildCartaoHtml();
-    const fileName = `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.html`;
+    const periodo = periodoAtual();
+    const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.html`;
     await saveWithDialog(reportHtml.value, fileName, "text/html");
     await registerGeneratedReport({
       descricao: "Cartão de ponto",
@@ -490,7 +661,7 @@ async function exportarHtml() {
       formato: "HTML",
       fileName,
       mimeType: "text/html",
-      competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
+      competencia: periodoLabel.value,
       funcionarioId: funcionarioIdNumero.value,
       funcionarioNome: funcionarioNomeSelecionado.value,
       usuarioLogin: session.user?.login || null,
@@ -507,7 +678,8 @@ async function exportarHtml() {
 async function exportarExcel() {
   try {
     reportHtml.value = buildCartaoHtml();
-    const fileName = `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.xls`;
+    const periodo = periodoAtual();
+    const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.xls`;
     await saveWithDialog(reportHtml.value, fileName, "application/vnd.ms-excel");
     await registerGeneratedReport({
       descricao: "Cartão de ponto",
@@ -516,7 +688,7 @@ async function exportarExcel() {
       formato: "EXCEL",
       fileName,
       mimeType: "application/vnd.ms-excel",
-      competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
+      competencia: periodoLabel.value,
       funcionarioId: funcionarioIdNumero.value,
       funcionarioNome: funcionarioNomeSelecionado.value,
       usuarioLogin: session.user?.login || null,
@@ -530,55 +702,35 @@ async function exportarExcel() {
   }
 }
 
-function imprimirOuSalvarPdf() {
+async function imprimirOuSalvarPdf() {
   reportHtml.value = buildCartaoHtml();
   if (!reportHtml.value) {
     error.value = "Gere o cartão antes de imprimir/salvar PDF.";
     return;
   }
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
 
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    error.value = "Não foi possível inicializar o modo de impressão.";
-    return;
+  try {
+    await openPrintFrame(reportHtml.value);
+    const periodo = periodoAtual();
+    await registerGeneratedReport({
+      descricao: "Cartão de ponto (impressão/PDF)",
+      tipoRelatorio: "cartao_ponto",
+      origemRotina: "cartao_ponto",
+      formato: "PDF",
+      fileName: `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.pdf`,
+      mimeType: "application/pdf",
+      competencia: periodoLabel.value,
+      funcionarioId: funcionarioIdNumero.value,
+      funcionarioNome: funcionarioNomeSelecionado.value,
+      usuarioLogin: session.user?.login || null,
+      detalhado: true,
+      status: "GERADO",
+      contentBase64: toBase64Utf8(reportHtml.value),
+    });
+    message.value = "Impressão iniciada. O relatório também foi registrado em Relatórios Gerados.";
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao imprimir ou salvar PDF.";
   }
-
-  doc.open();
-  doc.write(reportHtml.value);
-  doc.close();
-  frame.contentWindow.focus();
-  setTimeout(() => {
-    try {
-      frame.contentWindow?.print();
-      registerGeneratedReport({
-        descricao: "Cartão de ponto (impressão/PDF)",
-        tipoRelatorio: "cartao_ponto",
-        origemRotina: "cartao_ponto",
-        formato: "PDF",
-        fileName: `cartao_ponto_${funcionarioNomeSelecionado.value.replace(/\\s+/g, "_")}_${filtros.dataInicial}_${filtros.dataFinal}.pdf`,
-        mimeType: "application/pdf",
-        competencia: `${filtros.dataInicial}..${filtros.dataFinal}`,
-        funcionarioId: funcionarioIdNumero.value,
-        funcionarioNome: funcionarioNomeSelecionado.value,
-        usuarioLogin: session.user?.login || null,
-        detalhado: true,
-        status: "GERADO",
-        contentBase64: toBase64Utf8(reportHtml.value),
-      }).catch(() => {});
-      message.value = "Impressão iniciada. O relatório também foi registrado em Relatórios Gerados.";
-    } finally {
-      setTimeout(() => frame.remove(), 1000);
-    }
-  }, 250);
 }
 
 async function salvarBatida() {
@@ -713,6 +865,12 @@ watch(() => filtros.funcionarioId, () => {
   if (!ocorrenciaForm.id) ocorrenciaForm.funcionario_id = filtros.funcionarioId;
 });
 
+watch(() => [filtros.modoPeriodo, filtros.competenciaMes, filtros.competenciaAno], () => {
+  if (filtros.modoPeriodo === "competencia") {
+    syncPeriodFilters();
+  }
+});
+
 onMounted(async () => {
   await carregarBase();
   await carregarCartao();
@@ -730,6 +888,7 @@ onMounted(async () => {
         <button class="secondary" :disabled="loading" @click="carregarCartao">{{ loading ? 'Atualizando...' : 'Atualizar' }}</button>
         <button class="secondary" @click="exportarHtml">Exportar HTML</button>
         <button class="secondary" @click="exportarExcel">Exportar Excel</button>
+        <button class="secondary" :disabled="printingAllCompetencia" @click="imprimirTodosCompetencia">{{ printingAllCompetencia ? 'Preparando lote...' : 'Imprimir todos da competência' }}</button>
         <button class="primary" @click="imprimirOuSalvarPdf">Imprimir / Salvar PDF</button>
       </div>
     </div>
@@ -738,7 +897,7 @@ onMounted(async () => {
     <div v-if="message" class="alert success">{{ message }}</div>
 
     <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
+      <div class="filter-grid">
         <div class="field">
           <label>Funcionário</label>
           <select v-model="filtros.funcionarioId">
@@ -747,13 +906,29 @@ onMounted(async () => {
           </select>
         </div>
         <div class="field">
-          <label>Data inicial</label>
-          <input v-model="filtros.dataInicial" type="date" />
+          <label>Período</label>
+          <select v-model="filtros.modoPeriodo">
+            <option value="intervalo">Intervalo</option>
+            <option value="competencia">Competência</option>
+          </select>
         </div>
-        <div class="field">
-          <label>Data final</label>
-          <input v-model="filtros.dataFinal" type="date" />
+        <div v-if="filtros.modoPeriodo === 'competencia'" class="field">
+          <label>Competência</label>
+          <div class="inline-grid compact-inline-grid">
+            <input v-model.number="filtros.competenciaMes" type="number" min="1" max="12" />
+            <input v-model.number="filtros.competenciaAno" type="number" min="2020" max="2100" />
+          </div>
         </div>
+        <template v-else>
+          <div class="field">
+            <label>Data inicial</label>
+            <input v-model="filtros.dataInicial" type="date" />
+          </div>
+          <div class="field">
+            <label>Data final</label>
+            <input v-model="filtros.dataFinal" type="date" />
+          </div>
+        </template>
         <div class="field">
           <label>Modelo do relatório</label>
           <select v-model="filtros.modeloRelatorio">
@@ -767,6 +942,11 @@ onMounted(async () => {
         <div class="actions align-end">
           <button class="primary" :disabled="loading" @click="carregarCartao">Aplicar filtros</button>
         </div>
+      </div>
+      <div class="inline-info-strip">
+        <span><strong>Visão atual:</strong> {{ periodoLabel }}</span>
+        <span><strong>Dias inconsistentes:</strong> {{ inconsistenciasNoPeriodo }}</span>
+        <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
       </div>
     </div>
 
@@ -789,7 +969,7 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in batidas" :key="String(row.id)">
+          <tr v-for="row in batidas" :key="String(row.id)" :class="rowBadgeClass(row)">
             <td>{{ row.data_referencia }}</td>
             <td>{{ row.hora }}</td>
             <td>{{ row.tipo }}</td>
@@ -826,7 +1006,7 @@ onMounted(async () => {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in ocorrencias" :key="String(row.id)">
+          <tr v-for="row in ocorrencias" :key="String(row.id)" :class="rowBadgeClass(row)">
             <td>{{ row.data_referencia }}</td>
             <td>{{ row.tipo }}</td>
             <td>{{ row.justificativa_nome || '-' }}</td>

@@ -158,6 +158,18 @@ export async function getEmployee(id: number): Promise<GenericRecord> {
 export async function saveEmployee(payload: GenericRecord): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("employee_save", { payload });
 }
+export async function cloneEmployee(id: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("employee_clone", { id });
+}
+
+export async function employeeTemplateCsv(): Promise<string> {
+  return invokeCommand<string>("employee_template_csv");
+}
+
+export async function importEmployeesCsv(payload: Record<string, unknown>): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("employee_import_csv", { payload });
+}
+
 
 export async function deleteEmployee(id: number): Promise<boolean> {
   return invokeCommand<boolean>("employee_delete", { id });
@@ -206,6 +218,14 @@ export async function getJornada(id: number): Promise<GenericRecord> {
 export async function saveJornada(payload: GenericRecord): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("jornada_save", { payload });
 }
+export async function cloneJornada(id: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("jornada_clone", { id });
+}
+
+export async function jornadaPresetList(): Promise<GenericRecord[]> {
+  return invokeCommand<GenericRecord[]>("jornada_preset_list");
+}
+
 
 export async function deleteJornada(id: number): Promise<boolean> {
   return invokeCommand<boolean>("jornada_delete", { id });

@@ -6,7 +6,9 @@ import {
   comboJornadas,
   comboList,
   deleteEmployee,
+  employeeTemplateCsv,
   getEmployee,
+  importEmployeesCsv,
   listEmployees,
   saveEmployee,
   type ComboOption,
@@ -24,6 +26,9 @@ const search = ref("");
 const filterEmpresaId = ref<number | null>(null);
 const onlyActive = ref(true);
 const modalOpen = ref(false);
+const importingCsv = ref(false);
+const csvFile = ref<File | null>(null);
+const importMessage = ref("");
 
 const companyOptions = ref<ComboOption[]>([]);
 const departamentoOptions = ref<ComboOption[]>([]);
@@ -146,6 +151,66 @@ async function editRow(id: number) {
   }
 }
 
+
+function cloneCurrentRow(row: GenericRecord) {
+  Object.assign(form, defaultForm(), row, {
+    id: undefined,
+    matricula: `${String(row.matricula || "MAT")}-COPY`,
+    nome: `${String(row.nome || "Funcionário")} (Cópia)`,
+    documento: "",
+    pis: "",
+    email: "",
+    empresa_id: toSelectValue(row.empresa_id),
+    departamento_id: toSelectValue(row.departamento_id),
+    funcao_id: toSelectValue(row.funcao_id),
+    centro_custo_id: toSelectValue(row.centro_custo_id),
+    horario_id: toSelectValue(row.horario_id),
+    escala_id: toSelectValue(row.escala_id),
+    jornada_id: toSelectValue(row.jornada_id),
+    ativo: true,
+  });
+  modalOpen.value = true;
+}
+
+function handleCsvFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  csvFile.value = input.files?.[0] || null;
+}
+
+async function downloadTemplate() {
+  const content = await employeeTemplateCsv();
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'funcionarios_template.csv';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+async function importCsv() {
+  error.value = '';
+  importMessage.value = '';
+  if (!csvFile.value) {
+    error.value = 'Selecione o CSV de funcionários.';
+    return;
+  }
+  importingCsv.value = true;
+  try {
+    const content = await csvFile.value.text();
+    const result = await importEmployeesCsv({ content, empresa_id: filterEmpresaId.value || session.activeCompanyId || null });
+    importMessage.value = `Importação finalizada. Importados: ${result.importados || 0}.`;
+    if (Array.isArray(result.erros) && result.erros.length) {
+      error.value = result.erros.join(' | ');
+    }
+    await load();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao importar funcionários.';
+  } finally {
+    importingCsv.value = false;
+  }
+}
+
 async function persist() {
   saving.value = true;
   error.value = "";
@@ -203,10 +268,12 @@ onMounted(async () => {
       </div>
       <div class="actions">
         <button class="secondary" @click="openNewModal">Novo cadastro</button>
+        <button class="secondary" @click="downloadTemplate">Baixar planilha padrão</button>
       </div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
+    <div v-if="importMessage" class="alert success">{{ importMessage }}</div>
 
     <div class="card grid page-gap">
       <div class="toolbar">
@@ -215,6 +282,11 @@ onMounted(async () => {
           <div class="muted-text">Consulte vínculos, documentos e jornada atribuída.</div>
         </div>
         <div class="actions align-end">
+          <div class="field min-field">
+            <label>Importar CSV</label>
+            <input type="file" accept=".csv,text/csv" @change="handleCsvFile" />
+          </div>
+          <button class="secondary" :disabled="importingCsv" @click="importCsv">{{ importingCsv ? 'Importando...' : 'Importar planilha' }}</button>
           <div class="field min-field">
             <label>Buscar</label>
             <input v-model="search" type="text" placeholder="Nome, matrícula ou CPF" @keyup.enter="load" />
@@ -269,6 +341,7 @@ onMounted(async () => {
               <td>
                 <div class="compact-actions actions">
                   <button class="secondary" @click="editRow(Number(row.id))">Editar</button>
+                    <button class="secondary" @click="cloneCurrentRow(row)">Clonar</button>
                   <button class="danger" @click="removeRow(Number(row.id))">Excluir</button>
                 </div>
               </td>

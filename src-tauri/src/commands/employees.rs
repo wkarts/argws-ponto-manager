@@ -73,6 +73,57 @@ fn get_i64(payload: &Map<String, Value>, key: &str) -> Option<i64> {
     })
 }
 
+fn csv_delimiter_for(content: &str) -> char {
+    let header = content
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("");
+
+    let candidates = [';', ',', '\t', '|'];
+    let mut best = ';';
+    let mut best_count = -1isize;
+
+    for candidate in candidates {
+        let count = header.matches(candidate).count() as isize;
+        if count > best_count {
+            best = candidate;
+            best_count = count;
+        }
+    }
+
+    best
+}
+
+fn split_csv_line(line: &str, delimiter: char) -> Vec<String> {
+    let mut items: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut chars = line.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '"' {
+            if in_quotes && chars.peek() == Some(&'"') {
+                current.push('"');
+                let _ = chars.next();
+            } else {
+                in_quotes = !in_quotes;
+            }
+            continue;
+        }
+
+        if ch == delimiter && !in_quotes {
+            items.push(current.trim().to_string());
+            current.clear();
+            continue;
+        }
+
+        current.push(ch);
+    }
+
+    items.push(current.trim().to_string());
+    items
+}
+
 fn only_digits(value: &str) -> String {
     value.chars().filter(|ch| ch.is_ascii_digit()).collect()
 }
@@ -621,6 +672,96 @@ pub fn employee_save(
     )?;
 
     Ok(saved)
+}
+
+#[tauri::command]
+pub fn employee_clone(
+    state: State<'_, SharedState>,
+    id: i64,
+) -> Result<Map<String, Value>, String> {
+    let mut base = employee_get(state.clone(), id)?;
+    base.remove("id");
+    let nome = base
+        .get("nome")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Funcionário")
+        .to_string();
+    let matricula = base
+        .get("matricula")
+        .and_then(|v| v.as_str())
+        .unwrap_or("MAT")
+        .to_string();
+    base.insert(
+        "nome".to_string(),
+        Value::String(format!("{} (Cópia)", nome)),
+    );
+    base.insert(
+        "matricula".to_string(),
+        Value::String(format!("{}-COPY", matricula)),
+    );
+    base.insert("documento".to_string(), Value::String(String::new()));
+    base.insert("pis".to_string(), Value::String(String::new()));
+    base.insert("email".to_string(), Value::String(String::new()));
+    employee_save(state, base)
+}
+
+#[tauri::command]
+pub fn employee_template_csv() -> Result<String, String> {
+    Ok("empresa_id;matricula;nome;documento;data_admissao;departamento_id;funcao_id;centro_custo_id;horario_id;escala_id;jornada_id;telefone;celular;email
+1;1001;Fulano de Tal;00000000000;2026-01-01;;;;;;;75999990000;;
+".to_string())
+}
+
+#[tauri::command]
+pub fn employee_import_csv(
+    state: State<'_, SharedState>,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    let content =
+        get_string(&payload, "content").ok_or_else(|| "Conteúdo CSV não informado.".to_string())?;
+    let default_empresa_id = get_i64(&payload, "empresa_id");
+    let delimiter = csv_delimiter_for(&content);
+    let mut lines = content.lines().filter(|line| !line.trim().is_empty());
+    let header_line = lines.next().ok_or_else(|| "CSV vazio.".to_string())?;
+    let headers = split_csv_line(header_line, delimiter);
+    let mut imported = 0i64;
+    let mut errors: Vec<String> = Vec::new();
+    for (idx, line) in lines.enumerate() {
+        let cols = split_csv_line(line, delimiter);
+        let mut row = Map::new();
+        for (i, header) in headers.iter().enumerate() {
+            row.insert(
+                header.to_string(),
+                Value::String(cols.get(i).cloned().unwrap_or_default()),
+            );
+        }
+        if let Some(empresa_id) = default_empresa_id {
+            if row
+                .get("empresa_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim()
+                .is_empty()
+            {
+                row.insert(
+                    "empresa_id".to_string(),
+                    Value::String(empresa_id.to_string()),
+                );
+            }
+        }
+        row.insert("ativo".to_string(), Value::Bool(true));
+        match employee_save(state.clone(), row) {
+            Ok(_) => imported += 1,
+            Err(err) => errors.push(format!("Linha {}: {}", idx + 2, err)),
+        }
+    }
+    Ok(Map::from_iter([
+        ("importados".to_string(), Value::Number(imported.into())),
+        (
+            "erros".to_string(),
+            Value::Array(errors.into_iter().map(Value::String).collect()),
+        ),
+    ]))
 }
 
 #[tauri::command]

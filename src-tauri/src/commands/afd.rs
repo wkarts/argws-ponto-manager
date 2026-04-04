@@ -201,6 +201,14 @@ fn employee_id_from_key(
     .map_err(|err| format!("Falha ao localizar funcionário para marcação AFD: {err}"))
 }
 
+fn parse_datetime_to_minutes(value: &str) -> Option<i64> {
+    if value.len() < 16 {
+        return None;
+    }
+    let dt = NaiveDateTime::parse_from_str(&value[..16], "%Y-%m-%dT%H:%M").ok()?;
+    Some(dt.and_utc().timestamp() / 60)
+}
+
 fn datetime_to_date_time(value: &str) -> Option<(String, String)> {
     if value.contains('T') {
         let parts: Vec<&str> = value.split('T').collect();
@@ -344,12 +352,39 @@ pub fn afd_import_file(
                 .optional()
                 .map_err(|err| format!("Falha ao validar duplicidade da marcação AFD: {err}"))?;
 
+            let close_duplicate: Option<(i64, String)> = if duplicate.is_none() {
+                conn.query_row(
+                    "SELECT id, data_referencia || 'T' || hora FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 ORDER BY ABS((CAST(substr(hora,1,2) AS INTEGER)*60 + CAST(substr(hora,4,2) AS INTEGER)) - (CAST(substr(?3,1,2) AS INTEGER)*60 + CAST(substr(?3,4,2) AS INTEGER))) ASC LIMIT 1",
+                    params![funcionario_id, data_referencia, hora],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                ).optional().map_err(|err| format!("Falha ao validar proximidade da marcação AFD: {err}"))?
+            } else {
+                None
+            };
+
+            let is_too_close = close_duplicate
+                .as_ref()
+                .and_then(|(_, full)| parse_datetime_to_minutes(full))
+                .zip(parse_datetime_to_minutes(&format!(
+                    "{}T{}",
+                    data_referencia, hora
+                )))
+                .map(|(existing, incoming)| (incoming - existing).abs() <= 1)
+                .unwrap_or(false);
+
             if let Some(existing_id) = duplicate {
                 total_descartadas += 1;
                 (
                     "duplicada".to_string(),
                     "Marcação já existente no banco local.".to_string(),
                     Some(existing_id),
+                )
+            } else if is_too_close {
+                total_descartadas += 1;
+                (
+                    "muito_proxima".to_string(),
+                    "Marcação descartada por estar muito próxima de outra batida do mesmo funcionário.".to_string(),
+                    close_duplicate.map(|item| item.0),
                 )
             } else {
                 conn.execute(
