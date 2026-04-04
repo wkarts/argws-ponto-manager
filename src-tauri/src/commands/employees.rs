@@ -74,16 +74,17 @@ fn get_i64(payload: &Map<String, Value>, key: &str) -> Option<i64> {
 }
 
 fn csv_delimiter_for(content: &str) -> char {
-    let first_line = content
+    let header = content
         .lines()
         .find(|line| !line.trim().is_empty())
         .unwrap_or("");
-    let candidates = [';', ',', '	', '|'];
+
+    let candidates = [';', ',', '\t', '|'];
     let mut best = ';';
-    let mut best_count = -1i32;
+    let mut best_count = -1isize;
 
     for candidate in candidates {
-        let count = first_line.matches(candidate).count() as i32;
+        let count = header.matches(candidate).count() as isize;
         if count > best_count {
             best = candidate;
             best_count = count;
@@ -94,32 +95,33 @@ fn csv_delimiter_for(content: &str) -> char {
 }
 
 fn split_csv_line(line: &str, delimiter: char) -> Vec<String> {
-    let mut cols: Vec<String> = Vec::new();
+    let mut items: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut in_quotes = false;
-    let chars: Vec<char> = line.chars().collect();
-    let mut i = 0usize;
+    let mut chars = line.chars().peekable();
 
-    while i < chars.len() {
-        let ch = chars[i];
+    while let Some(ch) = chars.next() {
         if ch == '"' {
-            if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+            if in_quotes && chars.peek() == Some(&'"') {
                 current.push('"');
-                i += 1;
+                let _ = chars.next();
             } else {
                 in_quotes = !in_quotes;
             }
-        } else if ch == delimiter && !in_quotes {
-            cols.push(current.trim().to_string());
-            current.clear();
-        } else {
-            current.push(ch);
+            continue;
         }
-        i += 1;
+
+        if ch == delimiter && !in_quotes {
+            items.push(current.trim().to_string());
+            current.clear();
+            continue;
+        }
+
+        current.push(ch);
     }
 
-    cols.push(current.trim().to_string());
-    cols
+    items.push(current.trim().to_string());
+    items
 }
 
 fn only_digits(value: &str) -> String {
