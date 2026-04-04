@@ -1,3 +1,10 @@
+# [1.12.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.11.0...v1.12.0) (2026-04-04)
+
+
+### Features
+
+* **cartao-ponto:** reorganiza layout no estilo VB6 e move revisão smart para modal ([15c87b5](https://github.com/wkarts/argws-ponto-manager/commit/15c87b53b2e2f1a6e7024ea75422df2bce93b8e6))
+
 # [1.11.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.10.0...v1.11.0) (2026-04-04)
 
 
