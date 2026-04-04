@@ -9,21 +9,15 @@ import {
   deleteOcorrencia,
   listBatidas,
   listCompanies,
-  listDuplicatePunchCandidates,
   listEmployees,
   listOcorrencias,
-  listSmartSuggestions,
   registerGeneratedReport,
   saveBatida,
   saveOcorrencia,
-  applySmartSuggestions,
-  deleteBatidasBatch,
   type ApuracaoDia,
   type ApuracaoResumo,
   type ComboOption,
-  type DuplicatePunchCandidate,
-  type GenericRecord,
-  type SmartSuggestionItem
+  type GenericRecord
 } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
 import { useSessionStore } from "../stores/session";
@@ -43,16 +37,45 @@ const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
 const apuracaoResumo = ref<ApuracaoResumo | null>(null);
-const smartSuggestions = ref<SmartSuggestionItem[]>([]);
-const duplicateCandidates = ref<DuplicatePunchCandidate[]>([]);
-const selectedSuggestionIds = ref<string[]>([]);
-const selectedDuplicateIds = ref<number[]>([]);
-const smartLoading = ref(false);
-const duplicateLoading = ref(false);
-const smartBulkTipo = ref("falta");
-const smartJustificativaId = ref("");
 const reportHtml = ref("");
 const empresaResponsavel = ref("Responsável / RH");
+
+const selectedDate = ref("");
+const smartBusy = ref(false);
+const duplicateBusy = ref(false);
+const smartFaltaTipo = ref("falta");
+const smartJustificativaId = ref("");
+const smartSuggestionSelection = reactive<Record<string, boolean>>({});
+const duplicateSelection = reactive<Record<string, boolean>>({});
+
+type SmartSuggestionType = "esquecimento" | "falta" | "troca_folga" | "meia_folga";
+
+interface SmartSuggestionItem {
+  key: string;
+  date: string;
+  funcionarioId: number;
+  funcionarioNome: string;
+  tipo: SmartSuggestionType;
+  titulo: string;
+  observacao: string;
+  seguro: boolean;
+  esperadoMinutos: number;
+  trabalhadoMinutos: number;
+  batidas: string[];
+}
+
+interface DuplicatePunchCandidate {
+  key: string;
+  date: string;
+  funcionarioNome: string;
+  horarioBase: string;
+  ids: number[];
+  repeticoes: number;
+  diferencaSegundos: number;
+}
+
+const smartSuggestions = ref<SmartSuggestionItem[]>([]);
+const duplicateCandidates = ref<DuplicatePunchCandidate[]>([]);
 
 const hoje = new Date();
 const filtros = reactive({
@@ -99,14 +122,6 @@ const funcionarioIdNumero = computed<number | null>(() => {
 const funcionarioNomeSelecionado = computed(() => employeeOptions.value.find((item) => String(item.id) === filtros.funcionarioId)?.label || "Todos");
 const inconsistenciasNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => row.inconsistente).length);
 const diasComOcorrenciaNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => (row.ocorrencias || []).length > 0).length);
-
-const smartSummary = computed(() => ({
-  esquecimentos: smartSuggestions.value.filter((item) => item.kind === "esquecimento_batida").length,
-  faltas: smartSuggestions.value.filter((item) => item.kind === "falta").length,
-  folgas: smartSuggestions.value.filter((item) => item.kind === "folga_movel").length,
-  meias: smartSuggestions.value.filter((item) => item.kind === "meia_folga").length,
-}));
-
 const periodoLabel = computed(() => {
   if (filtros.modoPeriodo === "competencia") {
     return `${String(filtros.competenciaMes).padStart(2, "0")}/${filtros.competenciaAno}`;
@@ -140,6 +155,359 @@ function periodoAtual() {
   };
 }
 
+
+interface DailyGridRow extends DailyReportRow {
+  isoDate: string;
+  inconsistente: boolean;
+  ocorrenciasCount: number;
+  mensagens: string[];
+  batidasRaw: string[];
+  workedMinutes: number;
+  expectedMinutes: number;
+  saldoMinutes: number;
+}
+
+const dailyGridRows = computed<DailyGridRow[]>(() => {
+  const periodo = periodoAtual();
+  if (!periodo.dataInicial || !periodo.dataFinal) return [];
+  const initial = new Date(`${periodo.dataInicial}T00:00:00`);
+  const final = new Date(`${periodo.dataFinal}T00:00:00`);
+  if (Number.isNaN(initial.getTime()) || Number.isNaN(final.getTime()) || initial > final) return [];
+
+  const { rows } = buildDailyRows(apuracaoResumo.value, initial, final);
+  return rows.map((row, index) => {
+    const cursor = new Date(initial);
+    cursor.setDate(initial.getDate() + index);
+    const isoDate = formatDate(cursor);
+    const resumo = apuracaoResumo.value?.rows.find((item) => item.data === isoDate);
+    return {
+      ...row,
+      isoDate,
+      inconsistente: Boolean(resumo?.inconsistente),
+      ocorrenciasCount: (resumo?.ocorrencias || []).length,
+      mensagens: resumo?.mensagens || [],
+      batidasRaw: resumo?.batidas || [],
+      workedMinutes: Number(resumo?.trabalhado_minutos || 0),
+      expectedMinutes: Number(resumo?.horario_esperado_minutos || 0),
+      saldoMinutes: Number(resumo?.saldo_minutos || 0),
+    };
+  });
+});
+
+const selectedDaySummary = computed(() => dailyGridRows.value.find((item) => item.isoDate === selectedDate.value) || null);
+const batidasSelecionadas = computed(() => selectedDate.value ? batidas.value.filter((item) => String(item.data_referencia || '') === selectedDate.value) : batidas.value);
+const ocorrenciasSelecionadas = computed(() => selectedDate.value ? ocorrencias.value.filter((item) => String(item.data_referencia || '') === selectedDate.value) : ocorrencias.value);
+const selectedDayLabel = computed(() => selectedDaySummary.value ? `${selectedDaySummary.value.day} • ${selectedDaySummary.value.dayLabel}` : 'Nenhum dia selecionado');
+const smartResumo = computed(() => ({
+  esquecimentos: smartSuggestions.value.filter((item) => item.tipo === 'esquecimento').length,
+  faltas: smartSuggestions.value.filter((item) => item.tipo === 'falta').length,
+  trocasFolga: smartSuggestions.value.filter((item) => item.tipo === 'troca_folga').length,
+  meiasFolga: smartSuggestions.value.filter((item) => item.tipo === 'meia_folga').length,
+}));
+
+function suggestionBadgeClass(tipo: SmartSuggestionType) {
+  if (tipo === 'falta') return 'badge-danger';
+  if (tipo === 'troca_folga') return 'badge-info';
+  return 'badge-warning';
+}
+
+function dailyRowClass(row: DailyGridRow) {
+  if (row.isoDate === selectedDate.value) return 'vb6-selected-row';
+  if (row.inconsistente) return 'row-highlight-warning';
+  if (row.ocorrenciasCount > 0) return 'row-highlight-info';
+  return '';
+}
+
+function selectDay(date: string) {
+  selectedDate.value = date;
+}
+
+function resetSelectionMap(target: Record<string, boolean>) {
+  Object.keys(target).forEach((key) => delete target[key]);
+}
+
+function generateSmartSuggestionsFromSummary(summary: ApuracaoResumo | null, employeeId: number | null, employeeName: string): SmartSuggestionItem[] {
+  const items: SmartSuggestionItem[] = [];
+  if (!summary || !employeeId) return items;
+
+  for (const row of summary.rows || []) {
+    const batidas = row.batidas || [];
+    const mensagens = row.mensagens || [];
+    const worked = Number(row.trabalhado_minutos || 0);
+    const expected = Number(row.horario_esperado_minutos || 0);
+    const saldo = Number(row.saldo_minutos || 0);
+    const hasOccurrence = (row.ocorrencias || []).length > 0;
+
+    if (batidas.length > 0 && batidas.length % 2 === 1) {
+      items.push({
+        key: `${row.data}:esquecimento`,
+        date: row.data,
+        funcionarioId: employeeId,
+        funcionarioNome: employeeName,
+        tipo: 'esquecimento',
+        titulo: 'Possível esquecimento de batida',
+        observacao: mensagens.join(' | ') || 'Quantidade ímpar de marcações no dia.',
+        seguro: false,
+        esperadoMinutos: expected,
+        trabalhadoMinutos: worked,
+        batidas,
+      });
+    }
+
+    if (expected > 0 && worked === 0 && !hasOccurrence) {
+      items.push({
+        key: `${row.data}:falta`,
+        date: row.data,
+        funcionarioId: employeeId,
+        funcionarioNome: employeeName,
+        tipo: 'falta',
+        titulo: 'Falta sem marcação',
+        observacao: mensagens.join(' | ') || 'Jornada esperada sem batidas e sem ocorrência.',
+        seguro: true,
+        esperadoMinutos: expected,
+        trabalhadoMinutos: worked,
+        batidas,
+      });
+    }
+
+    if (expected === 0 && worked > 0) {
+      items.push({
+        key: `${row.data}:troca_folga`,
+        date: row.data,
+        funcionarioId: employeeId,
+        funcionarioNome: employeeName,
+        tipo: 'troca_folga',
+        titulo: 'Possível troca de folga',
+        observacao: mensagens.join(' | ') || 'Dia tratado como folga, mas houve marcação de trabalho.',
+        seguro: true,
+        esperadoMinutos: expected,
+        trabalhadoMinutos: worked,
+        batidas,
+      });
+    }
+
+    if (expected > 0 && worked > 0 && worked < Math.ceil(expected * 0.65) && saldo < 0 && !hasOccurrence) {
+      items.push({
+        key: `${row.data}:meia_folga`,
+        date: row.data,
+        funcionarioId: employeeId,
+        funcionarioNome: employeeName,
+        tipo: 'meia_folga',
+        titulo: 'Jornada parcial / meia folga provável',
+        observacao: mensagens.join(' | ') || 'Cumprimento parcial relevante da jornada sem ocorrência registrada.',
+        seguro: true,
+        esperadoMinutos: expected,
+        trabalhadoMinutos: worked,
+        batidas,
+      });
+    }
+  }
+
+  return items;
+}
+
+function analisarSugestoes() {
+  smartSuggestions.value = generateSmartSuggestionsFromSummary(apuracaoResumo.value, funcionarioIdNumero.value, funcionarioNomeSelecionado.value);
+  resetSelectionMap(smartSuggestionSelection);
+  for (const item of smartSuggestions.value) {
+    smartSuggestionSelection[item.key] = item.seguro;
+  }
+  if (smartSuggestions.value.length) {
+    message.value = `${smartSuggestions.value.length} sugestão(ões) smart analisadas para o período.`;
+  } else {
+    message.value = 'Nenhuma sugestão smart gerada para o período atual.';
+  }
+}
+
+async function aplicarSugestoesSelecionadas(apenasSeguras = false) {
+  const selecionadas = smartSuggestions.value.filter((item) => smartSuggestionSelection[item.key] && (!apenasSeguras || item.seguro));
+  if (!selecionadas.length) {
+    message.value = 'Nenhuma sugestão selecionada para aplicação.';
+    return;
+  }
+
+  smartBusy.value = true;
+  error.value = '';
+  message.value = '';
+  try {
+    for (const item of selecionadas) {
+      let tipo = 'ajuste_manual';
+      let observacao = `[SMART] ${item.titulo}. ${item.observacao}`;
+      let abonarDia = false;
+      let minutosAbonados = 0;
+
+      if (item.tipo === 'falta') {
+        tipo = smartFaltaTipo.value || 'falta';
+      } else if (item.tipo === 'troca_folga') {
+        tipo = 'troca_folga';
+      } else if (item.tipo === 'meia_folga') {
+        tipo = 'meia_folga';
+        minutosAbonados = Math.max(0, item.esperadoMinutos - item.trabalhadoMinutos);
+      }
+
+      await saveOcorrencia({
+        funcionario_id: item.funcionarioId,
+        data_referencia: item.date,
+        justificativa_id: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
+        tipo,
+        abonar_dia: abonarDia,
+        minutos_abonados: minutosAbonados,
+        observacao,
+      });
+    }
+
+    message.value = `${selecionadas.length} sugestão(ões) aplicadas com sucesso.`;
+    await carregarCartao();
+    analisarSugestoes();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao aplicar sugestões smart.';
+  } finally {
+    smartBusy.value = false;
+  }
+}
+
+async function tratarTodosAutomaticos() {
+  if (!employeeOptions.value.length) return;
+  smartBusy.value = true;
+  error.value = '';
+  message.value = '';
+  let totalAplicado = 0;
+
+  try {
+    const periodo = periodoAtual();
+    for (const employee of employeeOptions.value) {
+      const summary = await apurarPeriodo({
+        empresaId: session.activeCompanyId ?? null,
+        funcionarioId: Number(employee.id),
+        competenciaAno: filtros.modoPeriodo === 'competencia' ? Number(filtros.competenciaAno) : null,
+        competenciaMes: filtros.modoPeriodo === 'competencia' ? Number(filtros.competenciaMes) : null,
+        dataInicial: filtros.modoPeriodo === 'competencia' ? null : periodo.dataInicial,
+        dataFinal: filtros.modoPeriodo === 'competencia' ? null : periodo.dataFinal,
+      });
+      const suggestions = generateSmartSuggestionsFromSummary(summary, Number(employee.id), employee.label).filter((item) => item.seguro);
+      for (const item of suggestions) {
+        await saveOcorrencia({
+          funcionario_id: item.funcionarioId,
+          data_referencia: item.date,
+          justificativa_id: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
+          tipo: item.tipo === 'falta' ? (smartFaltaTipo.value || 'falta') : item.tipo,
+          abonar_dia: false,
+          minutos_abonados: item.tipo === 'meia_folga' ? Math.max(0, item.esperadoMinutos - item.trabalhadoMinutos) : 0,
+          observacao: `[SMART LOTE] ${item.titulo}. ${item.observacao}`,
+        });
+        totalAplicado += 1;
+      }
+    }
+
+    message.value = totalAplicado > 0
+      ? `${totalAplicado} sugestão(ões) automáticas aplicadas no lote da visão atual.`
+      : 'Nenhuma sugestão automática segura encontrada para aplicação em lote.';
+    await carregarCartao();
+    analisarSugestoes();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao tratar automaticamente todos os colaboradores.';
+  } finally {
+    smartBusy.value = false;
+  }
+}
+
+function localizarDuplicidades() {
+  const grouped: DuplicatePunchCandidate[] = [];
+  const rows = [...batidas.value]
+    .map((item) => ({
+      id: Number(item.id || 0),
+      funcionarioNome: String(item.funcionario_nome || '-'),
+      date: String(item.data_referencia || ''),
+      hora: String(item.hora || ''),
+    }))
+    .filter((item) => item.id > 0 && item.date && item.hora)
+    .sort((a, b) => `${a.date} ${a.hora}`.localeCompare(`${b.date} ${b.hora}`));
+
+  const byDay: Record<string, typeof rows> = {};
+  for (const row of rows) {
+    const key = `${row.funcionarioNome}::${row.date}`;
+    (byDay[key] ||= []).push(row);
+  }
+
+  for (const [groupKey, items] of Object.entries(byDay)) {
+    let current: typeof items = [];
+    for (const item of items) {
+      const currMinutes = parseTimeToMinutes(item.hora);
+      const lastMinutes = current.length ? parseTimeToMinutes(current[current.length - 1].hora) : null;
+      if (current.length === 0 || currMinutes == null || lastMinutes == null || (currMinutes - lastMinutes) > 1) {
+        if (current.length > 1) {
+          const [funcionarioNome, date] = groupKey.split('::');
+          grouped.push({
+            key: `${groupKey}:${current[0].hora}`,
+            date,
+            funcionarioNome,
+            horarioBase: current[0].hora,
+            ids: current.map((entry) => entry.id),
+            repeticoes: current.length,
+            diferencaSegundos: Math.max(0, (parseTimeToMinutes(current[current.length - 1].hora) || 0) - (parseTimeToMinutes(current[0].hora) || 0)) * 60,
+          });
+        }
+        current = [item];
+      } else {
+        current.push(item);
+      }
+    }
+    if (current.length > 1) {
+      const [funcionarioNome, date] = groupKey.split('::');
+      grouped.push({
+        key: `${groupKey}:${current[0].hora}`,
+        date,
+        funcionarioNome,
+        horarioBase: current[0].hora,
+        ids: current.map((entry) => entry.id),
+        repeticoes: current.length,
+        diferencaSegundos: Math.max(0, (parseTimeToMinutes(current[current.length - 1].hora) || 0) - (parseTimeToMinutes(current[0].hora) || 0)) * 60,
+      });
+    }
+  }
+
+  duplicateCandidates.value = grouped;
+  resetSelectionMap(duplicateSelection);
+  for (const item of grouped) {
+    duplicateSelection[item.key] = true;
+  }
+  message.value = grouped.length ? `${grouped.length} agrupamento(s) de batidas muito próximas localizado(s).` : 'Nenhuma batida duplicada ou muito próxima foi localizada no filtro atual.';
+}
+
+async function excluirDuplicidadesSelecionadas() {
+  const ids = duplicateCandidates.value
+    .filter((item) => duplicateSelection[item.key])
+    .flatMap((item) => item.ids.slice(1));
+  if (!ids.length) {
+    message.value = 'Nenhuma duplicidade selecionada para exclusão.';
+    return;
+  }
+  if (!confirm(`Excluir ${ids.length} batida(s) duplicada(s)/muito próxima(s)?`)) return;
+
+  duplicateBusy.value = true;
+  error.value = '';
+  message.value = '';
+  try {
+    for (const id of ids) {
+      await deleteBatida(id);
+    }
+    message.value = `${ids.length} batida(s) removida(s) com sucesso.`;
+    await carregarCartao();
+    localizarDuplicidades();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao excluir batidas duplicadas.';
+  } finally {
+    duplicateBusy.value = false;
+  }
+}
+
+function batidasDia(date: string) {
+  return batidas.value.filter((item) => String(item.data_referencia || '') === date);
+}
+
+function ocorrenciasDia(date: string) {
+  return ocorrencias.value.filter((item) => String(item.data_referencia || '') === date);
+}
 function rowBadgeClass(row: GenericRecord) {
   const date = String(row.data_referencia || "");
   const resumo = apuracaoResumo.value?.rows.find((item) => item.data === date);
@@ -251,7 +619,10 @@ async function carregarCartao() {
     ocorrencias.value = rowsOcorrencia;
     apuracaoResumo.value = apuracao;
     reportHtml.value = buildCartaoHtml();
-    await carregarDuplicidades();
+    const availableDates = apuracao.rows.map((item) => item.data);
+    if (!selectedDate.value || !availableDates.includes(selectedDate.value)) {
+      selectedDate.value = availableDates[0] || filtros.dataInicial;
+    }
   } catch (err) {
     batidas.value = [];
     ocorrencias.value = [];
@@ -674,7 +1045,6 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
 async function exportarHtml() {
   try {
     reportHtml.value = buildCartaoHtml();
-    await carregarDuplicidades();
     const periodo = periodoAtual();
     const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.html`;
     await saveWithDialog(reportHtml.value, fileName, "text/html");
@@ -702,7 +1072,6 @@ async function exportarHtml() {
 async function exportarExcel() {
   try {
     reportHtml.value = buildCartaoHtml();
-    await carregarDuplicidades();
     const periodo = periodoAtual();
     const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.xls`;
     await saveWithDialog(reportHtml.value, fileName, "application/vnd.ms-excel");
@@ -880,142 +1249,6 @@ async function removerOcorrencia(row: GenericRecord) {
   }
 }
 
-
-function buildSmartPayload(extra: Record<string, unknown> = {}) {
-  syncPeriodFilters();
-  return {
-    empresaId: session.activeCompanyId ?? null,
-    funcionarioId: funcionarioIdNumero.value,
-    competenciaAno: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaAno) : null,
-    competenciaMes: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaMes) : null,
-    dataInicial: filtros.modoPeriodo === "competencia" ? null : (filtros.dataInicial || null),
-    dataFinal: filtros.modoPeriodo === "competencia" ? null : (filtros.dataFinal || null),
-    ...extra,
-  };
-}
-
-function formatSuggestionKind(kind: string) {
-  const map: Record<string, string> = {
-    esquecimento_batida: "Esquecimento de batida",
-    falta: "Falta sem marcação",
-    folga_movel: "Troca de folga",
-    meia_folga: "Meia folga / jornada parcial",
-  };
-  return map[kind] || kind;
-}
-
-function toggleSuggestion(id: string) {
-  selectedSuggestionIds.value = selectedSuggestionIds.value.includes(id)
-    ? selectedSuggestionIds.value.filter((item) => item !== id)
-    : [...selectedSuggestionIds.value, id];
-}
-
-function toggleDuplicateGroup(ids: number[]) {
-  const current = new Set(selectedDuplicateIds.value);
-  const allSelected = ids.every((id) => current.has(id));
-  ids.forEach((id) => {
-    if (allSelected) current.delete(id);
-    else current.add(id);
-  });
-  selectedDuplicateIds.value = [...current];
-}
-
-function suggestionBadgeClass(kind: string) {
-  if (kind === "esquecimento_batida" || kind === "falta") return "badge-danger";
-  if (kind === "folga_movel") return "badge-warning";
-  return "badge-info";
-}
-
-async function analisarSugestoes() {
-  smartLoading.value = true;
-  error.value = "";
-  try {
-    smartSuggestions.value = await listSmartSuggestions(buildSmartPayload());
-    selectedSuggestionIds.value = smartSuggestions.value.filter((item) => item.auto_apply).map((item) => item.suggestion_id);
-    message.value = `Motor smart avaliou ${smartSuggestions.value.length} sugestão(ões) para o período.`;
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao gerar sugestões smart.";
-  } finally {
-    smartLoading.value = false;
-  }
-}
-
-async function aplicarSugestoesSelecionadas() {
-  smartLoading.value = true;
-  error.value = "";
-  try {
-    const response = await applySmartSuggestions(buildSmartPayload({
-      bulkMode: "selected",
-      selectedSuggestionIds: selectedSuggestionIds.value,
-      replacementTipo: smartBulkTipo.value,
-      replacementJustificativaId: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
-    }));
-    message.value = `Tratamento smart concluiu ${response.total_aplicadas} aplicação(ões) e ignorou ${response.total_ignoradas}.`;
-    await carregarCartao();
-    await analisarSugestoes();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao aplicar sugestões smart.";
-  } finally {
-    smartLoading.value = false;
-  }
-}
-
-async function aplicarSugestoesAutomaticas() {
-  smartLoading.value = true;
-  error.value = "";
-  try {
-    const response = await applySmartSuggestions(buildSmartPayload({
-      bulkMode: "all",
-      replacementTipo: smartBulkTipo.value,
-      replacementJustificativaId: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
-    }));
-    message.value = `Processamento em lote aplicou ${response.total_aplicadas} ocorrência(s) smart.`;
-    await carregarCartao();
-    await analisarSugestoes();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao aplicar processamento em lote.";
-  } finally {
-    smartLoading.value = false;
-  }
-}
-
-async function carregarDuplicidades() {
-  duplicateLoading.value = true;
-  try {
-    duplicateCandidates.value = await listDuplicatePunchCandidates({
-      empresaId: session.activeCompanyId ?? null,
-      funcionarioId: funcionarioIdNumero.value,
-      dataInicial: filtros.dataInicial || null,
-      dataFinal: filtros.dataFinal || null,
-    });
-    selectedDuplicateIds.value = duplicateCandidates.value.flatMap((item) => item.batida_ids.slice(1));
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao localizar duplicidades de batidas.";
-  } finally {
-    duplicateLoading.value = false;
-  }
-}
-
-async function excluirDuplicidadesSelecionadas() {
-  if (!selectedDuplicateIds.value.length) {
-    error.value = "Selecione pelo menos uma batida duplicada para exclusão assistida.";
-    return;
-  }
-  if (!confirm(`Excluir ${selectedDuplicateIds.value.length} batida(s) selecionada(s)?`)) return;
-  duplicateLoading.value = true;
-  try {
-    const deleted = await deleteBatidasBatch(selectedDuplicateIds.value);
-    message.value = `${deleted} batida(s) duplicada(s) removida(s) com sucesso.`;
-    await carregarCartao();
-    await carregarDuplicidades();
-    await analisarSugestoes();
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : "Falha ao excluir batidas duplicadas.";
-  } finally {
-    duplicateLoading.value = false;
-  }
-}
-
 watch(() => session.activeCompanyId, async () => {
   await carregarBase();
   await carregarCartao();
@@ -1032,6 +1265,16 @@ watch(() => [filtros.modoPeriodo, filtros.competenciaMes, filtros.competenciaAno
   }
 });
 
+watch(dailyGridRows, (rows) => {
+  if (!rows.length) {
+    selectedDate.value = filtros.dataInicial;
+    return;
+  }
+  if (!rows.some((item) => item.isoDate === selectedDate.value)) {
+    selectedDate.value = rows[0].isoDate;
+  }
+}, { immediate: true });
+
 onMounted(async () => {
   await carregarBase();
   await carregarCartao();
@@ -1039,13 +1282,13 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
+  <div class="grid page-gap cartao-vb6-page">
+    <div class="toolbar cartao-vb6-toolbar">
       <div>
         <h2>Cartão de ponto</h2>
-        <div class="muted-text">Visão operacional unificada para consultar, ajustar marcações e tratar ocorrências do colaborador.</div>
+        <div class="muted-text">Visão centralizada no estilo operacional: dias do período expostos em grade, ações rápidas e tratamento na própria tela.</div>
       </div>
-      <div class="actions">
+      <div class="actions compact-toolbar">
         <button class="secondary" :disabled="loading" @click="carregarCartao">{{ loading ? 'Atualizando...' : 'Atualizar' }}</button>
         <button class="secondary" @click="exportarHtml">Exportar HTML</button>
         <button class="secondary" @click="exportarExcel">Exportar Excel</button>
@@ -1057,8 +1300,8 @@ onMounted(async () => {
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="message" class="alert success">{{ message }}</div>
 
-    <div class="card grid page-gap">
-      <div class="filter-grid">
+    <div class="card card-tight cartao-filter-card">
+      <div class="filter-grid compact cartao-filter-grid">
         <div class="field">
           <label>Funcionário</label>
           <select v-model="filtros.funcionarioId">
@@ -1105,201 +1348,257 @@ onMounted(async () => {
         </div>
       </div>
       <div class="inline-info-strip">
-        <span><strong>Visão atual:</strong> {{ periodoLabel }}</span>
+        <span><strong>Visão:</strong> {{ periodoLabel }}</span>
+        <span><strong>Colaborador:</strong> {{ funcionarioNomeSelecionado }}</span>
         <span><strong>Dias inconsistentes:</strong> {{ inconsistenciasNoPeriodo }}</span>
         <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
+        <span><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
       </div>
     </div>
 
-    <div class="actions">
-      <button class="secondary" @click="openNovaBatida()">Nova marcação</button>
-      <button class="secondary" @click="openNovaOcorrencia()">Nova ocorrência</button>
-    </div>
+    <div class="cartao-vb6-shell">
+      <div class="card cartao-vb6-grid-panel table-wrap">
+        <div class="vb6-group-header">
+          <h3>Grade diária do cartão</h3>
+          <div class="actions compact-actions">
+            <button class="secondary" @click="openNovaBatida(selectedDate)">Nova marcação</button>
+            <button class="secondary" @click="openNovaOcorrencia(selectedDate)">Nova ocorrência</button>
+          </div>
+        </div>
+        <table class="quick-table table-compact vb6-main-grid">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Entrada 1</th>
+              <th>Saída 1</th>
+              <th>Entrada 2</th>
+              <th>Saída 2</th>
+              <th>Entrada 3</th>
+              <th>Saída 3</th>
+              <th>Comp.</th>
+              <th>Folga</th>
+              <th>Obs.</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in dailyGridRows" :key="row.isoDate" :class="dailyRowClass(row)" @click="selectDay(row.isoDate)">
+              <td class="date-cell"><strong>{{ row.day }}</strong> - {{ row.dayLabel }}</td>
+              <td>{{ row.ent1 }}</td>
+              <td>{{ row.sai1 }}</td>
+              <td>{{ row.ent2 }}</td>
+              <td>{{ row.sai2 }}</td>
+              <td>{{ row.ent3 }}</td>
+              <td>{{ row.sai3 }}</td>
+              <td>{{ row.expectedMinutes > 0 ? 'x' : '' }}</td>
+              <td>{{ row.expectedMinutes === 0 ? 'x' : '' }}</td>
+              <td class="obs-cell">{{ row.mensagens[0] || (row.ocorrenciasCount > 0 ? `${row.ocorrenciasCount} ocorrência(s)` : (row.inconsistente ? 'Revisar' : '-')) }}</td>
+              <td>
+                <div class="actions compact-actions">
+                  <button class="secondary" @click.stop="openNovaBatida(row.isoDate)">+ Batida</button>
+                  <button class="secondary" @click.stop="openNovaOcorrencia(row.isoDate)">+ Ocor.</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!dailyGridRows.length">
+              <td colspan="11" class="empty-cell">Nenhum dia disponível para o período informado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-
-    <div class="split-panel card-tight">
-      <div class="card sticky-card">
-        <div class="toolbar compact-toolbar">
-          <div>
-            <h3 style="margin: 0;">Motor smart</h3>
-            <div class="muted-text">Sugestões automáticas para esquecimento, falta, folga móvel e meia folga.</div>
+      <div class="cartao-vb6-side">
+        <div class="card card-tight vb6-group sticky-card">
+          <div class="vb6-group-header">
+            <h3>Motor smart</h3>
+            <div class="actions compact-actions">
+              <button class="secondary" :disabled="smartBusy" @click="analisarSugestoes">Analisar sugestões</button>
+              <button class="primary" :disabled="smartBusy" @click="tratarTodosAutomaticos">Tratar todos automáticos</button>
+            </div>
+          </div>
+          <div class="smart-summary-grid">
+            <div><strong>Esquecimentos</strong><span>{{ smartResumo.esquecimentos }}</span></div>
+            <div><strong>Faltas</strong><span>{{ smartResumo.faltas }}</span></div>
+            <div><strong>Folgas móveis</strong><span>{{ smartResumo.trocasFolga }}</span></div>
+            <div><strong>Meia folga</strong><span>{{ smartResumo.meiasFolga }}</span></div>
+          </div>
+          <div class="filter-grid compact">
+            <div class="field">
+              <label>Tipo padrão para faltas</label>
+              <select v-model="smartFaltaTipo">
+                <option value="falta">Falta</option>
+                <option value="falta_justificada">Falta justificada</option>
+                <option value="atestado">Atestado</option>
+                <option value="abono">Abono</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Justificativa padrão</label>
+              <select v-model="smartJustificativaId">
+                <option value="">Sem justificativa</option>
+                <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+              </select>
+            </div>
           </div>
           <div class="actions compact-actions">
-            <button class="secondary" :disabled="smartLoading" @click="analisarSugestoes">{{ smartLoading ? 'Analisando...' : 'Analisar sugestões' }}</button>
-            <button class="primary" :disabled="smartLoading || !smartSuggestions.length" @click="aplicarSugestoesAutomaticas">Tratar todos automáticos</button>
+            <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(false)">Aplicar selecionadas</button>
+            <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(true)">Aplicar seguras</button>
+          </div>
+          <div class="compact-table-wrap">
+            <table class="quick-table table-compact">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Data</th>
+                  <th>Tipo</th>
+                  <th>Batidas</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in smartSuggestions" :key="item.key" @click="selectDay(item.date)">
+                  <td><input v-model="smartSuggestionSelection[item.key]" type="checkbox" /></td>
+                  <td>{{ item.date }}</td>
+                  <td><span class="badge" :class="suggestionBadgeClass(item.tipo)">{{ item.titulo }}</span></td>
+                  <td>{{ item.batidas.join(' | ') || '-' }}</td>
+                  <td>{{ item.observacao }}</td>
+                </tr>
+                <tr v-if="!smartSuggestions.length">
+                  <td colspan="5" class="empty-cell">Nenhuma sugestão smart gerada para o período atual.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-        <div class="inline-info-strip compact-inline-grid">
-          <span><strong>Esquecimentos:</strong> {{ smartSummary.esquecimentos }}</span>
-          <span><strong>Faltas:</strong> {{ smartSummary.faltas }}</span>
-          <span><strong>Folgas móveis:</strong> {{ smartSummary.folgas }}</span>
-          <span><strong>Meia folga:</strong> {{ smartSummary.meias }}</span>
-        </div>
-        <div class="filter-grid compact">
-          <div class="field">
-            <label>Tipo para aplicação em faltas</label>
-            <select v-model="smartBulkTipo">
-              <option value="falta">Falta</option>
-              <option value="falta_justificada">Falta justificada</option>
-              <option value="atestado">Atestado</option>
-              <option value="abono">Abono</option>
-            </select>
+
+        <div class="card card-tight vb6-group">
+          <div class="vb6-group-header">
+            <h3>Exclusão assistida de batidas</h3>
+            <div class="actions compact-actions">
+              <button class="secondary" :disabled="duplicateBusy" @click="localizarDuplicidades">Localizar duplicadas</button>
+              <button class="danger" :disabled="duplicateBusy" @click="excluirDuplicidadesSelecionadas">Excluir selecionadas</button>
+            </div>
           </div>
-          <div class="field">
-            <label>Justificativa padrão</label>
-            <select v-model="smartJustificativaId">
-              <option value="">Sem justificativa</option>
-              <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
+          <div class="compact-table-wrap">
+            <table class="quick-table table-compact">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Data</th>
+                  <th>Funcionário</th>
+                  <th>Hora</th>
+                  <th>Rep.</th>
+                  <th>IDs</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in duplicateCandidates" :key="item.key" @click="selectDay(item.date)">
+                  <td><input v-model="duplicateSelection[item.key]" type="checkbox" /></td>
+                  <td>{{ item.date }}</td>
+                  <td>{{ item.funcionarioNome }}</td>
+                  <td>{{ item.horarioBase }}</td>
+                  <td>{{ item.repeticoes }}</td>
+                  <td>{{ item.ids.join(', ') }}</td>
+                </tr>
+                <tr v-if="!duplicateCandidates.length">
+                  <td colspan="6" class="empty-cell">Nenhuma duplicidade exata ou muito próxima localizada para o filtro atual.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="actions align-end">
-            <button class="secondary" :disabled="smartLoading || !selectedSuggestionIds.length" @click="aplicarSugestoesSelecionadas">Aplicar selecionadas</button>
-          </div>
-        </div>
-        <div class="table-wrap compact-table-wrap">
-          <table class="table-compact">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Data</th>
-                <th>Funcionário</th>
-                <th>Tipo</th>
-                <th>Batidas</th>
-                <th>Saldo</th>
-                <th>Observações</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in smartSuggestions" :key="item.suggestion_id">
-                <td><input :checked="selectedSuggestionIds.includes(item.suggestion_id)" type="checkbox" @change="toggleSuggestion(item.suggestion_id)" /></td>
-                <td>{{ item.data }}</td>
-                <td>{{ item.funcionario_nome }}</td>
-                <td><span class="status-pill" :class="suggestionBadgeClass(item.kind)">{{ formatSuggestionKind(item.kind) }}</span></td>
-                <td>{{ item.observed_punches.join(' | ') || '-' }}</td>
-                <td>{{ item.saldo_minutes }}</td>
-                <td>{{ item.messages.join(' | ') }}</td>
-              </tr>
-              <tr v-if="!smartSuggestions.length">
-                <td colspan="7" class="empty-cell">Nenhuma sugestão smart gerada para o período atual.</td>
-              </tr>
-            </tbody>
-          </table>
         </div>
       </div>
+    </div>
 
-      <div class="card sticky-card">
-        <div class="toolbar compact-toolbar">
-          <div>
-            <h3 style="margin: 0;">Exclusão assistida de batidas</h3>
-            <div class="muted-text">Localiza horários repetidos no mesmo funcionário/data/hora e prepara exclusão em lote.</div>
-          </div>
+    <div class="grid columns-2 mobile-columns-1 cartao-bottom-grid">
+      <div class="card table-wrap card-tight">
+        <div class="vb6-group-header">
+          <h3>Marcações do dia selecionado</h3>
           <div class="actions compact-actions">
-            <button class="secondary" :disabled="duplicateLoading" @click="carregarDuplicidades">{{ duplicateLoading ? 'Buscando...' : 'Localizar duplicadas' }}</button>
-            <button class="danger" :disabled="duplicateLoading || !selectedDuplicateIds.length" @click="excluirDuplicidadesSelecionadas">Excluir selecionadas</button>
+            <button class="secondary" @click="openNovaBatida(selectedDate)">Nova marcação</button>
           </div>
         </div>
-        <div class="table-wrap compact-table-wrap">
-          <table class="table-compact">
-            <thead>
-              <tr>
-                <th></th>
-                <th>Data</th>
-                <th>Funcionário</th>
-                <th>Hora</th>
-                <th>Repetições</th>
-                <th>IDs</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in duplicateCandidates" :key="item.bucket_id">
-                <td><input :checked="item.batida_ids.slice(1).every((id) => selectedDuplicateIds.includes(id))" type="checkbox" @change="toggleDuplicateGroup(item.batida_ids.slice(1))" /></td>
-                <td>{{ item.data_referencia }}</td>
-                <td>{{ item.funcionario_nome }}</td>
-                <td>{{ item.hora }}</td>
-                <td>{{ item.total_repeticoes }}</td>
-                <td>{{ item.batida_ids.join(', ') }}</td>
-              </tr>
-              <tr v-if="!duplicateCandidates.length">
-                <td colspan="6" class="empty-cell">Nenhuma duplicidade exata localizada para o filtro atual.</td>
-              </tr>
-            </tbody>
-          </table>
+        <table class="quick-table table-compact">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Hora</th>
+              <th>Tipo</th>
+              <th>Origem</th>
+              <th>Justificativa</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in batidasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
+              <td>{{ row.data_referencia }}</td>
+              <td>{{ row.hora }}</td>
+              <td>{{ row.tipo }}</td>
+              <td>{{ row.origem || '-' }}</td>
+              <td>{{ row.justificativa_nome || '-' }}</td>
+              <td>
+                <div class="actions compact-actions">
+                  <button class="secondary" @click="editarBatida(row)">Editar</button>
+                  <button class="secondary" @click="moverBatida(row, -1)">-1m</button>
+                  <button class="secondary" @click="moverBatida(row, 1)">+1m</button>
+                  <button class="danger" @click="removerBatida(row)">Remover</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!batidasSelecionadas.length">
+              <td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o dia selecionado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card table-wrap card-tight">
+        <div class="vb6-group-header">
+          <h3>Ocorrências do dia selecionado</h3>
+          <div class="actions compact-actions">
+            <button class="secondary" @click="openNovaOcorrencia(selectedDate)">Nova ocorrência</button>
+          </div>
         </div>
+        <table class="quick-table table-compact">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Justificativa</th>
+              <th>Abono</th>
+              <th>Observação</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in ocorrenciasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
+              <td>{{ row.data_referencia }}</td>
+              <td>{{ row.tipo }}</td>
+              <td>{{ row.justificativa_nome || '-' }}</td>
+              <td>{{ Number(row.minutos_abonados || 0) > 0 ? row.minutos_abonados : (Number(row.abonar_dia) === 1 ? 'Dia abonado' : '-') }}</td>
+              <td>{{ row.observacao || '-' }}</td>
+              <td>
+                <div class="actions compact-actions">
+                  <button class="secondary" @click="editarOcorrencia(row)">Editar</button>
+                  <button class="danger" @click="removerOcorrencia(row)">Remover</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!ocorrenciasSelecionadas.length">
+              <td colspan="6" class="empty-cell">Nenhuma ocorrência encontrada para o dia selecionado.</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
-
-    <div class="card table-wrap">
-      <h3 style="margin-top: 0;">Marcações do cartão</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Hora</th>
-            <th>Tipo</th>
-            <th>Origem</th>
-            <th>Justificativa</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in batidas" :key="String(row.id)" :class="rowBadgeClass(row)">
-            <td>{{ row.data_referencia }}</td>
-            <td>{{ row.hora }}</td>
-            <td>{{ row.tipo }}</td>
-            <td>{{ row.origem || '-' }}</td>
-            <td>{{ row.justificativa_nome || '-' }}</td>
-            <td>
-              <div class="actions compact-actions">
-                <button class="secondary" @click="editarBatida(row)">Editar</button>
-                <button class="secondary" @click="addBatidaFromGrid(String(row.data_referencia || ''))">+ Batida</button>
-                <button class="secondary" @click="moverBatida(row, -1)">↑</button>
-                <button class="secondary" @click="moverBatida(row, 1)">↓</button>
-                <button class="danger" @click="removerBatida(row)">Remover</button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!batidas.length">
-            <td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o período.</td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="card table-wrap card-tight">
+      <div class="vb6-group-header">
+        <h3>Pré-visualização do relatório</h3>
+        <div class="muted-text">Mantida a prévia do cartão para conferência e emissão final.</div>
+      </div>
+      <iframe class="report-frame" :srcdoc="reportHtml"></iframe>
     </div>
-
-    <div class="card table-wrap">
-      <h3 style="margin-top: 0;">Ocorrências do cartão</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Data</th>
-            <th>Tipo</th>
-            <th>Justificativa</th>
-            <th>Abono</th>
-            <th>Observação</th>
-            <th>Ação</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in ocorrencias" :key="String(row.id)" :class="rowBadgeClass(row)">
-            <td>{{ row.data_referencia }}</td>
-            <td>{{ row.tipo }}</td>
-            <td>{{ row.justificativa_nome || '-' }}</td>
-            <td>{{ Number(row.minutos_abonados || 0) > 0 ? row.minutos_abonados : (Number(row.abonar_dia) === 1 ? 'Dia abonado' : '-') }}</td>
-            <td>{{ row.observacao || '-' }}</td>
-            <td>
-              <div class="actions compact-actions">
-                <button class="secondary" @click="editarOcorrencia(row)">Editar</button>
-                <button class="danger" @click="removerOcorrencia(row)">Remover</button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!ocorrencias.length">
-            <td colspan="6" class="empty-cell">Nenhuma ocorrência encontrada para o período.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
     <AppModal
       :open="batidaModalOpen"
       :title="batidaForm.id ? 'Editar marcação' : 'Nova marcação'"
@@ -1389,6 +1688,5 @@ onMounted(async () => {
       </div>
     </AppModal>
 
-    <iframe v-if="reportHtml" class="report-frame" :src="`data:text/html;charset=utf-8,${encodeURIComponent(reportHtml)}`" title="Prévia cartão de ponto" />
   </div>
 </template>
