@@ -416,35 +416,6 @@ pub fn employee_save(
         }
     }
 
-    let ferias_inicio = get_string(&payload, "ferias_inicio");
-    if let Some(value) = ferias_inicio.as_deref() {
-        if !validate_iso_date(value) {
-            return Err(
-                "Data inicial de férias inválida. Utilize o formato YYYY-MM-DD.".to_string(),
-            );
-        }
-    }
-
-    let ferias_fim = get_string(&payload, "ferias_fim");
-    if let Some(value) = ferias_fim.as_deref() {
-        if !validate_iso_date(value) {
-            return Err("Data final de férias inválida. Utilize o formato YYYY-MM-DD.".to_string());
-        }
-    }
-
-    if let (Some(inicio), Some(fim)) = (ferias_inicio.as_deref(), ferias_fim.as_deref()) {
-        if fim < inicio {
-            return Err("Data final de férias não pode ser menor que a data inicial.".to_string());
-        }
-    }
-
-    let ferias_dias = get_i64(&payload, "ferias_dias");
-    if let Some(value) = ferias_dias {
-        if value < 0 {
-            return Err("Quantidade de dias de férias não pode ser negativa.".to_string());
-        }
-    }
-
     let email = get_string(&payload, "email");
     if let Some(value) = email.as_deref() {
         if !validate_email(value) {
