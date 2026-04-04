@@ -39,3 +39,18 @@ Este documento deve ser disponibilizado apenas para equipe técnica e responsáv
 - Reverter commit da alteração problemática.
 - Restaurar base local a partir de backup consistente (se necessário).
 - Reexecutar validações de login, cadastros, apuração e relatórios.
+
+## CI semântico e gatilho de release
+- O workflow de PR valida o título com Conventional Commits (`feat|fix|docs|chore|...`), no formato:
+  - `tipo(escopo): descrição`
+  - Exemplo: `fix(ponto): corrige exclusão de batidas duplicadas`
+- Para o fluxo de release automático, o branch alvo do merge deve ser `main` e a mensagem de commit precisa seguir convenção semântica:
+  - `fix` libera patch
+  - `feat` libera minor
+  - `feat!` ou `BREAKING CHANGE` libera major
+- Convenção recomendada para nome de branch (boa prática operacional): `tipo/escopo-descricao-curta`.
+- PRs devem incluir:
+  1. motivação,
+  2. descrição técnica,
+  3. evidências de validação (comandos executados),
+  4. plano de rollback.
