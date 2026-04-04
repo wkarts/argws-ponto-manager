@@ -77,6 +77,10 @@ interface DuplicatePunchCandidate {
 
 const smartSuggestions = ref<SmartSuggestionItem[]>([]);
 const duplicateCandidates = ref<DuplicatePunchCandidate[]>([]);
+const gridEditor = reactive<Record<string, string>>({});
+const gridSaving = reactive<Record<string, boolean>>({});
+const gridCellRefs = ref<Record<string, HTMLInputElement | null>>({});
+const gridStatus = ref('Pronto para edição inline. Use Enter, setas e Del para operar a grade.');
 
 const hoje = new Date();
 const filtros = reactive({
@@ -168,6 +172,32 @@ interface DailyGridRow extends DailyReportRow {
   saldoMinutes: number;
 }
 
+interface GridBatidaSlot {
+  key: string;
+  date: string;
+  slotIndex: number;
+  value: string;
+  record: GenericRecord | null;
+  tipo: string;
+}
+
+function normalizeHourInput(value: string): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const only = raw.replace(/[^\d]/g, '');
+  if (only.length === 3) {
+    return `${only.slice(0, 1).padStart(2, '0')}:${only.slice(1, 3)}`;
+  }
+  if (only.length >= 4) {
+    return `${only.slice(0, 2)}:${only.slice(2, 4)}`;
+  }
+  return raw;
+}
+
+function isValidHourInput(value: string): boolean {
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
+}
+
 const dailyGridRows = computed<DailyGridRow[]>(() => {
   const periodo = periodoAtual();
   if (!periodo.dataInicial || !periodo.dataFinal) return [];
@@ -193,6 +223,33 @@ const dailyGridRows = computed<DailyGridRow[]>(() => {
       saldoMinutes: Number(resumo?.saldo_minutos || 0),
     };
   });
+});
+
+const gridSlotsByDate = computed<Record<string, GridBatidaSlot[]>>(() => {
+  const employeeId = funcionarioIdNumero.value;
+  const map: Record<string, GridBatidaSlot[]> = {};
+  for (const row of dailyGridRows.value) {
+    const dayBatidas = batidas.value
+      .filter((item) => String(item.data_referencia || '') === row.isoDate && (!employeeId || Number(item.funcionario_id) === employeeId))
+      .sort((a, b) => String(a.hora || '').localeCompare(String(b.hora || '')) || Number(a.id || 0) - Number(b.id || 0));
+    const slots: GridBatidaSlot[] = [];
+    for (let i = 0; i < 6; i += 1) {
+      const record = dayBatidas[i] || null;
+      const key = `${row.isoDate}:${i}`;
+      const defaultValue = record ? String(record.hora || '').slice(0, 5) : '';
+      if (gridEditor[key] == null) gridEditor[key] = defaultValue;
+      slots.push({
+        key,
+        date: row.isoDate,
+        slotIndex: i,
+        value: gridEditor[key] ?? defaultValue,
+        record,
+        tipo: i % 2 === 0 ? 'entrada' : 'saida',
+      });
+    }
+    map[row.isoDate] = slots;
+  }
+  return map;
 });
 
 const selectedDaySummary = computed(() => dailyGridRows.value.find((item) => item.isoDate === selectedDate.value) || null);
@@ -521,6 +578,134 @@ function batidasDia(date: string) {
 function ocorrenciasDia(date: string) {
   return ocorrencias.value.filter((item) => String(item.data_referencia || '') === date);
 }
+
+function getGridSlot(date: string, slotIndex: number): GridBatidaSlot | undefined {
+  return gridSlotsByDate.value[date]?.[slotIndex];
+}
+
+function setGridCellRef(key: string, el: unknown) {
+  gridCellRefs.value[key] = (el as HTMLInputElement | null) || null;
+}
+
+function focusGridCell(date: string, slotIndex: number) {
+  const target = gridCellRefs.value[`${date}:${slotIndex}`];
+  if (target) {
+    target.focus();
+    target.select();
+  }
+}
+
+async function commitGridCell(date: string, slotIndex: number) {
+  const slot = getGridSlot(date, slotIndex);
+  if (!slot) return;
+  const key = slot.key;
+  const input = normalizeHourInput(gridEditor[key] || '');
+  const previous = slot.record ? String(slot.record.hora || '').slice(0, 5) : '';
+
+  if (!input) {
+    if (slot.record?.id) {
+      await deleteBatida(Number(slot.record.id));
+      gridStatus.value = `Batida removida em ${date} (${slot.tipo}).`;
+      await carregarCartao();
+    }
+    gridEditor[key] = '';
+    return;
+  }
+
+  if (!isValidHourInput(input)) {
+    error.value = 'Informe a hora no formato HH:MM.';
+    gridEditor[key] = previous;
+    return;
+  }
+
+  if (input === previous) {
+    gridEditor[key] = input;
+    return;
+  }
+
+  if (!funcionarioIdNumero.value) {
+    error.value = 'Selecione um funcionário para editar a grade inline.';
+    gridEditor[key] = previous;
+    return;
+  }
+
+  gridSaving[key] = true;
+  try {
+    await saveBatida({
+      id: slot.record?.id,
+      funcionario_id: Number(slot.record?.funcionario_id || funcionarioIdNumero.value),
+      data_referencia: date,
+      hora: input,
+      tipo: slot.record?.tipo || slot.tipo,
+      equipamento_id: slot.record?.equipamento_id ? Number(slot.record.equipamento_id) : null,
+      justificativa_id: slot.record?.justificativa_id ? Number(slot.record.justificativa_id) : null,
+      observacao: slot.record?.observacao || 'Edição inline no cartão de ponto',
+      manual_ajuste: slot.record ? (Number(slot.record.manual_ajuste) === 1 || slot.record.manual_ajuste === true) : true,
+      validado: slot.record ? (Number(slot.record.validado) === 1 || slot.record.validado === true) : true,
+      origem: slot.record?.origem || 'cartao_inline',
+      nsr: slot.record?.nsr || '',
+    });
+    gridEditor[key] = input;
+    gridStatus.value = `Batida ${slot.record?.id ? 'atualizada' : 'incluída'} em ${date} (${slot.tipo}) às ${input}.`;
+    await carregarCartao();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao salvar célula da grade.';
+    gridEditor[key] = previous;
+  } finally {
+    gridSaving[key] = false;
+  }
+}
+
+async function clearGridCell(date: string, slotIndex: number) {
+  const slot = getGridSlot(date, slotIndex);
+  if (!slot) return;
+  if (slot.record?.id) {
+    await deleteBatida(Number(slot.record.id));
+    gridStatus.value = `Batida removida em ${date} (${slot.tipo}).`;
+    await carregarCartao();
+  } else {
+    gridEditor[slot.key] = '';
+  }
+}
+
+async function onGridCellKeydown(event: KeyboardEvent, date: string, slotIndex: number) {
+  const rows = dailyGridRows.value;
+  const rowIndex = rows.findIndex((item) => item.isoDate === date);
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    await commitGridCell(date, slotIndex);
+    const nextSlot = slotIndex < 5 ? slotIndex + 1 : 0;
+    const nextDate = slotIndex < 5 ? date : (rows[rowIndex + 1]?.isoDate || date);
+    focusGridCell(nextDate, nextSlot);
+    return;
+  }
+  if (event.key === 'Delete') {
+    event.preventDefault();
+    await clearGridCell(date, slotIndex);
+    focusGridCell(date, slotIndex);
+    return;
+  }
+  if (event.key === 'ArrowRight') {
+    event.preventDefault();
+    focusGridCell(date, Math.min(5, slotIndex + 1));
+    return;
+  }
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault();
+    focusGridCell(date, Math.max(0, slotIndex - 1));
+    return;
+  }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    focusGridCell(rows[Math.min(rows.length - 1, rowIndex + 1)]?.isoDate || date, slotIndex);
+    return;
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    focusGridCell(rows[Math.max(0, rowIndex - 1)]?.isoDate || date, slotIndex);
+  }
+}
+
 function rowBadgeClass(row: GenericRecord) {
   const date = String(row.data_referencia || "");
   const resumo = apuracaoResumo.value?.rows.find((item) => item.data === date);
@@ -1291,6 +1476,10 @@ watch(dailyGridRows, (rows) => {
   if (!rows.some((item) => item.isoDate === selectedDate.value)) {
     selectedDate.value = rows[0].isoDate;
   }
+  const validKeys = new Set(rows.flatMap((row) => Array.from({ length: 6 }, (_, idx) => `${row.isoDate}:${idx}`)));
+  Object.keys(gridEditor).forEach((key) => {
+    if (!validKeys.has(key)) delete gridEditor[key];
+  });
 }, { immediate: true });
 
 onMounted(async () => {
@@ -1372,6 +1561,10 @@ onMounted(async () => {
         <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
         <span><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
       </div>
+      <div class="inline-info-strip subtle">
+        <span><strong>Operação inline:</strong> Enter salva e avança, Del remove, setas navegam entre células.</span>
+        <span>{{ gridStatus }}</span>
+      </div>
     </div>
 
     <div class="cartao-vb6-shell">
@@ -1402,12 +1595,19 @@ onMounted(async () => {
           <tbody>
             <tr v-for="row in dailyGridRows" :key="row.isoDate" :class="dailyRowClass(row)" @click="selectDay(row.isoDate)">
               <td class="date-cell"><strong>{{ row.day }}</strong> - {{ row.dayLabel }}</td>
-              <td>{{ row.ent1 }}</td>
-              <td>{{ row.sai1 }}</td>
-              <td>{{ row.ent2 }}</td>
-              <td>{{ row.sai2 }}</td>
-              <td>{{ row.ent3 }}</td>
-              <td>{{ row.sai3 }}</td>
+              <td v-for="slot in (gridSlotsByDate[row.isoDate] || [])" :key="slot.key" class="grid-cell-editable">
+                <input
+                  :ref="(el) => setGridCellRef(slot.key, el)"
+                  v-model="gridEditor[slot.key]"
+                  class="grid-time-input"
+                  maxlength="5"
+                  placeholder="--:--"
+                  :disabled="gridSaving[slot.key] || !funcionarioIdNumero"
+                  @focus="selectDay(row.isoDate)"
+                  @blur="commitGridCell(row.isoDate, slot.slotIndex)"
+                  @keydown="onGridCellKeydown($event, row.isoDate, slot.slotIndex)"
+                />
+              </td>
               <td>{{ row.expectedMinutes > 0 ? 'x' : '' }}</td>
               <td>{{ row.expectedMinutes === 0 ? 'x' : '' }}</td>
               <td class="obs-cell">{{ row.mensagens[0] || (row.ocorrenciasCount > 0 ? `${row.ocorrenciasCount} ocorrência(s)` : (row.inconsistente ? 'Revisar' : '-')) }}</td>
