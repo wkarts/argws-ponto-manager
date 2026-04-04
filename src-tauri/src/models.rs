@@ -178,7 +178,6 @@ pub struct GenericEntityPayload {
     pub payload: Map<String, Value>,
 }
 
-
 #[derive(Debug, Deserialize)]
 pub struct SmartSuggestionRequest {
     #[serde(rename = "empresaId")]

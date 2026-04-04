@@ -826,7 +826,6 @@ pub fn fechamento_gerar_relatorio(
     Ok(result)
 }
 
-
 fn smart_kind_priority(kind: &str) -> i32 {
     match kind {
         "esquecimento_batida" => 4,
@@ -837,7 +836,11 @@ fn smart_kind_priority(kind: &str) -> i32 {
     }
 }
 
-fn has_occurrence_on_day(conn: &rusqlite::Connection, funcionario_id: i64, data: &str) -> Result<bool, String> {
+fn has_occurrence_on_day(
+    conn: &rusqlite::Connection,
+    funcionario_id: i64,
+    data: &str,
+) -> Result<bool, String> {
     let count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM ocorrencias_ponto WHERE funcionario_id = ?1 AND data_referencia = ?2",
         params![funcionario_id, data],
@@ -928,7 +931,8 @@ fn build_smart_suggestions(
         }
 
         if row.horario_esperado_minutos > 0 && row.trabalhado_minutos > 0 {
-            let worked_ratio = (row.trabalhado_minutos as f64) / (row.horario_esperado_minutos as f64);
+            let worked_ratio =
+                (row.trabalhado_minutos as f64) / (row.horario_esperado_minutos as f64);
             if worked_ratio > 0.35 && worked_ratio < 0.70 && row.saldo_minutos < 0 {
                 let mut messages = row.mensagens.clone();
                 messages.push("Jornada parcial identificada. Pode representar meia folga planejada ou saída antecipada justificada.".to_string());
@@ -953,7 +957,12 @@ fn build_smart_suggestions(
         }
     }
 
-    suggestions.sort_by(|a, b| smart_kind_priority(&b.kind).cmp(&smart_kind_priority(&a.kind)).then(a.data.cmp(&b.data)).then(a.funcionario_nome.cmp(&b.funcionario_nome)));
+    suggestions.sort_by(|a, b| {
+        smart_kind_priority(&b.kind)
+            .cmp(&smart_kind_priority(&a.kind))
+            .then(a.data.cmp(&b.data))
+            .then(a.funcionario_nome.cmp(&b.funcionario_nome))
+    });
     Ok(suggestions)
 }
 
@@ -998,7 +1007,9 @@ pub fn smart_apply_suggestions(
     let selected_ids = payload.selected_suggestion_ids.unwrap_or_default();
     let bulk_mode = payload.bulk_mode.unwrap_or_else(|| "selected".to_string());
     let overwrite_existing = payload.overwrite_existing.unwrap_or(false);
-    let replacement_tipo = payload.replacement_tipo.unwrap_or_else(|| "falta".to_string());
+    let replacement_tipo = payload
+        .replacement_tipo
+        .unwrap_or_else(|| "falta".to_string());
     let mut total_aplicadas = 0usize;
     let mut total_ignoradas = 0usize;
     let mut mensagens: Vec<String> = Vec::new();
@@ -1017,18 +1028,40 @@ pub fn smart_apply_suggestions(
         if has_occurrence_on_day(&conn, item.funcionario_id, &item.data)? {
             if !overwrite_existing {
                 total_ignoradas += 1;
-                mensagens.push(format!("{} em {} ignorado: já existe ocorrência no dia.", item.funcionario_nome, item.data));
+                mensagens.push(format!(
+                    "{} em {} ignorado: já existe ocorrência no dia.",
+                    item.funcionario_nome, item.data
+                ));
                 continue;
             }
             conn.execute(
                 "DELETE FROM ocorrencias_ponto WHERE funcionario_id = ?1 AND data_referencia = ?2",
                 params![item.funcionario_id, item.data],
-            ).map_err(|err| format!("Falha ao substituir ocorrência existente: {err}"))?;
+            )
+            .map_err(|err| format!("Falha ao substituir ocorrência existente: {err}"))?;
         }
-        let tipo = if item.kind == "falta" { replacement_tipo.clone() } else { item.suggested_tipo.clone() };
-        let abonar = if matches!(tipo.as_str(), "atestado" | "abono") { 1 } else if item.suggested_abonar_dia { 1 } else { 0 };
-        let minutos_abonados = if abonar == 1 { item.suggested_minutos_abonados.max(item.expected_minutes) } else { item.suggested_minutos_abonados };
-        let observacao = format!("Aplicação smart: {}. {}", item.kind, item.messages.join(" | "));
+        let tipo = if item.kind == "falta" {
+            replacement_tipo.clone()
+        } else {
+            item.suggested_tipo.clone()
+        };
+        let abonar = if matches!(tipo.as_str(), "atestado" | "abono") {
+            1
+        } else if item.suggested_abonar_dia {
+            1
+        } else {
+            0
+        };
+        let minutos_abonados = if abonar == 1 {
+            item.suggested_minutos_abonados.max(item.expected_minutes)
+        } else {
+            item.suggested_minutos_abonados
+        };
+        let observacao = format!(
+            "Aplicação smart: {}. {}",
+            item.kind,
+            item.messages.join(" | ")
+        );
         conn.execute(
             "INSERT INTO ocorrencias_ponto (funcionario_id, data_referencia, justificativa_id, tipo, abonar_dia, minutos_abonados, observacao, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
@@ -1040,7 +1073,9 @@ pub fn smart_apply_suggestions(
     let mut total_batidas_excluidas = 0usize;
     if let Some(ids) = payload.selected_batida_ids {
         for id in ids.into_iter().filter(|id| *id > 0) {
-            let affected = conn.execute("DELETE FROM batidas WHERE id = ?1", params![id]).map_err(|err| format!("Falha ao excluir batida assistida: {err}"))?;
+            let affected = conn
+                .execute("DELETE FROM batidas WHERE id = ?1", params![id])
+                .map_err(|err| format!("Falha ao excluir batida assistida: {err}"))?;
             if affected > 0 {
                 total_batidas_excluidas += 1;
             }

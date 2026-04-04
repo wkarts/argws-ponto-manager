@@ -296,7 +296,6 @@ pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, Str
     Ok(affected > 0)
 }
 
-
 #[tauri::command]
 pub fn batida_duplicate_candidates(
     state: State<'_, SharedState>,
@@ -374,10 +373,7 @@ pub fn batida_duplicate_candidates(
 }
 
 #[tauri::command]
-pub fn batida_delete_batch(
-    state: State<'_, SharedState>,
-    ids: Vec<i64>,
-) -> Result<i64, String> {
+pub fn batida_delete_batch(state: State<'_, SharedState>, ids: Vec<i64>) -> Result<i64, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let mut deleted = 0i64;
