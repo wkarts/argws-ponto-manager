@@ -1,3 +1,10 @@
+# [1.13.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.12.0...v1.13.0) (2026-04-04)
+
+
+### Features
+
+* **cartao-ponto:** reorganiza layout operacional no estilo VB6 e melhora painel smart ([ca25ef0](https://github.com/wkarts/argws-ponto-manager/commit/ca25ef06dd6b8e879b552b9370a2b82c9b99b83d))
+
 # [1.12.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.11.0...v1.12.0) (2026-04-04)
 
 
