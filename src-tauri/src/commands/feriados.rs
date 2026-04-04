@@ -32,6 +32,19 @@ fn parse_string(value: Option<&Value>) -> Option<String> {
     }
 }
 
+fn normalize_contexto_tipo(value: Option<&Value>) -> String {
+    let raw = parse_string(value).unwrap_or_else(|| "global".to_string());
+    let normalized = raw.trim().to_ascii_lowercase();
+
+    match normalized.as_str() {
+        "1" | "global" => "global".to_string(),
+        "2" | "empresa" => "empresa".to_string(),
+        "3" | "departamento" => "departamento".to_string(),
+        "4" | "operacional" => "operacional".to_string(),
+        _ => raw,
+    }
+}
+
 fn parse_bool(value: Option<&Value>, default: bool) -> i64 {
     match value {
         Some(Value::Bool(flag)) => {
@@ -417,8 +430,7 @@ pub fn feriado_save(
         .ok_or_else(|| "Data do feriado é obrigatória.".to_string())?;
     let descricao = parse_string(payload.get("descricao"))
         .ok_or_else(|| "Descrição do feriado é obrigatória.".to_string())?;
-    let contexto_tipo =
-        parse_string(payload.get("contexto_tipo")).unwrap_or_else(|| "global".to_string());
+    let contexto_tipo = normalize_contexto_tipo(payload.get("contexto_tipo"));
 
     if !validate_iso_date(&data) {
         return Err("Data do feriado inválida. Utilize YYYY-MM-DD.".to_string());
