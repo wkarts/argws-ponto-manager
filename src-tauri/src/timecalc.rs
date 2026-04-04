@@ -332,8 +332,9 @@ pub fn resolve_schedule_for_employee(
                 row.get::<_, Option<String>>(20)?,
                 row.get::<_, Option<String>>(21)?,
                 row.get::<_, Option<String>>(22)?,
-                row.get::<_, i64>(23)?,
-                row.get::<_, Option<String>>(24)?,
+                row.get::<_, Option<String>>(23)?,
+                row.get::<_, i64>(24)?,
+                row.get::<_, Option<String>>(25)?,
             ))
         })
         .optional()

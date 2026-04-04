@@ -477,13 +477,16 @@ pub fn jornada_clone(state: State<'_, SharedState>, id: i64) -> Result<Map<Strin
     let descricao = base
         .get("descricao")
         .and_then(|v| v.as_str())
-        .unwrap_or("Jornada");
+        .unwrap_or("Jornada")
+        .to_string();
+    let codigo = base
+        .get("codigo")
+        .and_then(|v| v.as_str())
+        .unwrap_or("JOR")
+        .to_string();
     base.insert(
         "codigo".to_string(),
-        Value::String(format!(
-            "{}-COPIA",
-            base.get("codigo").and_then(|v| v.as_str()).unwrap_or("JOR")
-        )),
+        Value::String(format!("{}-COPIA", codigo)),
     );
     base.insert(
         "descricao".to_string(),

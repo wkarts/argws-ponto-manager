@@ -73,6 +73,55 @@ fn get_i64(payload: &Map<String, Value>, key: &str) -> Option<i64> {
     })
 }
 
+fn csv_delimiter_for(content: &str) -> char {
+    let first_line = content
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or("");
+    let candidates = [';', ',', '	', '|'];
+    let mut best = ';';
+    let mut best_count = -1i32;
+
+    for candidate in candidates {
+        let count = first_line.matches(candidate).count() as i32;
+        if count > best_count {
+            best = candidate;
+            best_count = count;
+        }
+    }
+
+    best
+}
+
+fn split_csv_line(line: &str, delimiter: char) -> Vec<String> {
+    let mut cols: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        let ch = chars[i];
+        if ch == '"' {
+            if in_quotes && i + 1 < chars.len() && chars[i + 1] == '"' {
+                current.push('"');
+                i += 1;
+            } else {
+                in_quotes = !in_quotes;
+            }
+        } else if ch == delimiter && !in_quotes {
+            cols.push(current.trim().to_string());
+            current.clear();
+        } else {
+            current.push(ch);
+        }
+        i += 1;
+    }
+
+    cols.push(current.trim().to_string());
+    cols
+}
+
 fn only_digits(value: &str) -> String {
     value.chars().filter(|ch| ch.is_ascii_digit()).collect()
 }
@@ -633,11 +682,13 @@ pub fn employee_clone(
     let nome = base
         .get("nome")
         .and_then(|v| v.as_str())
-        .unwrap_or("Funcionário");
+        .unwrap_or("Funcionário")
+        .to_string();
     let matricula = base
         .get("matricula")
         .and_then(|v| v.as_str())
-        .unwrap_or("MAT");
+        .unwrap_or("MAT")
+        .to_string();
     base.insert(
         "nome".to_string(),
         Value::String(format!("{} (Cópia)", nome)),
