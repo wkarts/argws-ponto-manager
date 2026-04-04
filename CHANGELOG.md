@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.14.0...v1.15.0) (2026-04-04)
+
+
+### Features
+
+* **cartao-ponto:** adiciona edição inline real, navegação por teclado e fechamento operacional da grade principal ([ebdae8a](https://github.com/wkarts/argws-ponto-manager/commit/ebdae8afde2cf371d6c62533e8c179745a8e41e7))
+
 # [1.14.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.13.0...v1.14.0) (2026-04-04)
 
 
