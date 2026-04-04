@@ -1611,7 +1611,7 @@ onMounted(async () => {
               <td>{{ row.expectedMinutes > 0 ? 'x' : '' }}</td>
               <td>{{ row.expectedMinutes === 0 ? 'x' : '' }}</td>
               <td class="obs-cell">{{ row.mensagens[0] || (row.ocorrenciasCount > 0 ? `${row.ocorrenciasCount} ocorrência(s)` : (row.inconsistente ? 'Revisar' : '-')) }}</td>
-              <td>
+              <td class="action-cell">
                 <div class="actions compact-actions">
                   <button class="secondary" @click.stop="openNovaBatida(row.isoDate)">+ Batida</button>
                   <button class="secondary" @click.stop="openNovaOcorrencia(row.isoDate)">+ Ocor.</button>
