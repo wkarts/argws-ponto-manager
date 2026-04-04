@@ -1,3 +1,18 @@
+# [1.16.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.15.0...v1.16.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **build:** corrige falha no cargo fmt --check ajustando formatação de arquivos Rust ([607758b](https://github.com/wkarts/argws-ponto-manager/commit/607758b91cb1e005b4ed9e711c510103e35e4866))
+* **clippy:** restaura variáveis de férias no save de funcionários ([dc997da](https://github.com/wkarts/argws-ponto-manager/commit/dc997daca74fb1621c6182d5f717c46996dda70e))
+* **clippy:** restaura variáveis de férias no save de funcionários ([12f7f3e](https://github.com/wkarts/argws-ponto-manager/commit/12f7f3ef17076003f44c1b08a2c4a9efc2ed0525))
+* **rustfmt:** ajusta formatação dos blocos de desligamento e férias em timecalc ([3a0818c](https://github.com/wkarts/argws-ponto-manager/commit/3a0818cec774983648839143e7f5b004c7c78252))
+
+
+### Features
+
+* **cartao-ponto:** adiciona sidebar lateral com guias, reforça splash global e considera férias/desligamento na apuração ([3c21907](https://github.com/wkarts/argws-ponto-manager/commit/3c219078977996500ec571d815d1085e7ce41ff7))
+
 # [1.15.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.14.0...v1.15.0) (2026-04-04)
 
 
