@@ -20,6 +20,7 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
+import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 import { useSessionStore } from "../stores/session";
 
 const session = useSessionStore();
@@ -480,6 +481,7 @@ async function excluirDuplicidadesSelecionadas() {
     .flatMap((item) => item.ids.slice(1));
   if (!ids.length) {
     message.value = 'Nenhuma duplicidade selecionada para exclusão.';
+    showSplashInfo(message.value);
     return;
   }
   if (!confirm(`Excluir ${ids.length} batida(s) duplicada(s)/muito próxima(s)?`)) return;
@@ -492,10 +494,12 @@ async function excluirDuplicidadesSelecionadas() {
       await deleteBatida(id);
     }
     message.value = `${ids.length} batida(s) removida(s) com sucesso.`;
+    showSplashSuccess(message.value);
     await carregarCartao();
     localizarDuplicidades();
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Falha ao excluir batidas duplicadas.';
+    showSplashError(error.value);
   } finally {
     duplicateBusy.value = false;
   }
@@ -1214,9 +1218,11 @@ async function removerBatida(row: GenericRecord) {
   try {
     await deleteBatida(Number(row.id));
     message.value = "Batida removida com sucesso.";
+    showSplashSuccess(message.value);
     await carregarCartao();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao remover batida.";
+    showSplashError(error.value);
   }
 }
 
