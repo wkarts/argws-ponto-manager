@@ -417,6 +417,7 @@ pub fn jornada_save(
         )
         .map_err(|err| format!("Falha ao inserir jornada: {err}"))?;
         conn.last_insert_rowid()
+    };
 
     for day in dias_array {
         let (
