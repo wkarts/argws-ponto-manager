@@ -201,9 +201,10 @@ fn employee_id_from_key(
     .map_err(|err| format!("Falha ao localizar funcionário para marcação AFD: {err}"))
 }
 
-
 fn parse_datetime_to_minutes(value: &str) -> Option<i64> {
-    if value.len() < 16 { return None; }
+    if value.len() < 16 {
+        return None;
+    }
     let dt = NaiveDateTime::parse_from_str(&value[..16], "%Y-%m-%dT%H:%M").ok()?;
     Some(dt.and_utc().timestamp() / 60)
 }
@@ -357,9 +358,19 @@ pub fn afd_import_file(
                     params![funcionario_id, data_referencia, hora],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 ).optional().map_err(|err| format!("Falha ao validar proximidade da marcação AFD: {err}"))?
-            } else { None };
+            } else {
+                None
+            };
 
-            let is_too_close = close_duplicate.as_ref().and_then(|(_, full)| parse_datetime_to_minutes(full)).zip(parse_datetime_to_minutes(&format!("{}T{}", data_referencia, hora))).map(|(existing, incoming)| (incoming-existing).abs() <= 1).unwrap_or(false);
+            let is_too_close = close_duplicate
+                .as_ref()
+                .and_then(|(_, full)| parse_datetime_to_minutes(full))
+                .zip(parse_datetime_to_minutes(&format!(
+                    "{}T{}",
+                    data_referencia, hora
+                )))
+                .map(|(existing, incoming)| (incoming - existing).abs() <= 1)
+                .unwrap_or(false);
 
             if let Some(existing_id) = duplicate {
                 total_descartadas += 1;

@@ -42,7 +42,6 @@ struct HolidayContext {
     regra_jornada: Option<String>,
 }
 
-
 #[derive(Debug, Clone)]
 struct FlexSwapCandidate {
     date_iso: String,
@@ -68,42 +67,77 @@ fn find_flex_swap_candidate(
     scheduled_is_day_off: bool,
 ) -> Result<Option<FlexSwapCandidate>, String> {
     let (week_start, week_end) = date_week_bounds(current_date);
-    let mut stmt = conn.prepare(
-        "SELECT jd.dia_semana, jd.entrada_1, jd.saida_1, jd.entrada_2, jd.saida_2,
+    let mut stmt = conn
+        .prepare(
+            "SELECT jd.dia_semana, jd.entrada_1, jd.saida_1, jd.entrada_2, jd.saida_2,
                 COALESCE(jd.carga_prevista_minutos, 0), COALESCE(jd.folga, 0)
          FROM funcionarios f
          INNER JOIN jornada_dias jd ON jd.jornada_id = f.jornada_id
-         WHERE f.id = ?1"
-    ).map_err(|err| format!("Falha ao preparar dias para heurística flexível: {err}"))?;
+         WHERE f.id = ?1",
+        )
+        .map_err(|err| format!("Falha ao preparar dias para heurística flexível: {err}"))?;
 
-    let rows = stmt.query_map(params![employee_id], |row| {
-        Ok((
-            row.get::<_, i64>(0)?,
-            row.get::<_, Option<String>>(1)?,
-            row.get::<_, Option<String>>(2)?,
-            row.get::<_, Option<String>>(3)?,
-            row.get::<_, Option<String>>(4)?,
-            row.get::<_, i64>(5)?,
-            row.get::<_, i64>(6)?,
-        ))
-    }).map_err(|err| format!("Falha ao consultar dias da jornada flexível: {err}"))?;
+    let rows = stmt
+        .query_map(params![employee_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
+                row.get::<_, i64>(5)?,
+                row.get::<_, i64>(6)?,
+            ))
+        })
+        .map_err(|err| format!("Falha ao consultar dias da jornada flexível: {err}"))?;
 
     for row in rows {
-        let (dia_semana, entrada_1, saida_1, entrada_2, saida_2, carga, folga) = row.map_err(|err| format!("Falha ao ler dia da jornada flexível: {err}"))?;
+        let (dia_semana, entrada_1, saida_1, entrada_2, saida_2, carga, folga) =
+            row.map_err(|err| format!("Falha ao ler dia da jornada flexível: {err}"))?;
         let offset = dia_semana - 1;
         let candidate_date = week_start + chrono::Duration::days(offset);
-        if candidate_date < week_start || candidate_date > week_end || candidate_date == current_date { continue; }
-        let count: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
-            params![employee_id, candidate_date.format("%Y-%m-%d").to_string()],
-            |row| row.get(0)
-        ).map_err(|err| format!("Falha ao contar batidas da heurística flexível: {err}"))?;
+        if candidate_date < week_start
+            || candidate_date > week_end
+            || candidate_date == current_date
+        {
+            continue;
+        }
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
+                params![employee_id, candidate_date.format("%Y-%m-%d").to_string()],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Falha ao contar batidas da heurística flexível: {err}"))?;
         if scheduled_is_day_off {
             if folga == 0 && count == 0 {
-                return Ok(Some(FlexSwapCandidate { date_iso: candidate_date.format("%Y-%m-%d").to_string(), expected_minutes: if carga > 0 { carga } else { derive_minutes_from_pairs(entrada_1.as_deref(), saida_1.as_deref(), entrada_2.as_deref(), saida_2.as_deref()) }, entrada_1, saida_1, entrada_2, saida_2 }));
+                return Ok(Some(FlexSwapCandidate {
+                    date_iso: candidate_date.format("%Y-%m-%d").to_string(),
+                    expected_minutes: if carga > 0 {
+                        carga
+                    } else {
+                        derive_minutes_from_pairs(
+                            entrada_1.as_deref(),
+                            saida_1.as_deref(),
+                            entrada_2.as_deref(),
+                            saida_2.as_deref(),
+                        )
+                    },
+                    entrada_1,
+                    saida_1,
+                    entrada_2,
+                    saida_2,
+                }));
             }
         } else if dia_semana != i64::from(current_weekday) && folga == 1 && count > 0 {
-            return Ok(Some(FlexSwapCandidate { date_iso: candidate_date.format("%Y-%m-%d").to_string(), expected_minutes: 0, entrada_1: None, saida_1: None, entrada_2: None, saida_2: None }));
+            return Ok(Some(FlexSwapCandidate {
+                date_iso: candidate_date.format("%Y-%m-%d").to_string(),
+                expected_minutes: 0,
+                entrada_1: None,
+                saida_1: None,
+                entrada_2: None,
+                saida_2: None,
+            }));
         }
     }
     Ok(None)
@@ -348,20 +382,31 @@ pub fn resolve_schedule_for_employee(
             );
         }
 
-        let has_punches_today: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
-            params![employee_id, date_iso],
-            |row| row.get(0),
-        ).map_err(|err| format!("Falha ao verificar batidas da jornada flexível: {err}"))?;
+        let has_punches_today: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
+                params![employee_id, date_iso],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Falha ao verificar batidas da jornada flexível: {err}"))?;
 
         if permite_folga_movel == 1 && heuristica_troca_folga == 1 {
             if jd_folga == 1 && has_punches_today > 0 {
-                if let Some(candidate) = find_flex_swap_candidate(conn, employee_id, date, weekday, true)? {
+                if let Some(candidate) =
+                    find_flex_swap_candidate(conn, employee_id, date, weekday, true)?
+                {
                     expected_minutes = candidate.expected_minutes;
                     return Ok(ResolvedSchedule {
                         jornada_id,
-                        jornada_nome: format!("{} • folga móvel", jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string())),
-                        tipo_jornada: perfil_flexivel.clone().unwrap_or_else(|| "flexivel".to_string()),
+                        jornada_nome: format!(
+                            "{} • folga móvel",
+                            jornada_nome
+                                .clone()
+                                .unwrap_or_else(|| "Jornada".to_string())
+                        ),
+                        tipo_jornada: perfil_flexivel
+                            .clone()
+                            .unwrap_or_else(|| "flexivel".to_string()),
                         tolerancia_entrada_minutos: tolerancia_entrada,
                         tolerancia_saida_minutos: tolerancia_saida,
                         tolerancia_intervalo_minutos: tolerancia_intervalo,
@@ -380,11 +425,20 @@ pub fn resolve_schedule_for_employee(
                 }
             }
             if jd_folga == 0 && has_punches_today == 0 {
-                if let Some(candidate) = find_flex_swap_candidate(conn, employee_id, date, weekday, false)? {
+                if let Some(candidate) =
+                    find_flex_swap_candidate(conn, employee_id, date, weekday, false)?
+                {
                     return Ok(ResolvedSchedule {
                         jornada_id,
-                        jornada_nome: format!("{} • folga móvel", jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string())),
-                        tipo_jornada: perfil_flexivel.clone().unwrap_or_else(|| "flexivel".to_string()),
+                        jornada_nome: format!(
+                            "{} • folga móvel",
+                            jornada_nome
+                                .clone()
+                                .unwrap_or_else(|| "Jornada".to_string())
+                        ),
+                        tipo_jornada: perfil_flexivel
+                            .clone()
+                            .unwrap_or_else(|| "flexivel".to_string()),
                         tolerancia_entrada_minutos: tolerancia_entrada,
                         tolerancia_saida_minutos: tolerancia_saida,
                         tolerancia_intervalo_minutos: tolerancia_intervalo,

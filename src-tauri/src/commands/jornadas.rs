@@ -108,7 +108,6 @@ fn day_payload_to_sql(day: &Value) -> Result<JornadaDiaSql, String> {
     ))
 }
 
-
 #[tauri::command]
 pub fn jornada_preset_list() -> Result<Vec<Map<String, Value>>, String> {
     let presets = vec![
@@ -471,14 +470,25 @@ pub fn jornada_save(
     Ok(saved)
 }
 
-
 #[tauri::command]
 pub fn jornada_clone(state: State<'_, SharedState>, id: i64) -> Result<Map<String, Value>, String> {
     let mut base = jornada_get(state.clone(), id)?;
     base.remove("id");
-    let descricao = base.get("descricao").and_then(|v| v.as_str()).unwrap_or("Jornada");
-    base.insert("codigo".to_string(), Value::String(format!("{}-COPIA", base.get("codigo").and_then(|v| v.as_str()).unwrap_or("JOR"))));
-    base.insert("descricao".to_string(), Value::String(format!("{} (Cópia)", descricao)));
+    let descricao = base
+        .get("descricao")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Jornada");
+    base.insert(
+        "codigo".to_string(),
+        Value::String(format!(
+            "{}-COPIA",
+            base.get("codigo").and_then(|v| v.as_str()).unwrap_or("JOR")
+        )),
+    );
+    base.insert(
+        "descricao".to_string(),
+        Value::String(format!("{} (Cópia)", descricao)),
+    );
     jornada_save(state, base)
 }
 

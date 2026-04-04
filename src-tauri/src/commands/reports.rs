@@ -193,7 +193,11 @@ pub fn report_generated_list(
         .map_err(|err| format!("Falha ao mapear relatórios gerados: {err}"))
 }
 
-fn resolve_generated_report_path(db_path: &Path, file_path: &str, file_name: &str) -> Option<PathBuf> {
+fn resolve_generated_report_path(
+    db_path: &Path,
+    file_path: &str,
+    file_name: &str,
+) -> Option<PathBuf> {
     let original = PathBuf::from(file_path);
     if original.exists() {
         return Some(original);
