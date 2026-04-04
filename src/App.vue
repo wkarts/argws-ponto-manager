@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onErrorCaptured, ref } from "vue";
 import { logAppError } from "./services/logger";
+import AppSplash from "./components/AppSplash.vue";
 
 const fatalError = ref("");
 
@@ -21,6 +22,7 @@ onErrorCaptured((error, instance, info) => {
 </script>
 
 <template>
+  <AppSplash />
   <div v-if="fatalError" class="fatal-screen">
     <div class="fatal-card">
       <h2>Erro ao renderizar a aplicação</h2>

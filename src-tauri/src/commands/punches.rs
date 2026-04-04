@@ -281,17 +281,29 @@ pub fn batida_save(
 #[tauri::command]
 pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, String> {
     let db_path = state.db_path()?;
-    let conn = open_connection(&db_path)?;
+    let mut conn = open_connection(&db_path)?;
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Falha ao iniciar transação de exclusão de batida: {err}"))?;
 
-    let affected = conn
+    tx.execute(
+        "UPDATE afd_marcacoes SET batida_id = NULL WHERE batida_id = ?1",
+        params![id],
+    )
+    .map_err(|err| format!("Falha ao desvincular marcações AFD da batida: {err}"))?;
+
+    let affected = tx
         .execute("DELETE FROM batidas WHERE id = ?1", params![id])
         .map_err(|err| format!("Falha ao excluir batida: {err}"))?;
 
     if affected > 0 {
         let payload = json!({ "id": id });
-        write_audit(&conn, "batidas", "delete", Some(id), &payload)?;
-        enqueue_sync(&conn, "batidas", "delete", Some(id), &payload)?;
+        write_audit(&tx, "batidas", "delete", Some(id), &payload)?;
+        enqueue_sync(&tx, "batidas", "delete", Some(id), &payload)?;
     }
+
+    tx.commit()
+        .map_err(|err| format!("Falha ao concluir exclusão de batida: {err}"))?;
 
     Ok(affected > 0)
 }
