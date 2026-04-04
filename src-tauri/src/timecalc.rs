@@ -488,12 +488,13 @@ pub fn resolve_schedule_for_employee(
         ferias_dias,
     ) = row;
 
-
     if let Some(demissao) = data_demissao.as_deref() {
         if demissao <= date_iso {
             return Ok(ResolvedSchedule {
                 jornada_id,
-                jornada_nome: jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string()),
+                jornada_nome: jornada_nome
+                    .clone()
+                    .unwrap_or_else(|| "Jornada".to_string()),
                 tipo_jornada: "desligamento".to_string(),
                 tolerancia_entrada_minutos: tolerancia_entrada,
                 tolerancia_saida_minutos: tolerancia_saida,
@@ -517,7 +518,9 @@ pub fn resolve_schedule_for_employee(
         if inicio <= date_iso && date_iso <= fim {
             return Ok(ResolvedSchedule {
                 jornada_id,
-                jornada_nome: jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string()),
+                jornada_nome: jornada_nome
+                    .clone()
+                    .unwrap_or_else(|| "Jornada".to_string()),
                 tipo_jornada: "ferias".to_string(),
                 tolerancia_entrada_minutos: tolerancia_entrada,
                 tolerancia_saida_minutos: tolerancia_saida,
@@ -530,7 +533,11 @@ pub fn resolve_schedule_for_employee(
                 saida_2: None,
                 is_day_off: true,
                 is_holiday: false,
-                holiday_label: Some(if ferias_dias > 0 { format!("Férias ({} dia(s))", ferias_dias) } else { "Férias".to_string() }),
+                holiday_label: Some(if ferias_dias > 0 {
+                    format!("Férias ({} dia(s))", ferias_dias)
+                } else {
+                    "Férias".to_string()
+                }),
                 holiday_compensation: None,
                 holiday_jornada_rule: Some("employee_vacation".to_string()),
             });
