@@ -100,45 +100,6 @@ export interface HolidaySourceSettings extends GenericRecord {
   api_url?: string | null;
 }
 
-
-
-export interface SmartSuggestionItem {
-  suggestion_id: string;
-  funcionario_id: number;
-  funcionario_nome: string;
-  data: string;
-  kind: string;
-  severity: string;
-  auto_apply: boolean;
-  expected_minutes: number;
-  worked_minutes: number;
-  saldo_minutes: number;
-  suggested_tipo: string;
-  suggested_abonar_dia: boolean;
-  suggested_minutos_abonados: number;
-  observed_punches: string[];
-  messages: string[];
-}
-
-export interface SmartApplyResponse {
-  total_sugestoes: number;
-  total_aplicadas: number;
-  total_ignoradas: number;
-  total_batidas_excluidas: number;
-  mensagens: string[];
-}
-
-export interface DuplicatePunchCandidate {
-  bucket_id: string;
-  funcionario_id: number;
-  funcionario_nome: string;
-  data_referencia: string;
-  hora: string;
-  batida_ids: number[];
-  total_repeticoes: number;
-  origem?: string | null;
-}
-
 export interface FeriadoRecord extends GenericRecord {
   id?: number;
   data?: string;
@@ -489,21 +450,4 @@ export async function saveHolidaySourceSettings(payload: HolidaySourceSettings):
 
 export async function importCompanyDefaultHolidays(empresaId: number, year?: number | null): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("holiday_source_import_company_year", { empresa_id: empresaId, year: year ?? null });
-}
-
-
-export async function listDuplicatePunchCandidates(filters: Record<string, unknown>): Promise<DuplicatePunchCandidate[]> {
-  return invokeCommand<DuplicatePunchCandidate[]>("batida_duplicate_candidates", { filters });
-}
-
-export async function deleteBatidasBatch(ids: number[]): Promise<number> {
-  return invokeCommand<number>("batida_delete_batch", { ids });
-}
-
-export async function listSmartSuggestions(payload: Record<string, unknown>): Promise<SmartSuggestionItem[]> {
-  return invokeCommand<SmartSuggestionItem[]>("smart_suggestion_list", { payload });
-}
-
-export async function applySmartSuggestions(payload: Record<string, unknown>): Promise<SmartApplyResponse> {
-  return invokeCommand<SmartApplyResponse>("smart_apply_suggestions", { payload });
 }

@@ -6,7 +6,7 @@ use tauri::State;
 use crate::{
     app_state::SharedState,
     db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
-    models::{DuplicatePunchCandidate, PunchFilters},
+    models::PunchFilters,
 };
 
 fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
@@ -294,99 +294,4 @@ pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, Str
     }
 
     Ok(affected > 0)
-}
-
-#[tauri::command]
-pub fn batida_duplicate_candidates(
-    state: State<'_, SharedState>,
-    filters: PunchFilters,
-) -> Result<Vec<DuplicatePunchCandidate>, String> {
-    let db_path = state.db_path()?;
-    let conn = open_connection(&db_path)?;
-
-    let mut sql = String::from(
-        "SELECT b.funcionario_id,
-                f.nome AS funcionario_nome,
-                b.data_referencia,
-                b.hora,
-                MIN(COALESCE(b.origem, '')) AS origem,
-                GROUP_CONCAT(b.id) AS batida_ids,
-                COUNT(*) AS total_repeticoes
-         FROM batidas b
-         INNER JOIN funcionarios f ON f.id = b.funcionario_id
-         WHERE 1 = 1",
-    );
-    let mut params: Vec<rusqlite::types::Value> = Vec::new();
-
-    if let Some(empresa_id) = filters.empresa_id {
-        sql.push_str(" AND f.empresa_id = ?");
-        params.push(rusqlite::types::Value::Integer(empresa_id));
-    }
-    if let Some(funcionario_id) = filters.funcionario_id {
-        sql.push_str(" AND b.funcionario_id = ?");
-        params.push(rusqlite::types::Value::Integer(funcionario_id));
-    }
-    if let Some(data_inicial) = filters.data_inicial {
-        sql.push_str(" AND b.data_referencia >= ?");
-        params.push(rusqlite::types::Value::Text(data_inicial));
-    }
-    if let Some(data_final) = filters.data_final {
-        sql.push_str(" AND b.data_referencia <= ?");
-        params.push(rusqlite::types::Value::Text(data_final));
-    }
-
-    sql.push_str(
-        " GROUP BY b.funcionario_id, b.data_referencia, b.hora
-          HAVING COUNT(*) > 1
-          ORDER BY b.data_referencia DESC, f.nome ASC, b.hora ASC",
-    );
-
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|err| format!("Falha ao preparar consulta de duplicidades: {err}"))?;
-
-    let rows = stmt
-        .query_map(params_from_iter(params.iter()), |row| {
-            let ids_csv: String = row.get(5)?;
-            let batida_ids = ids_csv
-                .split(',')
-                .filter_map(|item| item.trim().parse::<i64>().ok())
-                .collect::<Vec<_>>();
-            let funcionario_id: i64 = row.get(0)?;
-            let data_referencia: String = row.get(2)?;
-            let hora: String = row.get(3)?;
-            Ok(DuplicatePunchCandidate {
-                bucket_id: format!("{}::{}::{}", funcionario_id, data_referencia, hora),
-                funcionario_id,
-                funcionario_nome: row.get(1)?,
-                data_referencia,
-                hora,
-                origem: row.get(4)?,
-                total_repeticoes: row.get::<_, i64>(6)? as usize,
-                batida_ids,
-            })
-        })
-        .map_err(|err| format!("Falha ao listar duplicidades de batidas: {err}"))?;
-
-    let rows: Result<Vec<_>, _> = rows.collect();
-    rows.map_err(|err| format!("Falha ao mapear duplicidades de batidas: {err}"))
-}
-
-#[tauri::command]
-pub fn batida_delete_batch(state: State<'_, SharedState>, ids: Vec<i64>) -> Result<i64, String> {
-    let db_path = state.db_path()?;
-    let conn = open_connection(&db_path)?;
-    let mut deleted = 0i64;
-    for id in ids.into_iter().filter(|id| *id > 0) {
-        let affected = conn
-            .execute("DELETE FROM batidas WHERE id = ?1", params![id])
-            .map_err(|err| format!("Falha ao excluir batida em lote: {err}"))?;
-        if affected > 0 {
-            deleted += 1;
-            let payload = json!({ "id": id, "bulk": true });
-            write_audit(&conn, "batidas", "delete", Some(id), &payload)?;
-            enqueue_sync(&conn, "batidas", "delete", Some(id), &payload)?;
-        }
-    }
-    Ok(deleted)
 }
