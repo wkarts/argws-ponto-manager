@@ -3,9 +3,11 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import {
+  cloneJornada,
   comboList,
   deleteJornada,
   getJornada,
+  jornadaPresetList,
   listJornadas,
   saveJornada,
   type ComboOption,
@@ -21,6 +23,7 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const modalOpen = ref(false);
+const presetOptions = ref<GenericRecord[]>([]);
 
 const dayLabels = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
 
@@ -44,6 +47,12 @@ function defaultForm() {
     codigo: "",
     descricao: "",
     tipo_jornada: "fixa",
+    perfil_flexivel: "",
+    permite_folga_movel: false,
+    permite_meia_folga: false,
+    dia_folga_base: "",
+    periodo_meia_folga: "",
+    heuristica_troca_folga: true,
     tolerancia_entrada_minutos: 5,
     tolerancia_saida_minutos: 5,
     tolerancia_intervalo_minutos: 5,
@@ -102,6 +111,11 @@ async function editRow(id: number) {
       banco_horas_ativo: Number(record.banco_horas_ativo) === 1 || record.banco_horas_ativo === true,
       exige_marcacao_intervalo: Number(record.exige_marcacao_intervalo) === 1 || record.exige_marcacao_intervalo === true,
       compensa_atraso_com_extra: Number(record.compensa_atraso_com_extra) === 1 || record.compensa_atraso_com_extra === true,
+      permite_folga_movel: Number(record.permite_folga_movel) === 1 || record.permite_folga_movel === true,
+      permite_meia_folga: Number(record.permite_meia_folga) === 1 || record.permite_meia_folga === true,
+      heuristica_troca_folga: Number(record.heuristica_troca_folga) === 1 || record.heuristica_troca_folga === true,
+      dia_folga_base: record.dia_folga_base ? String(record.dia_folga_base) : "",
+      periodo_meia_folga: String(record.periodo_meia_folga || ""),
       ativo: Number(record.ativo) === 1 || record.ativo === true,
       dias: Array.isArray(record.dias)
         ? (record.dias as GenericRecord[]).map((day) => ({
@@ -119,6 +133,25 @@ async function editRow(id: number) {
     modalOpen.value = true;
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao carregar jornada.";
+  }
+}
+
+
+function applyPreset(preset: GenericRecord) {
+  resetForm();
+  Object.assign(form, defaultForm(), preset, { dias: Array.isArray(preset.dias) ? preset.dias.map((day) => ({ ...day })) : defaultDays() });
+  if (session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
+  modalOpen.value = true;
+}
+
+async function cloneRow(id: number) {
+  error.value = "";
+  try {
+    const record = await cloneJornada(id);
+    await load();
+    await editRow(Number(record.id));
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao clonar jornada.";
   }
 }
 
@@ -156,6 +189,7 @@ watch(() => session.activeCompanyId, (value) => { if (!form.empresa_id && value)
 onMounted(async () => {
   if (session.activeCompanyId) form.empresa_id = String(session.activeCompanyId);
   await loadOptions();
+  presetOptions.value = await jornadaPresetList();
   await load();
 });
 </script>
@@ -169,6 +203,7 @@ onMounted(async () => {
       </div>
       <div class="actions">
         <button class="secondary" @click="openNewModal">Nova jornada</button>
+        <button v-for="preset in presetOptions" :key="String(preset.codigo)" class="secondary" @click="applyPreset(preset)">Usar {{ preset.descricao }}</button>
       </div>
     </div>
 
@@ -210,6 +245,7 @@ onMounted(async () => {
               <td>
                 <div class="compact-actions actions">
                   <button class="secondary" @click="editRow(Number(row.id))">Editar</button>
+                  <button class="secondary" @click="cloneRow(Number(row.id))">Clonar</button>
                   <button class="danger" @click="removeRow(Number(row.id))">Excluir</button>
                 </div>
               </td>
@@ -295,10 +331,13 @@ onMounted(async () => {
           </div>
         </div>
 
-        <div class="grid columns-2 mobile-columns-1">
+        <div class="filter-grid compact">
           <AppSwitch v-model="form.banco_horas_ativo" label="Banco de horas ativo" />
           <AppSwitch v-model="form.exige_marcacao_intervalo" label="Exige marcação de intervalo" />
           <AppSwitch v-model="form.compensa_atraso_com_extra" label="Compensa atraso com extra" />
+          <AppSwitch v-model="form.permite_folga_movel" label="Permitir folga móvel" />
+          <AppSwitch v-model="form.permite_meia_folga" label="Permitir meia folga" />
+          <AppSwitch v-model="form.heuristica_troca_folga" label="Detectar troca de folga" />
           <AppSwitch v-model="form.ativo" label="Jornada ativa" />
         </div>
 

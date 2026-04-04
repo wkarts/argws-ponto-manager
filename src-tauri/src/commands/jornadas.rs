@@ -108,6 +108,45 @@ fn day_payload_to_sql(day: &Value) -> Result<JornadaDiaSql, String> {
     ))
 }
 
+
+#[tauri::command]
+pub fn jornada_preset_list() -> Result<Vec<Map<String, Value>>, String> {
+    let presets = vec![
+        json!({"codigo":"MERC-6X1-SEG","descricao":"Mercado 6x1 com folga móvel (base segunda)","tipo_jornada":"flexivel","perfil_flexivel":"mercado_6x1_folga_movel","permite_folga_movel":true,"permite_meia_folga":false,"dia_folga_base":1,"periodo_meia_folga":null,"carga_semanal_minutos":2640,"limite_diario_minutos":540,"dias":[
+            {"dia_semana":1,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":2,"entrada_1":"05:00","saida_1":"09:00","entrada_2":"10:00","saida_2":"15:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":3,"entrada_1":"05:00","saida_1":"09:00","entrada_2":"10:00","saida_2":"15:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":4,"entrada_1":"05:00","saida_1":"09:00","entrada_2":"10:00","saida_2":"15:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":5,"entrada_1":"05:00","saida_1":"09:00","entrada_2":"10:00","saida_2":"15:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":6,"entrada_1":"05:00","saida_1":"09:00","entrada_2":"10:00","saida_2":"15:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":7,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true}
+        ]}),
+        json!({"codigo":"MERC-MEIA","descricao":"Mercado com meia folga variável","tipo_jornada":"flexivel","perfil_flexivel":"mercado_meia_folga","permite_folga_movel":true,"permite_meia_folga":true,"dia_folga_base":3,"periodo_meia_folga":"tarde","carga_semanal_minutos":2640,"limite_diario_minutos":540,"dias":[
+            {"dia_semana":1,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":2,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":3,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"","saida_2":"","carga_prevista_minutos":300,"intervalo_minutos":0,"folga":false},
+            {"dia_semana":4,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":5,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":6,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":7,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true}
+        ]}),
+        json!({"codigo":"DIARISTA-2D","descricao":"Diarista 2 dias por semana","tipo_jornada":"diarista","perfil_flexivel":"diarista_2_dias","permite_folga_movel":false,"permite_meia_folga":false,"dia_folga_base":null,"periodo_meia_folga":null,"carga_semanal_minutos":960,"limite_diario_minutos":480,"dias":[
+            {"dia_semana":1,"entrada_1":"08:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":480,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":2,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":3,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":4,"entrada_1":"08:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":480,"intervalo_minutos":60,"folga":false},
+            {"dia_semana":5,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":6,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":7,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true}
+        ]}),
+    ];
+
+    Ok(presets
+        .into_iter()
+        .filter_map(|item| item.as_object().cloned())
+        .collect())
+}
+
 #[tauri::command]
 pub fn jornada_combo_list(state: State<'_, SharedState>) -> Result<Vec<ComboOption>, String> {
     let db_path = state.db_path()?;
@@ -143,6 +182,12 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
                     jt.codigo,
                     jt.descricao,
                     jt.tipo_jornada,
+                    jt.perfil_flexivel,
+                    jt.permite_folga_movel,
+                    jt.permite_meia_folga,
+                    jt.dia_folga_base,
+                    jt.periodo_meia_folga,
+                    jt.heuristica_troca_folga,
                     jt.tolerancia_entrada_minutos,
                     jt.tolerancia_saida_minutos,
                     jt.tolerancia_intervalo_minutos,
@@ -183,6 +228,12 @@ pub fn jornada_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String,
                     jt.codigo,
                     jt.descricao,
                     jt.tipo_jornada,
+                    jt.perfil_flexivel,
+                    jt.permite_folga_movel,
+                    jt.permite_meia_folga,
+                    jt.dia_folga_base,
+                    jt.periodo_meia_folga,
+                    jt.heuristica_troca_folga,
                     jt.tolerancia_entrada_minutos,
                     jt.tolerancia_saida_minutos,
                     jt.tolerancia_intervalo_minutos,
@@ -276,24 +327,36 @@ pub fn jornada_save(
                     codigo = ?2,
                     descricao = ?3,
                     tipo_jornada = ?4,
-                    tolerancia_entrada_minutos = ?5,
-                    tolerancia_saida_minutos = ?6,
-                    tolerancia_intervalo_minutos = ?7,
-                    carga_semanal_minutos = ?8,
-                    limite_diario_minutos = ?9,
-                    banco_horas_ativo = ?10,
-                    exige_marcacao_intervalo = ?11,
-                    compensa_atraso_com_extra = ?12,
-                    modo_tratamento_afd = ?13,
-                    observacoes = ?14,
-                    ativo = ?15,
-                    updated_at = ?16
-              WHERE id = ?17",
+                    perfil_flexivel = ?5,
+                    permite_folga_movel = ?6,
+                    permite_meia_folga = ?7,
+                    dia_folga_base = ?8,
+                    periodo_meia_folga = ?9,
+                    heuristica_troca_folga = ?10,
+                    tolerancia_entrada_minutos = ?11,
+                    tolerancia_saida_minutos = ?12,
+                    tolerancia_intervalo_minutos = ?13,
+                    carga_semanal_minutos = ?14,
+                    limite_diario_minutos = ?15,
+                    banco_horas_ativo = ?16,
+                    exige_marcacao_intervalo = ?17,
+                    compensa_atraso_com_extra = ?18,
+                    modo_tratamento_afd = ?19,
+                    observacoes = ?20,
+                    ativo = ?21,
+                    updated_at = ?22
+              WHERE id = ?23",
             params![
                 empresa_id,
                 get_string(&payload, "codigo"),
                 descricao,
                 tipo_jornada,
+                get_string(&payload, "perfil_flexivel"),
+                get_bool(&payload, "permite_folga_movel", false),
+                get_bool(&payload, "permite_meia_folga", false),
+                get_i64(&payload, "dia_folga_base"),
+                get_string(&payload, "periodo_meia_folga"),
+                get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "tolerancia_entrada_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_saida_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_intervalo_minutos").unwrap_or(5),
@@ -319,18 +382,25 @@ pub fn jornada_save(
     } else {
         conn.execute(
             "INSERT INTO jornadas_trabalho (
-                empresa_id, codigo, descricao, tipo_jornada, tolerancia_entrada_minutos,
-                tolerancia_saida_minutos, tolerancia_intervalo_minutos, carga_semanal_minutos,
+                empresa_id, codigo, descricao, tipo_jornada, perfil_flexivel, permite_folga_movel,
+                permite_meia_folga, dia_folga_base, periodo_meia_folga, heuristica_troca_folga,
+                tolerancia_entrada_minutos, tolerancia_saida_minutos, tolerancia_intervalo_minutos, carga_semanal_minutos,
                 limite_diario_minutos, banco_horas_ativo, exige_marcacao_intervalo,
                 compensa_atraso_com_extra, modo_tratamento_afd, observacoes, ativo, created_at, updated_at
             ) VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?22
             )",
             params![
                 empresa_id,
                 get_string(&payload, "codigo"),
                 descricao,
                 tipo_jornada,
+                get_string(&payload, "perfil_flexivel"),
+                get_bool(&payload, "permite_folga_movel", false),
+                get_bool(&payload, "permite_meia_folga", false),
+                get_i64(&payload, "dia_folga_base"),
+                get_string(&payload, "periodo_meia_folga"),
+                get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "tolerancia_entrada_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_saida_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_intervalo_minutos").unwrap_or(5),
@@ -347,7 +417,6 @@ pub fn jornada_save(
         )
         .map_err(|err| format!("Falha ao inserir jornada: {err}"))?;
         conn.last_insert_rowid()
-    };
 
     for day in dias_array {
         let (
@@ -399,6 +468,17 @@ pub fn jornada_save(
     )?;
 
     Ok(saved)
+}
+
+
+#[tauri::command]
+pub fn jornada_clone(state: State<'_, SharedState>, id: i64) -> Result<Map<String, Value>, String> {
+    let mut base = jornada_get(state.clone(), id)?;
+    base.remove("id");
+    let descricao = base.get("descricao").and_then(|v| v.as_str()).unwrap_or("Jornada");
+    base.insert("codigo".to_string(), Value::String(format!("{}-COPIA", base.get("codigo").and_then(|v| v.as_str()).unwrap_or("JOR"))));
+    base.insert("descricao".to_string(), Value::String(format!("{} (Cópia)", descricao)));
+    jornada_save(state, base)
 }
 
 #[tauri::command]

@@ -193,6 +193,23 @@ pub fn report_generated_list(
         .map_err(|err| format!("Falha ao mapear relatórios gerados: {err}"))
 }
 
+fn resolve_generated_report_path(db_path: &Path, file_path: &str, file_name: &str) -> Option<PathBuf> {
+    let original = PathBuf::from(file_path);
+    if original.exists() {
+        return Some(original);
+    }
+
+    let fallback_dir = db_path
+        .parent()
+        .map(|base| base.join("exports").join("generated_reports"));
+    let fallback = fallback_dir?.join(file_name);
+    if fallback.exists() {
+        return Some(fallback);
+    }
+
+    None
+}
+
 #[tauri::command]
 pub fn report_generated_download(
     state: State<'_, SharedState>,
@@ -210,8 +227,25 @@ pub fn report_generated_download(
         .map_err(|err| format!("Falha ao consultar relatório gerado: {err}"))?;
     let (file_name, mime_type, file_path) =
         record.ok_or_else(|| "Relatório gerado não encontrado.".to_string())?;
-    let bytes =
-        fs::read(&file_path).map_err(|err| format!("Falha ao ler arquivo do relatório: {err}"))?;
+
+    let resolved_path = resolve_generated_report_path(db_path.as_path(), &file_path, &file_name)
+        .ok_or_else(|| {
+            format!(
+                "Arquivo do relatório não encontrado. Caminho original: {}. Nome do arquivo: {}.",
+                file_path, file_name
+            )
+        })?;
+
+    if resolved_path.to_string_lossy() != file_path {
+        let now = Utc::now().to_rfc3339();
+        let _ = conn.execute(
+            "UPDATE relatorios_gerados SET file_path = ?1, updated_at = ?2 WHERE id = ?3",
+            params![resolved_path.to_string_lossy().to_string(), now, id],
+        );
+    }
+
+    let bytes = fs::read(&resolved_path)
+        .map_err(|err| format!("Falha ao ler arquivo do relatório: {err}"))?;
     Ok(GeneratedReportDownload {
         file_name,
         mime_type,

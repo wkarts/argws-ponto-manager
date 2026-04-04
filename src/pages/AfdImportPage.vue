@@ -99,7 +99,7 @@ onMounted(async () => {
     <div v-if="error" class="alert error">{{ error }}</div>
 
     <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
+      <div class="filter-grid">
         <div class="field">
           <label>Empresa</label>
           <select v-model="empresaId">
