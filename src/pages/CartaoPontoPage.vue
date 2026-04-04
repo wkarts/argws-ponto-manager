@@ -49,7 +49,7 @@ const smartJustificativaId = ref("");
 const smartSuggestionSelection = reactive<Record<string, boolean>>({});
 const duplicateSelection = reactive<Record<string, boolean>>({});
 
-type SmartSuggestionType = "esquecimento" | "falta" | "troca_folga" | "meia_folga";
+type SmartSuggestionType = "esquecimento" | "falta" | "troca_folga" | "meia_folga" | "falta_continua" | "atestado_provavel";
 
 interface SmartSuggestionItem {
   key: string;
@@ -201,14 +201,15 @@ const ocorrenciasSelecionadas = computed(() => selectedDate.value ? ocorrencias.
 const selectedDayLabel = computed(() => selectedDaySummary.value ? `${selectedDaySummary.value.day} • ${selectedDaySummary.value.dayLabel}` : 'Nenhum dia selecionado');
 const smartResumo = computed(() => ({
   esquecimentos: smartSuggestions.value.filter((item) => item.tipo === 'esquecimento').length,
-  faltas: smartSuggestions.value.filter((item) => item.tipo === 'falta').length,
+  faltas: smartSuggestions.value.filter((item) => item.tipo === 'falta' || item.tipo === 'falta_continua').length,
   trocasFolga: smartSuggestions.value.filter((item) => item.tipo === 'troca_folga').length,
   meiasFolga: smartSuggestions.value.filter((item) => item.tipo === 'meia_folga').length,
+  atestados: smartSuggestions.value.filter((item) => item.tipo === 'atestado_provavel').length,
 }));
 
 function suggestionBadgeClass(tipo: SmartSuggestionType) {
-  if (tipo === 'falta') return 'badge-danger';
-  if (tipo === 'troca_folga') return 'badge-info';
+  if (tipo === 'falta' || tipo === 'falta_continua') return 'badge-danger';
+  if (tipo === 'troca_folga' || tipo === 'atestado_provavel') return 'badge-info';
   return 'badge-warning';
 }
 
@@ -231,77 +232,82 @@ function generateSmartSuggestionsFromSummary(summary: ApuracaoResumo | null, emp
   const items: SmartSuggestionItem[] = [];
   if (!summary || !employeeId) return items;
 
-  for (const row of summary.rows || []) {
+  const rows = [...(summary.rows || [])].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+  let consecutiveAbsences = 0;
+  let currentAbsenceDates: string[] = [];
+
+  for (const row of rows) {
     const batidas = row.batidas || [];
     const mensagens = row.mensagens || [];
     const worked = Number(row.trabalhado_minutos || 0);
     const expected = Number(row.horario_esperado_minutos || 0);
     const saldo = Number(row.saldo_minutos || 0);
     const hasOccurrence = (row.ocorrencias || []).length > 0;
+    const date = String(row.data || '');
 
     if (batidas.length > 0 && batidas.length % 2 === 1) {
       items.push({
-        key: `${row.data}:esquecimento`,
-        date: row.data,
-        funcionarioId: employeeId,
-        funcionarioNome: employeeName,
-        tipo: 'esquecimento',
-        titulo: 'Possível esquecimento de batida',
+        key: `${date}:esquecimento`, date, funcionarioId: employeeId, funcionarioNome: employeeName,
+        tipo: 'esquecimento', titulo: 'Possível esquecimento de batida',
         observacao: mensagens.join(' | ') || 'Quantidade ímpar de marcações no dia.',
-        seguro: false,
-        esperadoMinutos: expected,
-        trabalhadoMinutos: worked,
-        batidas,
+        seguro: false, esperadoMinutos: expected, trabalhadoMinutos: worked, batidas,
       });
     }
 
     if (expected > 0 && worked === 0 && !hasOccurrence) {
+      consecutiveAbsences += 1;
+      currentAbsenceDates.push(date);
       items.push({
-        key: `${row.data}:falta`,
-        date: row.data,
-        funcionarioId: employeeId,
-        funcionarioNome: employeeName,
-        tipo: 'falta',
-        titulo: 'Falta sem marcação',
+        key: `${date}:falta`, date, funcionarioId: employeeId, funcionarioNome: employeeName,
+        tipo: 'falta', titulo: 'Falta sem marcação',
         observacao: mensagens.join(' | ') || 'Jornada esperada sem batidas e sem ocorrência.',
-        seguro: true,
-        esperadoMinutos: expected,
-        trabalhadoMinutos: worked,
-        batidas,
+        seguro: true, esperadoMinutos: expected, trabalhadoMinutos: worked, batidas,
       });
+    } else {
+      if (consecutiveAbsences >= 2 && currentAbsenceDates.length) {
+        const first = currentAbsenceDates[0];
+        const last = currentAbsenceDates[currentAbsenceDates.length - 1];
+        items.push({
+          key: `${first}:falta_continua`, date: first, funcionarioId: employeeId, funcionarioNome: employeeName,
+          tipo: consecutiveAbsences >= 3 ? 'atestado_provavel' : 'falta_continua',
+          titulo: consecutiveAbsences >= 3 ? 'Atestado provável / ausência contínua' : 'Falta contínua provável',
+          observacao: `Ausência contínua detectada entre ${first} e ${last}.`,
+          seguro: false, esperadoMinutos: 0, trabalhadoMinutos: 0, batidas: [],
+        });
+      }
+      consecutiveAbsences = 0;
+      currentAbsenceDates = [];
     }
 
     if (expected === 0 && worked > 0) {
       items.push({
-        key: `${row.data}:troca_folga`,
-        date: row.data,
-        funcionarioId: employeeId,
-        funcionarioNome: employeeName,
-        tipo: 'troca_folga',
-        titulo: 'Possível troca de folga',
+        key: `${date}:troca_folga`, date, funcionarioId: employeeId, funcionarioNome: employeeName,
+        tipo: 'troca_folga', titulo: 'Possível troca de folga',
         observacao: mensagens.join(' | ') || 'Dia tratado como folga, mas houve marcação de trabalho.',
-        seguro: true,
-        esperadoMinutos: expected,
-        trabalhadoMinutos: worked,
-        batidas,
+        seguro: true, esperadoMinutos: expected, trabalhadoMinutos: worked, batidas,
       });
     }
 
     if (expected > 0 && worked > 0 && worked < Math.ceil(expected * 0.65) && saldo < 0 && !hasOccurrence) {
       items.push({
-        key: `${row.data}:meia_folga`,
-        date: row.data,
-        funcionarioId: employeeId,
-        funcionarioNome: employeeName,
-        tipo: 'meia_folga',
-        titulo: 'Jornada parcial / meia folga provável',
+        key: `${date}:meia_folga`, date, funcionarioId: employeeId, funcionarioNome: employeeName,
+        tipo: 'meia_folga', titulo: 'Jornada parcial / meia folga provável',
         observacao: mensagens.join(' | ') || 'Cumprimento parcial relevante da jornada sem ocorrência registrada.',
-        seguro: true,
-        esperadoMinutos: expected,
-        trabalhadoMinutos: worked,
-        batidas,
+        seguro: true, esperadoMinutos: expected, trabalhadoMinutos: worked, batidas,
       });
     }
+  }
+
+  if (consecutiveAbsences >= 2 && currentAbsenceDates.length) {
+    const first = currentAbsenceDates[0];
+    const last = currentAbsenceDates[currentAbsenceDates.length - 1];
+    items.push({
+      key: `${first}:falta_continua`, date: first, funcionarioId: employeeId, funcionarioNome: employeeName,
+      tipo: consecutiveAbsences >= 3 ? 'atestado_provavel' : 'falta_continua',
+      titulo: consecutiveAbsences >= 3 ? 'Atestado provável / ausência contínua' : 'Falta contínua provável',
+      observacao: `Ausência contínua detectada entre ${first} e ${last}.`,
+      seguro: false, esperadoMinutos: 0, trabalhadoMinutos: 0, batidas: [],
+    });
   }
 
   return items;
@@ -337,8 +343,11 @@ async function aplicarSugestoesSelecionadas(apenasSeguras = false) {
       let abonarDia = false;
       let minutosAbonados = 0;
 
-      if (item.tipo === 'falta') {
+      if (item.tipo === 'falta' || item.tipo === 'falta_continua') {
         tipo = smartFaltaTipo.value || 'falta';
+      } else if (item.tipo === 'atestado_provavel') {
+        tipo = 'atestado';
+        abonarDia = true;
       } else if (item.tipo === 'troca_folga') {
         tipo = 'troca_folga';
       } else if (item.tipo === 'meia_folga') {
@@ -391,8 +400,8 @@ async function tratarTodosAutomaticos() {
           funcionario_id: item.funcionarioId,
           data_referencia: item.date,
           justificativa_id: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
-          tipo: item.tipo === 'falta' ? (smartFaltaTipo.value || 'falta') : item.tipo,
-          abonar_dia: false,
+          tipo: (item.tipo === 'falta' || item.tipo === 'falta_continua') ? (smartFaltaTipo.value || 'falta') : (item.tipo === 'atestado_provavel' ? 'atestado' : item.tipo),
+          abonar_dia: item.tipo === 'atestado_provavel',
           minutos_abonados: item.tipo === 'meia_folga' ? Math.max(0, item.esperadoMinutos - item.trabalhadoMinutos) : 0,
           observacao: `[SMART LOTE] ${item.titulo}. ${item.observacao}`,
         });
@@ -643,9 +652,12 @@ async function carregarCartao() {
 
 function parseTimeToMinutes(value: string): number | null {
   if (!value || !value.includes(":")) return null;
-  const [hh, mm] = value.split(":").map((item) => Number(item));
-  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-  return hh * 60 + mm;
+  const parts = value.split(":").map((item) => Number(item));
+  const hh = parts[0];
+  const mm = parts[1];
+  const ss = parts[2] || 0;
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || !Number.isFinite(ss)) return null;
+  return hh * 60 + mm + (ss / 60);
 }
 
 function minutesToHHMM(value: number): string {

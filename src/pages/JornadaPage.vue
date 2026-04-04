@@ -53,6 +53,12 @@ function defaultForm() {
     dia_folga_base: "",
     periodo_meia_folga: "",
     heuristica_troca_folga: true,
+    dias_trabalho_semana: 6,
+    folgas_mensais: 0,
+    sabado_tipo: "integral",
+    suporta_diarista_generico: false,
+    limite_dias_diarista: 0,
+    semana_alternada_folga: false,
     tolerancia_entrada_minutos: 5,
     tolerancia_saida_minutos: 5,
     tolerancia_intervalo_minutos: 5,
@@ -114,6 +120,12 @@ async function editRow(id: number) {
       permite_folga_movel: Number(record.permite_folga_movel) === 1 || record.permite_folga_movel === true,
       permite_meia_folga: Number(record.permite_meia_folga) === 1 || record.permite_meia_folga === true,
       heuristica_troca_folga: Number(record.heuristica_troca_folga) === 1 || record.heuristica_troca_folga === true,
+      dias_trabalho_semana: Number(record.dias_trabalho_semana || 6),
+      folgas_mensais: Number(record.folgas_mensais || 0),
+      sabado_tipo: String(record.sabado_tipo || "integral"),
+      suporta_diarista_generico: Number(record.suporta_diarista_generico) === 1 || record.suporta_diarista_generico === true,
+      limite_dias_diarista: Number(record.limite_dias_diarista || 0),
+      semana_alternada_folga: Number(record.semana_alternada_folga) === 1 || record.semana_alternada_folga === true,
       dia_folga_base: record.dia_folga_base ? String(record.dia_folga_base) : "",
       periodo_meia_folga: String(record.periodo_meia_folga || ""),
       ativo: Number(record.ativo) === 1 || record.ativo === true,
@@ -337,6 +349,28 @@ onMounted(async () => {
           <AppSwitch v-model="form.compensa_atraso_com_extra" label="Compensa atraso com extra" />
           <AppSwitch v-model="form.permite_folga_movel" label="Permitir folga móvel" />
           <AppSwitch v-model="form.permite_meia_folga" label="Permitir meia folga" />
+          <label>
+            Dias de trabalho / semana
+            <input v-model.number="form.dias_trabalho_semana" type="number" min="0" max="7" />
+          </label>
+          <label>
+            Folgas mensais
+            <input v-model.number="form.folgas_mensais" type="number" min="0" max="4" />
+          </label>
+          <label>
+            Tipo de sábado
+            <select v-model="form.sabado_tipo">
+              <option value="integral">Integral</option>
+              <option value="meio">Meio período</option>
+              <option value="folga">Folga</option>
+            </select>
+          </label>
+          <AppSwitch v-model="form.suporta_diarista_generico" label="Diarista genérico" />
+          <label>
+            Limite de dias diarista
+            <input v-model.number="form.limite_dias_diarista" type="number" min="0" max="7" />
+          </label>
+          <AppSwitch v-model="form.semana_alternada_folga" label="Folga mensal alternada" />
           <AppSwitch v-model="form.heuristica_troca_folga" label="Detectar troca de folga" />
           <AppSwitch v-model="form.ativo" label="Jornada ativa" />
         </div>
