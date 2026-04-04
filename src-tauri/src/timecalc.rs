@@ -400,7 +400,11 @@ pub fn resolve_schedule_for_employee(
                     h.entrada_2,
                     h.saida_2,
                     COALESCE(h.carga_horaria_minutos, 480),
-                    es.dias_ativos
+                    es.dias_ativos,
+                    f.data_demissao,
+                    f.ferias_inicio,
+                    f.ferias_fim,
+                    COALESCE(f.ferias_dias, 0)
              FROM funcionarios f
              LEFT JOIN jornadas_trabalho jt ON jt.id = f.jornada_id
              LEFT JOIN jornada_dias jd ON jd.jornada_id = f.jornada_id AND jd.dia_semana = ?1
@@ -439,6 +443,10 @@ pub fn resolve_schedule_for_employee(
                 row.get::<_, Option<String>>(23)?,
                 row.get::<_, i64>(24)?,
                 row.get::<_, Option<String>>(25)?,
+                row.get::<_, Option<String>>(26)?,
+                row.get::<_, Option<String>>(27)?,
+                row.get::<_, Option<String>>(28)?,
+                row.get::<_, i64>(29)?,
             ))
         })
         .optional()
@@ -474,7 +482,60 @@ pub fn resolve_schedule_for_employee(
         h_saida_2,
         h_carga,
         escala_dias,
+        data_demissao,
+        ferias_inicio,
+        ferias_fim,
+        ferias_dias,
     ) = row;
+
+
+    if let Some(demissao) = data_demissao.as_deref() {
+        if demissao <= date_iso {
+            return Ok(ResolvedSchedule {
+                jornada_id,
+                jornada_nome: jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string()),
+                tipo_jornada: "desligamento".to_string(),
+                tolerancia_entrada_minutos: tolerancia_entrada,
+                tolerancia_saida_minutos: tolerancia_saida,
+                tolerancia_intervalo_minutos: tolerancia_intervalo,
+                exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                expected_minutes: 0,
+                entrada_1: None,
+                saida_1: None,
+                entrada_2: None,
+                saida_2: None,
+                is_day_off: true,
+                is_holiday: false,
+                holiday_label: Some(format!("Desligamento em {}", demissao)),
+                holiday_compensation: None,
+                holiday_jornada_rule: Some("employee_dismissed".to_string()),
+            });
+        }
+    }
+
+    if let (Some(inicio), Some(fim)) = (ferias_inicio.as_deref(), ferias_fim.as_deref()) {
+        if inicio <= date_iso && date_iso <= fim {
+            return Ok(ResolvedSchedule {
+                jornada_id,
+                jornada_nome: jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string()),
+                tipo_jornada: "ferias".to_string(),
+                tolerancia_entrada_minutos: tolerancia_entrada,
+                tolerancia_saida_minutos: tolerancia_saida,
+                tolerancia_intervalo_minutos: tolerancia_intervalo,
+                exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                expected_minutes: 0,
+                entrada_1: None,
+                saida_1: None,
+                entrada_2: None,
+                saida_2: None,
+                is_day_off: true,
+                is_holiday: false,
+                holiday_label: Some(if ferias_dias > 0 { format!("Férias ({} dia(s))", ferias_dias) } else { "Férias".to_string() }),
+                holiday_compensation: None,
+                holiday_jornada_rule: Some("employee_vacation".to_string()),
+            });
+        }
+    }
 
     if jornada_id.is_some() {
         let mut expected_minutes = jd_carga;

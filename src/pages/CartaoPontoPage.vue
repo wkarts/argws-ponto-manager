@@ -82,6 +82,19 @@ const gridSaving = reactive<Record<string, boolean>>({});
 const gridCellRefs = ref<Record<string, HTMLInputElement | null>>({});
 const gridStatus = ref('Pronto para edição inline. Use Enter, setas e Del para operar a grade.');
 
+type SidebarTab = 'smart' | 'duplicadas' | 'ocorrencias';
+const sidebarCollapsed = ref(false);
+const sidebarTab = ref<SidebarTab>('smart');
+
+function toggleSidebarCollapse() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
+function setSidebarTab(tab: SidebarTab) {
+  sidebarTab.value = tab;
+  sidebarCollapsed.value = false;
+}
+
 const hoje = new Date();
 const filtros = reactive({
   funcionarioId: "",
@@ -1567,7 +1580,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="cartao-vb6-shell">
+    <div class="cartao-vb6-shell cartao-shell-split">
       <div class="card cartao-vb6-grid-panel table-wrap">
         <div class="vb6-group-header">
           <h3>Grade diária do cartão</h3>
@@ -1625,188 +1638,155 @@ onMounted(async () => {
         </table>
       </div>
 
-      <div class="cartao-vb6-side">
-        <div class="card card-tight vb6-group sticky-card">
+      <div class="cartao-right-workspace" :class="{ collapsed: sidebarCollapsed }">
+        <div class="card table-wrap card-tight always-visible-panel">
           <div class="vb6-group-header">
-            <h3>Motor smart</h3>
+            <h3>Marcações do dia selecionado</h3>
             <div class="actions compact-actions">
-              <button class="secondary" :disabled="smartBusy" @click="analisarSugestoes">Analisar sugestões</button>
-              <button class="primary" :disabled="smartBusy" @click="tratarTodosAutomaticos">Tratar todos automáticos</button>
+              <button class="secondary" @click="openNovaBatida(selectedDate)">Nova marcação</button>
             </div>
           </div>
-          <div class="smart-summary-grid">
-            <div><strong>Esquecimentos</strong><span>{{ smartResumo.esquecimentos }}</span></div>
-            <div><strong>Faltas</strong><span>{{ smartResumo.faltas }}</span></div>
-            <div><strong>Folgas móveis</strong><span>{{ smartResumo.trocasFolga }}</span></div>
-            <div><strong>Meia folga</strong><span>{{ smartResumo.meiasFolga }}</span></div>
-          </div>
-          <div class="filter-grid compact">
-            <div class="field">
-              <label>Tipo padrão para faltas</label>
-              <select v-model="smartFaltaTipo">
-                <option value="falta">Falta</option>
-                <option value="falta_justificada">Falta justificada</option>
-                <option value="atestado">Atestado</option>
-                <option value="abono">Abono</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Justificativa padrão</label>
-              <select v-model="smartJustificativaId">
-                <option value="">Sem justificativa</option>
-                <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-              </select>
-            </div>
-          </div>
-          <div class="actions compact-actions">
-            <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(false)">Aplicar selecionadas</button>
-            <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(true)">Aplicar seguras</button>
-          </div>
-          <div class="compact-table-wrap">
-            <table class="quick-table table-compact">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Data</th>
-                  <th>Tipo</th>
-                  <th>Batidas</th>
-                  <th>Observação</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in smartSuggestions" :key="item.key" @click="selectDay(item.date)">
-                  <td><input v-model="smartSuggestionSelection[item.key]" type="checkbox" /></td>
-                  <td>{{ item.date }}</td>
-                  <td><span class="badge" :class="suggestionBadgeClass(item.tipo)">{{ item.titulo }}</span></td>
-                  <td>{{ item.batidas.join(' | ') || '-' }}</td>
-                  <td>{{ item.observacao }}</td>
-                </tr>
-                <tr v-if="!smartSuggestions.length">
-                  <td colspan="5" class="empty-cell">Nenhuma sugestão smart gerada para o período atual.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <table class="quick-table table-compact">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Hora</th>
+                <th>Tipo</th>
+                <th>Origem</th>
+                <th>Justificativa</th>
+                <th>Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in batidasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
+                <td>{{ row.data_referencia }}</td>
+                <td>{{ row.hora }}</td>
+                <td>{{ row.tipo }}</td>
+                <td>{{ row.origem || '-' }}</td>
+                <td>{{ row.justificativa_nome || '-' }}</td>
+                <td>
+                  <div class="actions compact-actions">
+                    <button class="secondary" @click="editarBatida(row)">Editar</button>
+                    <button class="secondary" @click="moverBatida(row, -1)">-1m</button>
+                    <button class="secondary" @click="moverBatida(row, 1)">+1m</button>
+                    <button class="danger" @click="removerBatida(row)">Remover</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!batidasSelecionadas.length">
+                <td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o dia selecionado.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="card card-tight vb6-group">
-          <div class="vb6-group-header">
-            <h3>Exclusão assistida de batidas</h3>
-            <div class="actions compact-actions">
-              <button class="secondary" :disabled="duplicateBusy" @click="localizarDuplicidades">Localizar duplicadas</button>
-              <button class="danger" :disabled="duplicateBusy" @click="excluirDuplicidadesSelecionadas">Excluir selecionadas</button>
+        <div class="card card-tight lateral-tabs-card">
+          <div class="lateral-tabs-shell">
+            <div class="vertical-tabs-rail">
+              <button type="button" class="rail-toggle" @click="toggleSidebarCollapse">{{ sidebarCollapsed ? '»' : '«' }}</button>
+              <button type="button" class="vertical-tab" :class="{ active: sidebarTab === 'smart' }" @click="setSidebarTab('smart')">Smart</button>
+              <button type="button" class="vertical-tab" :class="{ active: sidebarTab === 'duplicadas' }" @click="setSidebarTab('duplicadas')">Exclusão</button>
+              <button type="button" class="vertical-tab" :class="{ active: sidebarTab === 'ocorrencias' }" @click="setSidebarTab('ocorrencias')">Ocorrências</button>
             </div>
-          </div>
-          <div class="compact-table-wrap">
-            <table class="quick-table table-compact">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>Data</th>
-                  <th>Funcionário</th>
-                  <th>Hora</th>
-                  <th>Rep.</th>
-                  <th>IDs</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in duplicateCandidates" :key="item.key" @click="selectDay(item.date)">
-                  <td><input v-model="duplicateSelection[item.key]" type="checkbox" /></td>
-                  <td>{{ item.date }}</td>
-                  <td>{{ item.funcionarioNome }}</td>
-                  <td>{{ item.horarioBase }}</td>
-                  <td>{{ item.repeticoes }}</td>
-                  <td>{{ item.ids.join(', ') }}</td>
-                </tr>
-                <tr v-if="!duplicateCandidates.length">
-                  <td colspan="6" class="empty-cell">Nenhuma duplicidade exata ou muito próxima localizada para o filtro atual.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid columns-2 mobile-columns-1 cartao-bottom-grid">
-      <div class="card table-wrap card-tight">
-        <div class="vb6-group-header">
-          <h3>Marcações do dia selecionado</h3>
-          <div class="actions compact-actions">
-            <button class="secondary" @click="openNovaBatida(selectedDate)">Nova marcação</button>
-          </div>
-        </div>
-        <table class="quick-table table-compact">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Hora</th>
-              <th>Tipo</th>
-              <th>Origem</th>
-              <th>Justificativa</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in batidasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
-              <td>{{ row.data_referencia }}</td>
-              <td>{{ row.hora }}</td>
-              <td>{{ row.tipo }}</td>
-              <td>{{ row.origem || '-' }}</td>
-              <td>{{ row.justificativa_nome || '-' }}</td>
-              <td>
-                <div class="actions compact-actions">
-                  <button class="secondary" @click="editarBatida(row)">Editar</button>
-                  <button class="secondary" @click="moverBatida(row, -1)">-1m</button>
-                  <button class="secondary" @click="moverBatida(row, 1)">+1m</button>
-                  <button class="danger" @click="removerBatida(row)">Remover</button>
+            <div v-if="!sidebarCollapsed" class="lateral-tab-content">
+              <template v-if="sidebarTab === 'smart'">
+                <div class="vb6-group-header">
+                  <h3>Modo inteligente</h3>
+                  <div class="actions compact-actions">
+                    <button class="secondary" :disabled="smartBusy" @click="analisarSugestoes">Analisar</button>
+                    <button class="primary" :disabled="smartBusy" @click="tratarTodosAutomaticos">Tratar todos</button>
+                  </div>
                 </div>
-              </td>
-            </tr>
-            <tr v-if="!batidasSelecionadas.length">
-              <td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o dia selecionado.</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+                <div class="smart-summary-grid">
+                  <div><strong>Esquecimentos</strong><span>{{ smartResumo.esquecimentos }}</span></div>
+                  <div><strong>Faltas</strong><span>{{ smartResumo.faltas }}</span></div>
+                  <div><strong>Folgas móveis</strong><span>{{ smartResumo.trocasFolga }}</span></div>
+                  <div><strong>Meia folga</strong><span>{{ smartResumo.meiasFolga }}</span></div>
+                </div>
+                <div class="filter-grid compact">
+                  <div class="field">
+                    <label>Tipo padrão para faltas</label>
+                    <select v-model="smartFaltaTipo">
+                      <option value="falta">Falta</option>
+                      <option value="falta_justificada">Falta justificada</option>
+                      <option value="atestado">Atestado</option>
+                      <option value="abono">Abono</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Justificativa padrão</label>
+                    <select v-model="smartJustificativaId">
+                      <option value="">Sem justificativa</option>
+                      <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="actions compact-actions">
+                  <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(false)">Aplicar selecionadas</button>
+                  <button class="secondary" :disabled="smartBusy" @click="aplicarSugestoesSelecionadas(true)">Aplicar seguras</button>
+                </div>
+                <div class="compact-table-wrap">
+                  <table class="quick-table table-compact">
+                    <thead><tr><th></th><th>Data</th><th>Tipo</th><th>Batidas</th><th>Observação</th></tr></thead>
+                    <tbody>
+                      <tr v-for="item in smartSuggestions" :key="item.key" @click="selectDay(item.date)">
+                        <td><input v-model="smartSuggestionSelection[item.key]" type="checkbox" /></td>
+                        <td>{{ item.date }}</td>
+                        <td><span class="badge" :class="suggestionBadgeClass(item.tipo)">{{ item.titulo }}</span></td>
+                        <td>{{ item.batidas.join(' | ') || '-' }}</td>
+                        <td>{{ item.observacao }}</td>
+                      </tr>
+                      <tr v-if="!smartSuggestions.length"><td colspan="5" class="empty-cell">Nenhuma sugestão smart gerada para o período atual.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
 
-      <div class="card table-wrap card-tight">
-        <div class="vb6-group-header">
-          <h3>Ocorrências do dia selecionado</h3>
-          <div class="actions compact-actions">
-            <button class="secondary" @click="openNovaOcorrencia(selectedDate)">Nova ocorrência</button>
+              <template v-else-if="sidebarTab === 'duplicadas'">
+                <div class="vb6-group-header">
+                  <h3>Exclusão assistida</h3>
+                  <div class="actions compact-actions">
+                    <button class="secondary" :disabled="duplicateBusy" @click="localizarDuplicidades">Localizar</button>
+                    <button class="danger" :disabled="duplicateBusy" @click="excluirDuplicidadesSelecionadas">Excluir</button>
+                  </div>
+                </div>
+                <div class="compact-table-wrap">
+                  <table class="quick-table table-compact">
+                    <thead><tr><th></th><th>Data</th><th>Funcionário</th><th>Hora</th><th>Rep.</th><th>IDs</th></tr></thead>
+                    <tbody>
+                      <tr v-for="item in duplicateCandidates" :key="item.key" @click="selectDay(item.date)">
+                        <td><input v-model="duplicateSelection[item.key]" type="checkbox" /></td>
+                        <td>{{ item.date }}</td><td>{{ item.funcionarioNome }}</td><td>{{ item.horarioBase }}</td><td>{{ item.repeticoes }}</td><td>{{ item.ids.join(', ') }}</td>
+                      </tr>
+                      <tr v-if="!duplicateCandidates.length"><td colspan="6" class="empty-cell">Nenhuma duplicidade exata ou muito próxima localizada para o filtro atual.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="vb6-group-header">
+                  <h3>Ocorrências do dia selecionado</h3>
+                  <div class="actions compact-actions">
+                    <button class="secondary" @click="openNovaOcorrencia(selectedDate)">Nova ocorrência</button>
+                  </div>
+                </div>
+                <div class="compact-table-wrap">
+                  <table class="quick-table table-compact">
+                    <thead><tr><th>Data</th><th>Tipo</th><th>Justificativa</th><th>Abono</th><th>Observação</th><th>Ação</th></tr></thead>
+                    <tbody>
+                      <tr v-for="row in ocorrenciasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
+                        <td>{{ row.data_referencia }}</td><td>{{ row.tipo }}</td><td>{{ row.justificativa_nome || '-' }}</td><td>{{ Number(row.minutos_abonados || 0) > 0 ? row.minutos_abonados : (Number(row.abonar_dia) === 1 ? 'Dia abonado' : '-') }}</td><td>{{ row.observacao || '-' }}</td>
+                        <td><div class="actions compact-actions"><button class="secondary" @click="editarOcorrencia(row)">Editar</button><button class="danger" @click="removerOcorrencia(row)">Remover</button></div></td>
+                      </tr>
+                      <tr v-if="!ocorrenciasSelecionadas.length"><td colspan="6" class="empty-cell">Nenhuma ocorrência encontrada para o dia selecionado.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
-        <table class="quick-table table-compact">
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Tipo</th>
-              <th>Justificativa</th>
-              <th>Abono</th>
-              <th>Observação</th>
-              <th>Ação</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in ocorrenciasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
-              <td>{{ row.data_referencia }}</td>
-              <td>{{ row.tipo }}</td>
-              <td>{{ row.justificativa_nome || '-' }}</td>
-              <td>{{ Number(row.minutos_abonados || 0) > 0 ? row.minutos_abonados : (Number(row.abonar_dia) === 1 ? 'Dia abonado' : '-') }}</td>
-              <td>{{ row.observacao || '-' }}</td>
-              <td>
-                <div class="actions compact-actions">
-                  <button class="secondary" @click="editarOcorrencia(row)">Editar</button>
-                  <button class="danger" @click="removerOcorrencia(row)">Remover</button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="!ocorrenciasSelecionadas.length">
-              <td colspan="6" class="empty-cell">Nenhuma ocorrência encontrada para o dia selecionado.</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
 

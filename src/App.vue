@@ -2,6 +2,7 @@
 import { onErrorCaptured, ref } from "vue";
 import { logAppError } from "./services/logger";
 import AppSplash from "./components/AppSplash.vue";
+import { showSplashError } from "./services/splash";
 
 const fatalError = ref("");
 
@@ -17,6 +18,7 @@ onErrorCaptured((error, instance, info) => {
     component: resolveComponentName(instance),
     error: fatalError.value,
   });
+  showSplashError(fatalError.value);
   return false;
 });
 </script>
