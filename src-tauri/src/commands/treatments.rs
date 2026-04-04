@@ -1045,9 +1045,7 @@ pub fn smart_apply_suggestions(
         } else {
             item.suggested_tipo.clone()
         };
-        let abonar = if matches!(tipo.as_str(), "atestado" | "abono") {
-            1
-        } else if item.suggested_abonar_dia {
+        let abonar = if matches!(tipo.as_str(), "atestado" | "abono") || item.suggested_abonar_dia {
             1
         } else {
             0
