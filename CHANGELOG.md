@@ -1,3 +1,18 @@
+# [1.10.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.2...v1.10.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **clippy:** corrige erros de compilação em timecalc, employees e jornadas ([b18ba55](https://github.com/wkarts/argws-ponto-manager/commit/b18ba55a9c313ad2c2043a35f56cbd7a754237ee))
+* **clippy:** corrige tuple mismatch e borrows em timecalc employees e jornadas ([2b27062](https://github.com/wkarts/argws-ponto-manager/commit/2b270629cc0fe19dbbba137ef70156b0f74c37f6))
+* **jornadas:** corrige delimitador não fechado em jornada_save ([f6fade8](https://github.com/wkarts/argws-ponto-manager/commit/f6fade84264d967cb0c510b49b797252ab180848))
+* **rustfmt:** ajusta arquivos pendentes do cargo fmt check ([2865326](https://github.com/wkarts/argws-ponto-manager/commit/28653263920f970b015907b3cf070e352fa39ebb))
+
+
+### Features
+
+* **jornada:** adiciona perfis flexíveis, heurística de folga móvel, importação de funcionários e filtros compactos ([030cc36](https://github.com/wkarts/argws-ponto-manager/commit/030cc36070e5034d35cdc4854510f589d898c692))
+
 ## [1.9.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.1...v1.9.2) (2026-04-03)
 
 
