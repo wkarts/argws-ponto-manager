@@ -1,3 +1,16 @@
+# [1.11.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.10.0...v1.11.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **clippy:** corrige condição redundante na aplicação smart de tratamentos ([29af429](https://github.com/wkarts/argws-ponto-manager/commit/29af429187469b3f7a73fe018765f335db31d894))
+* **rustfmt:** ajusta diffs finais em punches treatments e models ([45511d2](https://github.com/wkarts/argws-ponto-manager/commit/45511d29d3f8d7dd6d6e754d251cab933fa8def1))
+
+
+### Features
+
+* **cartao-ponto:** adiciona motor smart, exclusão assistida de duplicadas e reorganização operacional ([f0e268e](https://github.com/wkarts/argws-ponto-manager/commit/f0e268e2a1ff3d2b409323c785ed31c5fc1aa9b7))
+
 # [1.10.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.9.2...v1.10.0) (2026-04-04)
 
 
