@@ -177,3 +177,73 @@ pub struct GenericEntityPayload {
     pub entity: String,
     pub payload: Map<String, Value>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SmartSuggestionRequest {
+    #[serde(rename = "empresaId")]
+    pub empresa_id: Option<i64>,
+    #[serde(rename = "funcionarioId")]
+    pub funcionario_id: Option<i64>,
+    #[serde(rename = "funcionarioIds")]
+    pub funcionario_ids: Option<Vec<i64>>,
+    #[serde(rename = "competenciaAno")]
+    pub competencia_ano: Option<i32>,
+    #[serde(rename = "competenciaMes")]
+    pub competencia_mes: Option<u32>,
+    #[serde(rename = "dataInicial")]
+    pub data_inicial: Option<String>,
+    #[serde(rename = "dataFinal")]
+    pub data_final: Option<String>,
+    #[serde(rename = "bulkMode")]
+    pub bulk_mode: Option<String>,
+    #[serde(rename = "selectedSuggestionIds")]
+    pub selected_suggestion_ids: Option<Vec<String>>,
+    #[serde(rename = "selectedBatidaIds")]
+    pub selected_batida_ids: Option<Vec<i64>>,
+    #[serde(rename = "replacementTipo")]
+    pub replacement_tipo: Option<String>,
+    #[serde(rename = "replacementJustificativaId")]
+    pub replacement_justificativa_id: Option<i64>,
+    #[serde(rename = "overwriteExisting")]
+    pub overwrite_existing: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SmartSuggestionItem {
+    pub suggestion_id: String,
+    pub funcionario_id: i64,
+    pub funcionario_nome: String,
+    pub data: String,
+    pub kind: String,
+    pub severity: String,
+    pub auto_apply: bool,
+    pub expected_minutes: i64,
+    pub worked_minutes: i64,
+    pub saldo_minutes: i64,
+    pub suggested_tipo: String,
+    pub suggested_abonar_dia: bool,
+    pub suggested_minutos_abonados: i64,
+    pub observed_punches: Vec<String>,
+    pub messages: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SmartApplyResponse {
+    pub total_sugestoes: usize,
+    pub total_aplicadas: usize,
+    pub total_ignoradas: usize,
+    pub total_batidas_excluidas: usize,
+    pub mensagens: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct DuplicatePunchCandidate {
+    pub bucket_id: String,
+    pub funcionario_id: i64,
+    pub funcionario_nome: String,
+    pub data_referencia: String,
+    pub hora: String,
+    pub batida_ids: Vec<i64>,
+    pub total_repeticoes: usize,
+    pub origem: Option<String>,
+}

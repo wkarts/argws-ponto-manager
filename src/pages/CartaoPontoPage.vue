@@ -9,15 +9,21 @@ import {
   deleteOcorrencia,
   listBatidas,
   listCompanies,
+  listDuplicatePunchCandidates,
   listEmployees,
   listOcorrencias,
+  listSmartSuggestions,
   registerGeneratedReport,
   saveBatida,
   saveOcorrencia,
+  applySmartSuggestions,
+  deleteBatidasBatch,
   type ApuracaoDia,
   type ApuracaoResumo,
   type ComboOption,
-  type GenericRecord
+  type DuplicatePunchCandidate,
+  type GenericRecord,
+  type SmartSuggestionItem
 } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
 import { useSessionStore } from "../stores/session";
@@ -37,6 +43,14 @@ const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
 const apuracaoResumo = ref<ApuracaoResumo | null>(null);
+const smartSuggestions = ref<SmartSuggestionItem[]>([]);
+const duplicateCandidates = ref<DuplicatePunchCandidate[]>([]);
+const selectedSuggestionIds = ref<string[]>([]);
+const selectedDuplicateIds = ref<number[]>([]);
+const smartLoading = ref(false);
+const duplicateLoading = ref(false);
+const smartBulkTipo = ref("falta");
+const smartJustificativaId = ref("");
 const reportHtml = ref("");
 const empresaResponsavel = ref("Responsável / RH");
 
@@ -85,6 +99,14 @@ const funcionarioIdNumero = computed<number | null>(() => {
 const funcionarioNomeSelecionado = computed(() => employeeOptions.value.find((item) => String(item.id) === filtros.funcionarioId)?.label || "Todos");
 const inconsistenciasNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => row.inconsistente).length);
 const diasComOcorrenciaNoPeriodo = computed(() => (apuracaoResumo.value?.rows || []).filter((row) => (row.ocorrencias || []).length > 0).length);
+
+const smartSummary = computed(() => ({
+  esquecimentos: smartSuggestions.value.filter((item) => item.kind === "esquecimento_batida").length,
+  faltas: smartSuggestions.value.filter((item) => item.kind === "falta").length,
+  folgas: smartSuggestions.value.filter((item) => item.kind === "folga_movel").length,
+  meias: smartSuggestions.value.filter((item) => item.kind === "meia_folga").length,
+}));
+
 const periodoLabel = computed(() => {
   if (filtros.modoPeriodo === "competencia") {
     return `${String(filtros.competenciaMes).padStart(2, "0")}/${filtros.competenciaAno}`;
@@ -229,6 +251,7 @@ async function carregarCartao() {
     ocorrencias.value = rowsOcorrencia;
     apuracaoResumo.value = apuracao;
     reportHtml.value = buildCartaoHtml();
+    await carregarDuplicidades();
   } catch (err) {
     batidas.value = [];
     ocorrencias.value = [];
@@ -651,6 +674,7 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
 async function exportarHtml() {
   try {
     reportHtml.value = buildCartaoHtml();
+    await carregarDuplicidades();
     const periodo = periodoAtual();
     const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.html`;
     await saveWithDialog(reportHtml.value, fileName, "text/html");
@@ -678,6 +702,7 @@ async function exportarHtml() {
 async function exportarExcel() {
   try {
     reportHtml.value = buildCartaoHtml();
+    await carregarDuplicidades();
     const periodo = periodoAtual();
     const fileName = `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value)}_${periodo.dataInicial}_${periodo.dataFinal}.xls`;
     await saveWithDialog(reportHtml.value, fileName, "application/vnd.ms-excel");
@@ -855,6 +880,142 @@ async function removerOcorrencia(row: GenericRecord) {
   }
 }
 
+
+function buildSmartPayload(extra: Record<string, unknown> = {}) {
+  syncPeriodFilters();
+  return {
+    empresaId: session.activeCompanyId ?? null,
+    funcionarioId: funcionarioIdNumero.value,
+    competenciaAno: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaAno) : null,
+    competenciaMes: filtros.modoPeriodo === "competencia" ? Number(filtros.competenciaMes) : null,
+    dataInicial: filtros.modoPeriodo === "competencia" ? null : (filtros.dataInicial || null),
+    dataFinal: filtros.modoPeriodo === "competencia" ? null : (filtros.dataFinal || null),
+    ...extra,
+  };
+}
+
+function formatSuggestionKind(kind: string) {
+  const map: Record<string, string> = {
+    esquecimento_batida: "Esquecimento de batida",
+    falta: "Falta sem marcação",
+    folga_movel: "Troca de folga",
+    meia_folga: "Meia folga / jornada parcial",
+  };
+  return map[kind] || kind;
+}
+
+function toggleSuggestion(id: string) {
+  selectedSuggestionIds.value = selectedSuggestionIds.value.includes(id)
+    ? selectedSuggestionIds.value.filter((item) => item !== id)
+    : [...selectedSuggestionIds.value, id];
+}
+
+function toggleDuplicateGroup(ids: number[]) {
+  const current = new Set(selectedDuplicateIds.value);
+  const allSelected = ids.every((id) => current.has(id));
+  ids.forEach((id) => {
+    if (allSelected) current.delete(id);
+    else current.add(id);
+  });
+  selectedDuplicateIds.value = [...current];
+}
+
+function suggestionBadgeClass(kind: string) {
+  if (kind === "esquecimento_batida" || kind === "falta") return "badge-danger";
+  if (kind === "folga_movel") return "badge-warning";
+  return "badge-info";
+}
+
+async function analisarSugestoes() {
+  smartLoading.value = true;
+  error.value = "";
+  try {
+    smartSuggestions.value = await listSmartSuggestions(buildSmartPayload());
+    selectedSuggestionIds.value = smartSuggestions.value.filter((item) => item.auto_apply).map((item) => item.suggestion_id);
+    message.value = `Motor smart avaliou ${smartSuggestions.value.length} sugestão(ões) para o período.`;
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao gerar sugestões smart.";
+  } finally {
+    smartLoading.value = false;
+  }
+}
+
+async function aplicarSugestoesSelecionadas() {
+  smartLoading.value = true;
+  error.value = "";
+  try {
+    const response = await applySmartSuggestions(buildSmartPayload({
+      bulkMode: "selected",
+      selectedSuggestionIds: selectedSuggestionIds.value,
+      replacementTipo: smartBulkTipo.value,
+      replacementJustificativaId: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
+    }));
+    message.value = `Tratamento smart concluiu ${response.total_aplicadas} aplicação(ões) e ignorou ${response.total_ignoradas}.`;
+    await carregarCartao();
+    await analisarSugestoes();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao aplicar sugestões smart.";
+  } finally {
+    smartLoading.value = false;
+  }
+}
+
+async function aplicarSugestoesAutomaticas() {
+  smartLoading.value = true;
+  error.value = "";
+  try {
+    const response = await applySmartSuggestions(buildSmartPayload({
+      bulkMode: "all",
+      replacementTipo: smartBulkTipo.value,
+      replacementJustificativaId: smartJustificativaId.value ? Number(smartJustificativaId.value) : null,
+    }));
+    message.value = `Processamento em lote aplicou ${response.total_aplicadas} ocorrência(s) smart.`;
+    await carregarCartao();
+    await analisarSugestoes();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao aplicar processamento em lote.";
+  } finally {
+    smartLoading.value = false;
+  }
+}
+
+async function carregarDuplicidades() {
+  duplicateLoading.value = true;
+  try {
+    duplicateCandidates.value = await listDuplicatePunchCandidates({
+      empresaId: session.activeCompanyId ?? null,
+      funcionarioId: funcionarioIdNumero.value,
+      dataInicial: filtros.dataInicial || null,
+      dataFinal: filtros.dataFinal || null,
+    });
+    selectedDuplicateIds.value = duplicateCandidates.value.flatMap((item) => item.batida_ids.slice(1));
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao localizar duplicidades de batidas.";
+  } finally {
+    duplicateLoading.value = false;
+  }
+}
+
+async function excluirDuplicidadesSelecionadas() {
+  if (!selectedDuplicateIds.value.length) {
+    error.value = "Selecione pelo menos uma batida duplicada para exclusão assistida.";
+    return;
+  }
+  if (!confirm(`Excluir ${selectedDuplicateIds.value.length} batida(s) selecionada(s)?`)) return;
+  duplicateLoading.value = true;
+  try {
+    const deleted = await deleteBatidasBatch(selectedDuplicateIds.value);
+    message.value = `${deleted} batida(s) duplicada(s) removida(s) com sucesso.`;
+    await carregarCartao();
+    await carregarDuplicidades();
+    await analisarSugestoes();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao excluir batidas duplicadas.";
+  } finally {
+    duplicateLoading.value = false;
+  }
+}
+
 watch(() => session.activeCompanyId, async () => {
   await carregarBase();
   await carregarCartao();
@@ -954,6 +1115,119 @@ onMounted(async () => {
       <button class="secondary" @click="openNovaBatida()">Nova marcação</button>
       <button class="secondary" @click="openNovaOcorrencia()">Nova ocorrência</button>
     </div>
+
+
+    <div class="split-panel card-tight">
+      <div class="card sticky-card">
+        <div class="toolbar compact-toolbar">
+          <div>
+            <h3 style="margin: 0;">Motor smart</h3>
+            <div class="muted-text">Sugestões automáticas para esquecimento, falta, folga móvel e meia folga.</div>
+          </div>
+          <div class="actions compact-actions">
+            <button class="secondary" :disabled="smartLoading" @click="analisarSugestoes">{{ smartLoading ? 'Analisando...' : 'Analisar sugestões' }}</button>
+            <button class="primary" :disabled="smartLoading || !smartSuggestions.length" @click="aplicarSugestoesAutomaticas">Tratar todos automáticos</button>
+          </div>
+        </div>
+        <div class="inline-info-strip compact-inline-grid">
+          <span><strong>Esquecimentos:</strong> {{ smartSummary.esquecimentos }}</span>
+          <span><strong>Faltas:</strong> {{ smartSummary.faltas }}</span>
+          <span><strong>Folgas móveis:</strong> {{ smartSummary.folgas }}</span>
+          <span><strong>Meia folga:</strong> {{ smartSummary.meias }}</span>
+        </div>
+        <div class="filter-grid compact">
+          <div class="field">
+            <label>Tipo para aplicação em faltas</label>
+            <select v-model="smartBulkTipo">
+              <option value="falta">Falta</option>
+              <option value="falta_justificada">Falta justificada</option>
+              <option value="atestado">Atestado</option>
+              <option value="abono">Abono</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Justificativa padrão</label>
+            <select v-model="smartJustificativaId">
+              <option value="">Sem justificativa</option>
+              <option v-for="item in justificativaOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
+            </select>
+          </div>
+          <div class="actions align-end">
+            <button class="secondary" :disabled="smartLoading || !selectedSuggestionIds.length" @click="aplicarSugestoesSelecionadas">Aplicar selecionadas</button>
+          </div>
+        </div>
+        <div class="table-wrap compact-table-wrap">
+          <table class="table-compact">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Data</th>
+                <th>Funcionário</th>
+                <th>Tipo</th>
+                <th>Batidas</th>
+                <th>Saldo</th>
+                <th>Observações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in smartSuggestions" :key="item.suggestion_id">
+                <td><input :checked="selectedSuggestionIds.includes(item.suggestion_id)" type="checkbox" @change="toggleSuggestion(item.suggestion_id)" /></td>
+                <td>{{ item.data }}</td>
+                <td>{{ item.funcionario_nome }}</td>
+                <td><span class="status-pill" :class="suggestionBadgeClass(item.kind)">{{ formatSuggestionKind(item.kind) }}</span></td>
+                <td>{{ item.observed_punches.join(' | ') || '-' }}</td>
+                <td>{{ item.saldo_minutes }}</td>
+                <td>{{ item.messages.join(' | ') }}</td>
+              </tr>
+              <tr v-if="!smartSuggestions.length">
+                <td colspan="7" class="empty-cell">Nenhuma sugestão smart gerada para o período atual.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card sticky-card">
+        <div class="toolbar compact-toolbar">
+          <div>
+            <h3 style="margin: 0;">Exclusão assistida de batidas</h3>
+            <div class="muted-text">Localiza horários repetidos no mesmo funcionário/data/hora e prepara exclusão em lote.</div>
+          </div>
+          <div class="actions compact-actions">
+            <button class="secondary" :disabled="duplicateLoading" @click="carregarDuplicidades">{{ duplicateLoading ? 'Buscando...' : 'Localizar duplicadas' }}</button>
+            <button class="danger" :disabled="duplicateLoading || !selectedDuplicateIds.length" @click="excluirDuplicidadesSelecionadas">Excluir selecionadas</button>
+          </div>
+        </div>
+        <div class="table-wrap compact-table-wrap">
+          <table class="table-compact">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Data</th>
+                <th>Funcionário</th>
+                <th>Hora</th>
+                <th>Repetições</th>
+                <th>IDs</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in duplicateCandidates" :key="item.bucket_id">
+                <td><input :checked="item.batida_ids.slice(1).every((id) => selectedDuplicateIds.includes(id))" type="checkbox" @change="toggleDuplicateGroup(item.batida_ids.slice(1))" /></td>
+                <td>{{ item.data_referencia }}</td>
+                <td>{{ item.funcionario_nome }}</td>
+                <td>{{ item.hora }}</td>
+                <td>{{ item.total_repeticoes }}</td>
+                <td>{{ item.batida_ids.join(', ') }}</td>
+              </tr>
+              <tr v-if="!duplicateCandidates.length">
+                <td colspan="6" class="empty-cell">Nenhuma duplicidade exata localizada para o filtro atual.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
 
     <div class="card table-wrap">
       <h3 style="margin-top: 0;">Marcações do cartão</h3>

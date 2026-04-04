@@ -8,7 +8,7 @@ use tauri::State;
 use crate::{
     app_state::SharedState,
     db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
-    models::ApuracaoRequest,
+    models::{ApuracaoRequest, SmartApplyResponse, SmartSuggestionItem, SmartSuggestionRequest},
 };
 
 use super::reports::apurar_periodo_internal;
@@ -824,4 +824,267 @@ pub fn fechamento_gerar_relatorio(
     )?;
 
     Ok(result)
+}
+
+fn smart_kind_priority(kind: &str) -> i32 {
+    match kind {
+        "esquecimento_batida" => 4,
+        "falta" => 3,
+        "meia_folga" => 2,
+        "folga_movel" => 1,
+        _ => 0,
+    }
+}
+
+fn has_occurrence_on_day(
+    conn: &rusqlite::Connection,
+    funcionario_id: i64,
+    data: &str,
+) -> Result<bool, String> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM ocorrencias_ponto WHERE funcionario_id = ?1 AND data_referencia = ?2",
+        params![funcionario_id, data],
+        |row| row.get(0),
+    ).map_err(|err| format!("Falha ao verificar ocorrência existente do dia: {err}"))?;
+    Ok(count > 0)
+}
+
+fn build_smart_suggestions(
+    conn: &rusqlite::Connection,
+    payload: &ApuracaoRequest,
+) -> Result<Vec<SmartSuggestionItem>, String> {
+    let resumo = apurar_periodo_internal(conn, payload)?;
+    let mut suggestions: Vec<SmartSuggestionItem> = Vec::new();
+
+    for row in resumo.rows {
+        let punch_count = row.batidas.len();
+        let has_occurrence = has_occurrence_on_day(conn, row.funcionario_id, &row.data)?;
+        if has_occurrence && !row.inconsistente {
+            continue;
+        }
+
+        if punch_count % 2 == 1 {
+            let mut messages = row.mensagens.clone();
+            messages.push("Há quantidade ímpar de batidas para o dia. Revise a última marcação ou aplique ajuste manual.".to_string());
+            suggestions.push(SmartSuggestionItem {
+                suggestion_id: format!("{}::{}::esquecimento_batida", row.funcionario_id, row.data),
+                funcionario_id: row.funcionario_id,
+                funcionario_nome: row.funcionario_nome.clone(),
+                data: row.data.clone(),
+                kind: "esquecimento_batida".to_string(),
+                severity: "alta".to_string(),
+                auto_apply: false,
+                expected_minutes: row.horario_esperado_minutos,
+                worked_minutes: row.trabalhado_minutos,
+                saldo_minutes: row.saldo_minutos,
+                suggested_tipo: "ajuste_manual".to_string(),
+                suggested_abonar_dia: false,
+                suggested_minutos_abonados: 0,
+                observed_punches: row.batidas.clone(),
+                messages,
+            });
+        }
+
+        if row.horario_esperado_minutos > 0 && punch_count == 0 && !row.abonado {
+            let mut messages = row.mensagens.clone();
+            messages.push("Dia sem marcações apesar de existir jornada prevista. O sistema sugere falta/atestado conforme o contexto.".to_string());
+            suggestions.push(SmartSuggestionItem {
+                suggestion_id: format!("{}::{}::falta", row.funcionario_id, row.data),
+                funcionario_id: row.funcionario_id,
+                funcionario_nome: row.funcionario_nome.clone(),
+                data: row.data.clone(),
+                kind: "falta".to_string(),
+                severity: "alta".to_string(),
+                auto_apply: true,
+                expected_minutes: row.horario_esperado_minutos,
+                worked_minutes: row.trabalhado_minutos,
+                saldo_minutes: row.saldo_minutos,
+                suggested_tipo: "falta".to_string(),
+                suggested_abonar_dia: false,
+                suggested_minutos_abonados: 0,
+                observed_punches: row.batidas.clone(),
+                messages,
+            });
+            continue;
+        }
+
+        if row.tipo_jornada.starts_with("folga-") && punch_count >= 2 {
+            let mut messages = row.mensagens.clone();
+            messages.push("Foram encontradas batidas em dia reconhecido como folga. O motor sugere revisar troca de folga da semana.".to_string());
+            suggestions.push(SmartSuggestionItem {
+                suggestion_id: format!("{}::{}::folga_movel", row.funcionario_id, row.data),
+                funcionario_id: row.funcionario_id,
+                funcionario_nome: row.funcionario_nome.clone(),
+                data: row.data.clone(),
+                kind: "folga_movel".to_string(),
+                severity: "media".to_string(),
+                auto_apply: false,
+                expected_minutes: row.horario_esperado_minutos,
+                worked_minutes: row.trabalhado_minutos,
+                saldo_minutes: row.saldo_minutos,
+                suggested_tipo: "folga_compensada".to_string(),
+                suggested_abonar_dia: false,
+                suggested_minutos_abonados: 0,
+                observed_punches: row.batidas.clone(),
+                messages,
+            });
+        }
+
+        if row.horario_esperado_minutos > 0 && row.trabalhado_minutos > 0 {
+            let worked_ratio =
+                (row.trabalhado_minutos as f64) / (row.horario_esperado_minutos as f64);
+            if worked_ratio > 0.35 && worked_ratio < 0.70 && row.saldo_minutos < 0 {
+                let mut messages = row.mensagens.clone();
+                messages.push("Jornada parcial identificada. Pode representar meia folga planejada ou saída antecipada justificada.".to_string());
+                suggestions.push(SmartSuggestionItem {
+                    suggestion_id: format!("{}::{}::meia_folga", row.funcionario_id, row.data),
+                    funcionario_id: row.funcionario_id,
+                    funcionario_nome: row.funcionario_nome.clone(),
+                    data: row.data.clone(),
+                    kind: "meia_folga".to_string(),
+                    severity: "media".to_string(),
+                    auto_apply: false,
+                    expected_minutes: row.horario_esperado_minutos,
+                    worked_minutes: row.trabalhado_minutos,
+                    saldo_minutes: row.saldo_minutos,
+                    suggested_tipo: "meia_folga".to_string(),
+                    suggested_abonar_dia: false,
+                    suggested_minutos_abonados: row.saldo_minutos.abs(),
+                    observed_punches: row.batidas.clone(),
+                    messages,
+                });
+            }
+        }
+    }
+
+    suggestions.sort_by(|a, b| {
+        smart_kind_priority(&b.kind)
+            .cmp(&smart_kind_priority(&a.kind))
+            .then(a.data.cmp(&b.data))
+            .then(a.funcionario_nome.cmp(&b.funcionario_nome))
+    });
+    Ok(suggestions)
+}
+
+#[tauri::command]
+pub fn smart_suggestion_list(
+    state: State<'_, SharedState>,
+    payload: SmartSuggestionRequest,
+) -> Result<Vec<SmartSuggestionItem>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let apuracao = ApuracaoRequest {
+        empresa_id: payload.empresa_id,
+        funcionario_id: payload.funcionario_id,
+        funcionario_ids: payload.funcionario_ids,
+        employee_status: Some("ativos".to_string()),
+        competencia_ano: payload.competencia_ano,
+        competencia_mes: payload.competencia_mes,
+        data_inicial: payload.data_inicial,
+        data_final: payload.data_final,
+    };
+    build_smart_suggestions(&conn, &apuracao)
+}
+
+#[tauri::command]
+pub fn smart_apply_suggestions(
+    state: State<'_, SharedState>,
+    payload: SmartSuggestionRequest,
+) -> Result<SmartApplyResponse, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let apuracao = ApuracaoRequest {
+        empresa_id: payload.empresa_id,
+        funcionario_id: payload.funcionario_id,
+        funcionario_ids: payload.funcionario_ids.clone(),
+        employee_status: Some("ativos".to_string()),
+        competencia_ano: payload.competencia_ano,
+        competencia_mes: payload.competencia_mes,
+        data_inicial: payload.data_inicial.clone(),
+        data_final: payload.data_final.clone(),
+    };
+    let suggestions = build_smart_suggestions(&conn, &apuracao)?;
+    let selected_ids = payload.selected_suggestion_ids.unwrap_or_default();
+    let bulk_mode = payload.bulk_mode.unwrap_or_else(|| "selected".to_string());
+    let overwrite_existing = payload.overwrite_existing.unwrap_or(false);
+    let replacement_tipo = payload
+        .replacement_tipo
+        .unwrap_or_else(|| "falta".to_string());
+    let mut total_aplicadas = 0usize;
+    let mut total_ignoradas = 0usize;
+    let mut mensagens: Vec<String> = Vec::new();
+    let now = Utc::now().to_rfc3339();
+
+    for item in suggestions.iter() {
+        let should_apply = match bulk_mode.as_str() {
+            "all" => item.auto_apply,
+            "selected" => selected_ids.iter().any(|id| id == &item.suggestion_id),
+            _ => false,
+        };
+        if !should_apply {
+            total_ignoradas += 1;
+            continue;
+        }
+        if has_occurrence_on_day(&conn, item.funcionario_id, &item.data)? {
+            if !overwrite_existing {
+                total_ignoradas += 1;
+                mensagens.push(format!(
+                    "{} em {} ignorado: já existe ocorrência no dia.",
+                    item.funcionario_nome, item.data
+                ));
+                continue;
+            }
+            conn.execute(
+                "DELETE FROM ocorrencias_ponto WHERE funcionario_id = ?1 AND data_referencia = ?2",
+                params![item.funcionario_id, item.data],
+            )
+            .map_err(|err| format!("Falha ao substituir ocorrência existente: {err}"))?;
+        }
+        let tipo = if item.kind == "falta" {
+            replacement_tipo.clone()
+        } else {
+            item.suggested_tipo.clone()
+        };
+        let abonar = if matches!(tipo.as_str(), "atestado" | "abono") || item.suggested_abonar_dia {
+            1
+        } else {
+            0
+        };
+        let minutos_abonados = if abonar == 1 {
+            item.suggested_minutos_abonados.max(item.expected_minutes)
+        } else {
+            item.suggested_minutos_abonados
+        };
+        let observacao = format!(
+            "Aplicação smart: {}. {}",
+            item.kind,
+            item.messages.join(" | ")
+        );
+        conn.execute(
+            "INSERT INTO ocorrencias_ponto (funcionario_id, data_referencia, justificativa_id, tipo, abonar_dia, minutos_abonados, observacao, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
+            params![item.funcionario_id, item.data, payload.replacement_justificativa_id, tipo, abonar, minutos_abonados, observacao, now],
+        ).map_err(|err| format!("Falha ao aplicar sugestão smart: {err}"))?;
+        total_aplicadas += 1;
+    }
+
+    let mut total_batidas_excluidas = 0usize;
+    if let Some(ids) = payload.selected_batida_ids {
+        for id in ids.into_iter().filter(|id| *id > 0) {
+            let affected = conn
+                .execute("DELETE FROM batidas WHERE id = ?1", params![id])
+                .map_err(|err| format!("Falha ao excluir batida assistida: {err}"))?;
+            if affected > 0 {
+                total_batidas_excluidas += 1;
+            }
+        }
+    }
+
+    Ok(SmartApplyResponse {
+        total_sugestoes: suggestions.len(),
+        total_aplicadas,
+        total_ignoradas,
+        total_batidas_excluidas,
+        mensagens,
+    })
 }
