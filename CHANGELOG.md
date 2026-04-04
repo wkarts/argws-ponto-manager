@@ -1,3 +1,15 @@
+# [1.14.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.13.0...v1.14.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **timecalc:** ajusta formatação rustfmt nas regras de jornada flexível ([f29695b](https://github.com/wkarts/argws-ponto-manager/commit/f29695b44aba1a6cab21d3d2d7d132382d9a451d))
+
+
+### Features
+
+* **ponto:** aplica complemento final na base atual com jornada flexível, smart avançado e preservação dos recursos existentes ([1bd9916](https://github.com/wkarts/argws-ponto-manager/commit/1bd99163bb1bef98074dc4e4c385dfaec9079a07))
+
 # [1.13.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.12.0...v1.13.0) (2026-04-04)
 
 
