@@ -1,5 +1,6 @@
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashMap;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
@@ -152,6 +153,86 @@ pub fn parse_hhmm_minutes(value: &str) -> Option<i64> {
 pub fn parse_iso_date(date: &str) -> Result<NaiveDate, String> {
     NaiveDate::parse_from_str(date, "%Y-%m-%d")
         .map_err(|err| format!("Data inválida ({date}): {err}"))
+}
+
+
+fn week_punch_counts(
+    conn: &Connection,
+    employee_id: i64,
+    week_start: NaiveDate,
+    week_end: NaiveDate,
+) -> Result<HashMap<String, i64>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT data_referencia, COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia >= ?2 AND data_referencia <= ?3 GROUP BY data_referencia",
+        )
+        .map_err(|err| format!("Falha ao preparar leitura semanal de batidas: {err}"))?;
+    let rows = stmt
+        .query_map(
+            params![employee_id, week_start.format("%Y-%m-%d").to_string(), week_end.format("%Y-%m-%d").to_string()],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .map_err(|err| format!("Falha ao consultar batidas semanais: {err}"))?;
+    let mut map = HashMap::new();
+    for row in rows {
+        let (date_iso, count) = row.map_err(|err| format!("Falha ao ler batidas semanais: {err}"))?;
+        map.insert(date_iso, count);
+    }
+    Ok(map)
+}
+
+fn nth_weekday_in_month(date: NaiveDate) -> u32 {
+    ((date.day() - 1) / 7) + 1
+}
+
+fn is_monthly_alternate_day_off(date: NaiveDate, monthly_offs: i64, alternate: bool) -> bool {
+    if monthly_offs <= 0 { return false; }
+    let nth = nth_weekday_in_month(date);
+    if alternate {
+        match monthly_offs {
+            1 => nth == 2,
+            2 => nth == 2 || nth == 4,
+            3 => nth == 1 || nth == 3 || nth == 5,
+            _ => nth <= 4,
+        }
+    } else {
+        i64::from(nth) <= monthly_offs
+    }
+}
+
+fn choose_dynamic_off_dates(
+    conn: &Connection,
+    employee_id: i64,
+    current_date: NaiveDate,
+    target_off_count: usize,
+    sabado_tipo: &str,
+) -> Result<Vec<String>, String> {
+    let (week_start, week_end) = date_week_bounds(current_date);
+    let counts = week_punch_counts(conn, employee_id, week_start, week_end)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT jd.dia_semana, COALESCE(jd.folga, 0) FROM funcionarios f INNER JOIN jornada_dias jd ON jd.jornada_id = f.jornada_id WHERE f.id = ?1 ORDER BY jd.dia_semana ASC",
+        )
+        .map_err(|err| format!("Falha ao preparar dias para folga dinâmica: {err}"))?;
+    let rows = stmt
+        .query_map(params![employee_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+        .map_err(|err| format!("Falha ao consultar dias para folga dinâmica: {err}"))?;
+    let mut candidates: Vec<(String, i64, i64)> = Vec::new();
+    for row in rows {
+        let (dia_semana, folga) = row.map_err(|err| format!("Falha ao ler dia da folga dinâmica: {err}"))?;
+        let offset = dia_semana - 1;
+        let date = week_start + chrono::Duration::days(offset);
+        let weekday = date.weekday().number_from_monday();
+        if weekday == 7 { continue; }
+        if weekday == 6 && sabado_tipo == "integral" { continue; }
+        let key = date.format("%Y-%m-%d").to_string();
+        let count = *counts.get(&key).unwrap_or(&0);
+        // prioriza dias sem batida e depois menor carga de marcações
+        let priority = if count == 0 { 0 } else if folga == 1 { 1 } else { 2 };
+        candidates.push((key, priority, count));
+    }
+    candidates.sort_by(|a, b| a.1.cmp(&b.1).then(a.2.cmp(&b.2)).then(a.0.cmp(&b.0)));
+    Ok(candidates.into_iter().take(target_off_count.max(1)).map(|item| item.0).collect())
 }
 
 fn derive_minutes_from_pairs(
@@ -391,7 +472,126 @@ pub fn resolve_schedule_for_employee(
             )
             .map_err(|err| format!("Falha ao verificar batidas da jornada flexível: {err}"))?;
 
+        let flex_meta = conn
+            .query_row(
+                "SELECT COALESCE(dias_trabalho_semana, 6),
+                        COALESCE(folgas_mensais, 0),
+                        COALESCE(sabado_tipo, 'integral'),
+                        COALESCE(suporta_diarista_generico, 0),
+                        COALESCE(limite_dias_diarista, 0),
+                        COALESCE(semana_alternada_folga, 0)
+                 FROM jornadas_trabalho
+                 WHERE id = ?1",
+                params![jornada_id],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|err| format!("Falha ao ler metadados flexíveis da jornada: {err}"))?
+            .unwrap_or((6, 0, "integral".to_string(), 0, 0, 0));
+
+        let (
+            dias_trabalho_semana,
+            folgas_mensais,
+            sabado_tipo,
+            suporta_diarista_generico,
+            limite_dias_diarista,
+            semana_alternada_folga,
+        ) = flex_meta;
+
+        if folgas_mensais > 0
+            && weekday == 6
+            && sabado_tipo != "folga"
+            && is_monthly_alternate_day_off(date, folgas_mensais, semana_alternada_folga == 1)
+            && has_punches_today == 0
+        {
+            return Ok(ResolvedSchedule {
+                jornada_id,
+                jornada_nome: format!("{} • folga mensal", jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string())),
+                tipo_jornada: perfil_flexivel.clone().unwrap_or_else(|| "flexivel".to_string()),
+                tolerancia_entrada_minutos: tolerancia_entrada,
+                tolerancia_saida_minutos: tolerancia_saida,
+                tolerancia_intervalo_minutos: tolerancia_intervalo,
+                exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                expected_minutes: 0,
+                entrada_1: None,
+                saida_1: None,
+                entrada_2: None,
+                saida_2: None,
+                is_day_off: true,
+                is_holiday: false,
+                holiday_label: Some("Folga mensal alternada".to_string()),
+                holiday_compensation: None,
+                holiday_jornada_rule: Some("monthly_alt_day_off".to_string()),
+            });
+        }
+
+        if tipo_jornada == "diarista" || suporta_diarista_generico == 1 {
+            let (week_start, week_end) = date_week_bounds(date);
+            let counts = week_punch_counts(conn, employee_id, week_start, week_end)?;
+            let worked_days = counts.values().filter(|count| **count > 0).count() as i64;
+            let limit = if limite_dias_diarista > 0 { limite_dias_diarista } else { dias_trabalho_semana.max(1) };
+            if has_punches_today == 0 && worked_days >= limit {
+                return Ok(ResolvedSchedule {
+                    jornada_id,
+                    jornada_nome: format!("{} • diarista", jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string())),
+                    tipo_jornada: perfil_flexivel.clone().unwrap_or_else(|| "diarista".to_string()),
+                    tolerancia_entrada_minutos: tolerancia_entrada,
+                    tolerancia_saida_minutos: tolerancia_saida,
+                    tolerancia_intervalo_minutos: tolerancia_intervalo,
+                    exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                    expected_minutes: 0,
+                    entrada_1: None,
+                    saida_1: None,
+                    entrada_2: None,
+                    saida_2: None,
+                    is_day_off: true,
+                    is_holiday: false,
+                    holiday_label: Some(format!("Diarista: limite semanal de {} dia(s)", limit)),
+                    holiday_compensation: None,
+                    holiday_jornada_rule: Some("diarista_weekly_inference".to_string()),
+                });
+            }
+        }
+
         if permite_folga_movel == 1 && heuristica_troca_folga == 1 {
+            let dynamic_off_dates = choose_dynamic_off_dates(
+                conn,
+                employee_id,
+                date,
+                (7 - dias_trabalho_semana.max(0)).max(1) as usize,
+                &sabado_tipo,
+            )?;
+            let current_is_dynamic_off = dynamic_off_dates.iter().any(|item| item == date_iso);
+            if current_is_dynamic_off && has_punches_today == 0 {
+                return Ok(ResolvedSchedule {
+                    jornada_id,
+                    jornada_nome: format!("{} • folga móvel", jornada_nome.clone().unwrap_or_else(|| "Jornada".to_string())),
+                    tipo_jornada: perfil_flexivel.clone().unwrap_or_else(|| "flexivel".to_string()),
+                    tolerancia_entrada_minutos: tolerancia_entrada,
+                    tolerancia_saida_minutos: tolerancia_saida,
+                    tolerancia_intervalo_minutos: tolerancia_intervalo,
+                    exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                    expected_minutes: 0,
+                    entrada_1: None,
+                    saida_1: None,
+                    entrada_2: None,
+                    saida_2: None,
+                    is_day_off: true,
+                    is_holiday: false,
+                    holiday_label: Some("Folga dinâmica semanal".to_string()),
+                    holiday_compensation: None,
+                    holiday_jornada_rule: Some("dynamic_week_day_off".to_string()),
+                });
+            }
             if jd_folga == 1 && has_punches_today > 0 {
                 if let Some(candidate) =
                     find_flex_swap_candidate(conn, employee_id, date, weekday, true)?
