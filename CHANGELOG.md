@@ -1,3 +1,10 @@
+## [1.16.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.1...v1.16.2) (2026-04-05)
+
+
+### Bug Fixes
+
+* **jornadas:** tolera schema legado sem colunas flexíveis ([0f790d3](https://github.com/wkarts/argws-ponto-manager/commit/0f790d3779a4a79fd92694cb3a2998581fbde421))
+
 ## [1.16.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.0...v1.16.1) (2026-04-05)
 
 
