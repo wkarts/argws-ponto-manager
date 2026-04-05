@@ -1,6 +1,6 @@
 [package]
 name = "pontos_desktop_tauri"
-version = "1.16.2"
+version = "1.16.3"
 description = "Pontos Desktop em Rust + Tauri"
 authors = ["OpenAI"]
 edition = "2021"

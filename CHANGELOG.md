@@ -1,3 +1,10 @@
+## [1.16.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.2...v1.16.3) (2026-04-05)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** evita conflito TS2451 na sidebar colapsável ([ed013e9](https://github.com/wkarts/argws-ponto-manager/commit/ed013e94fd7d88109c7ce54d35a8e1736e69ff9f))
+
 ## [1.16.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.1...v1.16.2) (2026-04-05)
 
 
