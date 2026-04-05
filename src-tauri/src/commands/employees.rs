@@ -434,9 +434,7 @@ pub fn employee_save(
     let ferias_fim = get_string(&payload, "ferias_fim");
     if let Some(value) = ferias_fim.as_deref() {
         if !validate_iso_date(value) {
-            return Err(
-                "Data final de férias inválida. Utilize o formato YYYY-MM-DD.".to_string(),
-            );
+            return Err("Data final de férias inválida. Utilize o formato YYYY-MM-DD.".to_string());
         }
 
         if value < data_admissao.as_str() {
