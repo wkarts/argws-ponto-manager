@@ -416,6 +416,47 @@ pub fn employee_save(
         }
     }
 
+    let ferias_inicio = get_string(&payload, "ferias_inicio");
+    if let Some(value) = ferias_inicio.as_deref() {
+        if !validate_iso_date(value) {
+            return Err(
+                "Data inicial de férias inválida. Utilize o formato YYYY-MM-DD.".to_string(),
+            );
+        }
+
+        if value < data_admissao.as_str() {
+            return Err(
+                "Data inicial de férias não pode ser menor que a data de admissão.".to_string(),
+            );
+        }
+    }
+
+    let ferias_fim = get_string(&payload, "ferias_fim");
+    if let Some(value) = ferias_fim.as_deref() {
+        if !validate_iso_date(value) {
+            return Err("Data final de férias inválida. Utilize o formato YYYY-MM-DD.".to_string());
+        }
+
+        if value < data_admissao.as_str() {
+            return Err(
+                "Data final de férias não pode ser menor que a data de admissão.".to_string(),
+            );
+        }
+    }
+
+    if let (Some(inicio), Some(fim)) = (ferias_inicio.as_deref(), ferias_fim.as_deref()) {
+        if fim < inicio {
+            return Err(
+                "Data final de férias não pode ser menor que a data inicial de férias.".to_string(),
+            );
+        }
+    }
+
+    let ferias_dias = get_i64(&payload, "ferias_dias").unwrap_or(0);
+    if ferias_dias < 0 {
+        return Err("Quantidade de dias de férias não pode ser negativa.".to_string());
+    }
+
     let email = get_string(&payload, "email");
     if let Some(value) = email.as_deref() {
         if !validate_email(value) {
@@ -540,25 +581,28 @@ pub fn employee_save(
                  data_nascimento = ?11,
                  data_admissao = ?12,
                  data_demissao = ?13,
-                 sexo = ?14,
-                 estado_civil = ?15,
-                 cep = ?16,
-                 endereco = ?17,
-                 numero = ?18,
-                 complemento = ?19,
-                 bairro = ?20,
-                 cidade = ?21,
-                 estado = ?22,
-                 departamento_id = ?23,
-                 funcao_id = ?24,
-                 centro_custo_id = ?25,
-                 horario_id = ?26,
-                 escala_id = ?27,
-                 jornada_id = ?28,
-                 observacoes = ?29,
-                 ativo = ?30,
-                 updated_at = ?31
-             WHERE id = ?32",
+                 ferias_inicio = ?14,
+                 ferias_fim = ?15,
+                 ferias_dias = ?16,
+                 sexo = ?17,
+                 estado_civil = ?18,
+                 cep = ?19,
+                 endereco = ?20,
+                 numero = ?21,
+                 complemento = ?22,
+                 bairro = ?23,
+                 cidade = ?24,
+                 estado = ?25,
+                 departamento_id = ?26,
+                 funcao_id = ?27,
+                 centro_custo_id = ?28,
+                 horario_id = ?29,
+                 escala_id = ?30,
+                 jornada_id = ?31,
+                 observacoes = ?32,
+                 ativo = ?33,
+                 updated_at = ?34
+             WHERE id = ?35",
             params![
                 empresa_id,
                 matricula,
@@ -573,6 +617,9 @@ pub fn employee_save(
                 data_nascimento,
                 data_admissao,
                 data_demissao,
+                ferias_inicio,
+                ferias_fim,
+                ferias_dias,
                 sexo,
                 estado_civil,
                 cep,
@@ -600,12 +647,12 @@ pub fn employee_save(
         conn.execute(
             "INSERT INTO funcionarios (
                 empresa_id, matricula, nome, nome_social, documento, rg, pis, email, telefone, celular,
-                data_nascimento, data_admissao, data_demissao, sexo, estado_civil, cep, endereco, numero,
+                data_nascimento, data_admissao, data_demissao, ferias_inicio, ferias_fim, ferias_dias, sexo, estado_civil, cep, endereco, numero,
                 complemento, bairro, cidade, estado, departamento_id, funcao_id, centro_custo_id, horario_id,
                 escala_id, jornada_id, observacoes, ativo, created_at, updated_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
-                ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?31
+                ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35
              )",
             params![
                 empresa_id,
@@ -621,6 +668,9 @@ pub fn employee_save(
                 data_nascimento,
                 data_admissao,
                 data_demissao,
+                ferias_inicio,
+                ferias_fim,
+                ferias_dias,
                 sexo,
                 estado_civil,
                 cep,

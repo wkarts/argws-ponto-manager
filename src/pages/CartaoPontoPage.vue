@@ -84,6 +84,19 @@ const activeSideTab = ref<"marcacoes" | "ocorrencias" | "smart" | "exclusao">("m
 const sidePanelCollapsed = ref(false);
 const gridStatus = ref('Pronto para edição inline. Use Enter, setas e Del para operar a grade.');
 
+type SidebarTab = 'marcacoes' | 'ocorrencias' | 'smart' | 'duplicadas';
+const sidebarCollapsed = ref(false);
+const sidebarTab = ref<SidebarTab>('marcacoes');
+
+function toggleSidebarCollapse() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
+
+function setSidebarTab(tab: SidebarTab) {
+  sidebarTab.value = tab;
+  sidebarCollapsed.value = false;
+}
+
 const hoje = new Date();
 const filtros = reactive({
   funcionarioId: "",
@@ -1586,7 +1599,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="cartao-vb6-shell">
+    <div class="cartao-vb6-shell cartao-shell-split">
       <div class="card cartao-vb6-grid-panel table-wrap">
         <div class="vb6-group-header">
           <h3>Grade diária do cartão</h3>
