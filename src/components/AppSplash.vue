@@ -59,6 +59,12 @@ import { dismissSplash, splashState } from "../services/splash";
   color: #1e3a8a;
 }
 
+.splash-warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
 .splash-close {
   border: none;
   background: transparent;

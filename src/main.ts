@@ -5,6 +5,7 @@ import router from "./router";
 import "./styles.css";
 import { useSessionStore } from "./stores/session";
 import { logAppError, logAppInfo } from "./services/logger";
+import { showSplashError, showSplashWarning } from "./services/splash";
 
 function resolveComponentName(instance: unknown): string | null {
   const raw = instance as { type?: { name?: string }; $options?: { name?: string } } | null;
@@ -24,6 +25,7 @@ async function bootstrap() {
       error: error instanceof Error ? error.message : String(error),
     });
     console.error(error);
+    showSplashError(error instanceof Error ? error.message : String(error));
   };
 
   window.addEventListener("error", (event) => {
@@ -33,12 +35,14 @@ async function bootstrap() {
       line: event.lineno,
       column: event.colno,
     });
+    showSplashError(event.message || "Erro global da aplicação.");
   });
 
   window.addEventListener("unhandledrejection", (event) => {
     logAppError("promise", "Promise rejeitada sem tratamento.", {
       reason: event.reason instanceof Error ? event.reason.message : String(event.reason),
     });
+    showSplashWarning(event.reason instanceof Error ? event.reason.message : String(event.reason));
   });
 
   const session = useSessionStore(pinia);
