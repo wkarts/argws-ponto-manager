@@ -1,3 +1,10 @@
+## [1.16.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.4...v1.16.5) (2026-04-05)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** corrige renderização das guias e largura homogênea ([633da88](https://github.com/wkarts/argws-ponto-manager/commit/633da88d92f8a205b3d1688c001199927d0ec71f))
+
 ## [1.16.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.3...v1.16.4) (2026-04-05)
 
 
