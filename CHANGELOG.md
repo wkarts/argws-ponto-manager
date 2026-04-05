@@ -1,3 +1,42 @@
+## [1.16.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.2...v1.16.3) (2026-04-05)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** evita conflito TS2451 na sidebar colapsável ([ed013e9](https://github.com/wkarts/argws-ponto-manager/commit/ed013e94fd7d88109c7ce54d35a8e1736e69ff9f))
+
+## [1.16.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.1...v1.16.2) (2026-04-05)
+
+
+### Bug Fixes
+
+* **jornadas:** tolera schema legado sem colunas flexíveis ([0f790d3](https://github.com/wkarts/argws-ponto-manager/commit/0f790d3779a4a79fd92694cb3a2998581fbde421))
+
+## [1.16.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.0...v1.16.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* **build:** corrige falha no cargo fmt ajustando formatação do timecalc ([53253b8](https://github.com/wkarts/argws-ponto-manager/commit/53253b84895ce1009d5b373e91e71d32fd1e8081))
+* **build:** corrige falha no cargo fmt na validação de data final de férias ([0935b2d](https://github.com/wkarts/argws-ponto-manager/commit/0935b2dab4e4ed53a6142c4dda049107818d3ac1))
+* **cartao-ponto:** move recursos para sidebar lateral e considera pré-admissão na apuração ([6f1c7f6](https://github.com/wkarts/argws-ponto-manager/commit/6f1c7f67cf825063d08e39c99e0b26f02114e00d))
+* **employees:** corrige erro de build ao restaurar campos de férias no save ([8a8448d](https://github.com/wkarts/argws-ponto-manager/commit/8a8448d1ade300032383f862432c1d855df7bcf5))
+
+# [1.16.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.15.0...v1.16.0) (2026-04-04)
+
+
+### Bug Fixes
+
+* **build:** corrige falha no cargo fmt --check ajustando formatação de arquivos Rust ([607758b](https://github.com/wkarts/argws-ponto-manager/commit/607758b91cb1e005b4ed9e711c510103e35e4866))
+* **clippy:** restaura variáveis de férias no save de funcionários ([dc997da](https://github.com/wkarts/argws-ponto-manager/commit/dc997daca74fb1621c6182d5f717c46996dda70e))
+* **clippy:** restaura variáveis de férias no save de funcionários ([12f7f3e](https://github.com/wkarts/argws-ponto-manager/commit/12f7f3ef17076003f44c1b08a2c4a9efc2ed0525))
+* **rustfmt:** ajusta formatação dos blocos de desligamento e férias em timecalc ([3a0818c](https://github.com/wkarts/argws-ponto-manager/commit/3a0818cec774983648839143e7f5b004c7c78252))
+
+
+### Features
+
+* **cartao-ponto:** adiciona sidebar lateral com guias, reforça splash global e considera férias/desligamento na apuração ([3c21907](https://github.com/wkarts/argws-ponto-manager/commit/3c219078977996500ec571d815d1085e7ce41ff7))
+
 # [1.15.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.14.0...v1.15.0) (2026-04-04)
 
 
