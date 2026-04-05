@@ -5,7 +5,7 @@ use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
+    db::{enqueue_sync, open_connection, row_to_json_map, table_has_column, write_audit},
     models::ComboOption,
 };
 
@@ -19,6 +19,18 @@ type JornadaDiaSql = (
     i64,
     i64,
 );
+
+fn legacy_safe_jornada_expr(
+    conn: &rusqlite::Connection,
+    column: &str,
+    fallback_sql: &str,
+) -> String {
+    if table_has_column(conn, "jornadas_trabalho", column).unwrap_or(false) {
+        format!("jt.{column}")
+    } else {
+        fallback_sql.to_string()
+    }
+}
 
 fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
     payload
@@ -191,44 +203,61 @@ pub fn jornada_combo_list(state: State<'_, SharedState>) -> Result<Vec<ComboOpti
 pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Value>>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+    let sql = format!(
+        "SELECT jt.id,
+                jt.empresa_id,
+                e.nome AS empresa_nome,
+                jt.codigo,
+                jt.descricao,
+                jt.tipo_jornada,
+                jt.perfil_flexivel,
+                jt.permite_folga_movel,
+                jt.permite_meia_folga,
+                jt.dia_folga_base,
+                jt.periodo_meia_folga,
+                jt.heuristica_troca_folga,
+                {} AS dias_trabalho_semana,
+                {} AS folgas_mensais,
+                {} AS sabado_tipo,
+                {} AS suporta_diarista_generico,
+                {} AS limite_dias_diarista,
+                {} AS semana_alternada_folga,
+                {} AS tolerancia_entrada_minutos,
+                {} AS tolerancia_saida_minutos,
+                {} AS tolerancia_intervalo_minutos,
+                {} AS carga_semanal_minutos,
+                {} AS limite_diario_minutos,
+                {} AS banco_horas_ativo,
+                {} AS exige_marcacao_intervalo,
+                {} AS compensa_atraso_com_extra,
+                {} AS modo_tratamento_afd,
+                {} AS observacoes,
+                jt.ativo,
+                jt.created_at,
+                jt.updated_at,
+                (SELECT COUNT(*) FROM jornada_dias jd WHERE jd.jornada_id = jt.id) AS total_dias
+         FROM jornadas_trabalho jt
+         LEFT JOIN empresas e ON e.id = jt.empresa_id
+         ORDER BY jt.descricao ASC",
+        legacy_safe_jornada_expr(&conn, "dias_trabalho_semana", "6"),
+        legacy_safe_jornada_expr(&conn, "folgas_mensais", "0"),
+        legacy_safe_jornada_expr(&conn, "sabado_tipo", "'integral'"),
+        legacy_safe_jornada_expr(&conn, "suporta_diarista_generico", "0"),
+        legacy_safe_jornada_expr(&conn, "limite_dias_diarista", "0"),
+        legacy_safe_jornada_expr(&conn, "semana_alternada_folga", "0"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_entrada_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_saida_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_intervalo_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "carga_semanal_minutos", "2640"),
+        legacy_safe_jornada_expr(&conn, "limite_diario_minutos", "600"),
+        legacy_safe_jornada_expr(&conn, "banco_horas_ativo", "1"),
+        legacy_safe_jornada_expr(&conn, "exige_marcacao_intervalo", "1"),
+        legacy_safe_jornada_expr(&conn, "compensa_atraso_com_extra", "1"),
+        legacy_safe_jornada_expr(&conn, "modo_tratamento_afd", "'auto'"),
+        legacy_safe_jornada_expr(&conn, "observacoes", "NULL"),
+    );
     let mut stmt = conn
-        .prepare(
-            "SELECT jt.id,
-                    jt.empresa_id,
-                    e.nome AS empresa_nome,
-                    jt.codigo,
-                    jt.descricao,
-                    jt.tipo_jornada,
-                    jt.perfil_flexivel,
-                    jt.permite_folga_movel,
-                    jt.permite_meia_folga,
-                    jt.dia_folga_base,
-                    jt.periodo_meia_folga,
-                    jt.heuristica_troca_folga,
-                    jt.dias_trabalho_semana,
-                    jt.folgas_mensais,
-                    jt.sabado_tipo,
-                    jt.suporta_diarista_generico,
-                    jt.limite_dias_diarista,
-                    jt.semana_alternada_folga,
-                    jt.tolerancia_entrada_minutos,
-                    jt.tolerancia_saida_minutos,
-                    jt.tolerancia_intervalo_minutos,
-                    jt.carga_semanal_minutos,
-                    jt.limite_diario_minutos,
-                    jt.banco_horas_ativo,
-                    jt.exige_marcacao_intervalo,
-                    jt.compensa_atraso_com_extra,
-                    jt.modo_tratamento_afd,
-                    jt.observacoes,
-                    jt.ativo,
-                    jt.created_at,
-                    jt.updated_at,
-                    (SELECT COUNT(*) FROM jornada_dias jd WHERE jd.jornada_id = jt.id) AS total_dias
-             FROM jornadas_trabalho jt
-             LEFT JOIN empresas e ON e.id = jt.empresa_id
-             ORDER BY jt.descricao ASC",
-        )
+        .prepare(&sql)
         .map_err(|err| format!("Falha ao preparar listagem de jornadas: {err}"))?;
 
     let rows = stmt
@@ -243,44 +272,59 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
 pub fn jornada_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String, Value>, String> {
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+    let sql = format!(
+        "SELECT jt.id,
+                jt.empresa_id,
+                jt.codigo,
+                jt.descricao,
+                jt.tipo_jornada,
+                jt.perfil_flexivel,
+                jt.permite_folga_movel,
+                jt.permite_meia_folga,
+                jt.dia_folga_base,
+                jt.periodo_meia_folga,
+                jt.heuristica_troca_folga,
+                {} AS dias_trabalho_semana,
+                {} AS folgas_mensais,
+                {} AS sabado_tipo,
+                {} AS suporta_diarista_generico,
+                {} AS limite_dias_diarista,
+                {} AS semana_alternada_folga,
+                {} AS tolerancia_entrada_minutos,
+                {} AS tolerancia_saida_minutos,
+                {} AS tolerancia_intervalo_minutos,
+                {} AS carga_semanal_minutos,
+                {} AS limite_diario_minutos,
+                {} AS banco_horas_ativo,
+                {} AS exige_marcacao_intervalo,
+                {} AS compensa_atraso_com_extra,
+                {} AS modo_tratamento_afd,
+                {} AS observacoes,
+                jt.ativo,
+                jt.created_at,
+                jt.updated_at
+         FROM jornadas_trabalho jt
+         WHERE jt.id = ?1",
+        legacy_safe_jornada_expr(&conn, "dias_trabalho_semana", "6"),
+        legacy_safe_jornada_expr(&conn, "folgas_mensais", "0"),
+        legacy_safe_jornada_expr(&conn, "sabado_tipo", "'integral'"),
+        legacy_safe_jornada_expr(&conn, "suporta_diarista_generico", "0"),
+        legacy_safe_jornada_expr(&conn, "limite_dias_diarista", "0"),
+        legacy_safe_jornada_expr(&conn, "semana_alternada_folga", "0"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_entrada_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_saida_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "tolerancia_intervalo_minutos", "5"),
+        legacy_safe_jornada_expr(&conn, "carga_semanal_minutos", "2640"),
+        legacy_safe_jornada_expr(&conn, "limite_diario_minutos", "600"),
+        legacy_safe_jornada_expr(&conn, "banco_horas_ativo", "1"),
+        legacy_safe_jornada_expr(&conn, "exige_marcacao_intervalo", "1"),
+        legacy_safe_jornada_expr(&conn, "compensa_atraso_com_extra", "1"),
+        legacy_safe_jornada_expr(&conn, "modo_tratamento_afd", "'auto'"),
+        legacy_safe_jornada_expr(&conn, "observacoes", "NULL"),
+    );
 
     let mut item = conn
-        .query_row(
-            "SELECT jt.id,
-                    jt.empresa_id,
-                    jt.codigo,
-                    jt.descricao,
-                    jt.tipo_jornada,
-                    jt.perfil_flexivel,
-                    jt.permite_folga_movel,
-                    jt.permite_meia_folga,
-                    jt.dia_folga_base,
-                    jt.periodo_meia_folga,
-                    jt.heuristica_troca_folga,
-                    jt.dias_trabalho_semana,
-                    jt.folgas_mensais,
-                    jt.sabado_tipo,
-                    jt.suporta_diarista_generico,
-                    jt.limite_dias_diarista,
-                    jt.semana_alternada_folga,
-                    jt.tolerancia_entrada_minutos,
-                    jt.tolerancia_saida_minutos,
-                    jt.tolerancia_intervalo_minutos,
-                    jt.carga_semanal_minutos,
-                    jt.limite_diario_minutos,
-                    jt.banco_horas_ativo,
-                    jt.exige_marcacao_intervalo,
-                    jt.compensa_atraso_com_extra,
-                    jt.modo_tratamento_afd,
-                    jt.observacoes,
-                    jt.ativo,
-                    jt.created_at,
-                    jt.updated_at
-             FROM jornadas_trabalho jt
-             WHERE jt.id = ?1",
-            [id],
-            row_to_json_map,
-        )
+        .query_row(&sql, [id], row_to_json_map)
         .optional()
         .map_err(|err| format!("Falha ao consultar jornada: {err}"))?
         .ok_or_else(|| "Jornada não encontrada.".to_string())?;
