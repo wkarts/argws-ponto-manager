@@ -1599,7 +1599,7 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="cartao-vb6-shell cartao-shell-split">
+    <div class="cartao-vb6-shell" :class="{ 'sidebar-collapsed': sidePanelCollapsed }">
       <div class="card cartao-vb6-grid-panel table-wrap">
         <div class="vb6-group-header">
           <h3>Grade diária do cartão</h3>
