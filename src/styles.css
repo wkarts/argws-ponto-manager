@@ -673,20 +673,29 @@ tbody td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; 
   flex-direction: row;
   border-bottom: 1px solid #dbe3ee;
   background: #f8fafc;
-  overflow-x: auto;
+  overflow: hidden;
+}
+.side-content {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
 }
 .side-tab-btn {
   writing-mode: horizontal-tb;
   transform: none;
+  flex: 1 1 0;
   border: 0;
   border-right: 1px solid #dbe3ee;
   border-radius: 0;
   min-height: 38px;
-  padding: 8px 12px;
+  min-width: 0;
+  padding: 8px 6px;
   background: transparent;
   color: #334155;
   font-weight: 700;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 .side-tab-btn.active {
   background: #dbeafe;
@@ -702,7 +711,8 @@ tbody td { padding: 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; 
   min-height: 120px;
 }
 .cartao-vb6-side.collapsed .side-tabs,
-.cartao-vb6-side.collapsed .side-panel {
+.cartao-vb6-side.collapsed .side-panel,
+.cartao-vb6-side.collapsed .side-content {
   display: none;
 }
 .icon-btn {

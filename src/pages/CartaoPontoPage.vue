@@ -1662,13 +1662,14 @@ onMounted(async () => {
           {{ sidePanelCollapsed ? '◀' : '▶' }}
         </button>
         <template v-if="!sidePanelCollapsed">
-          <div class="side-tabs">
-            <button class="side-tab-btn" :class="{ active: activeSideTab === 'marcacoes' }" @click="activeSideTab = 'marcacoes'">Marcações</button>
-            <button class="side-tab-btn" :class="{ active: activeSideTab === 'ocorrencias' }" @click="activeSideTab = 'ocorrencias'">Ocorrências</button>
-            <button class="side-tab-btn" :class="{ active: activeSideTab === 'smart' }" @click="activeSideTab = 'smart'">Smart</button>
-            <button class="side-tab-btn" :class="{ active: activeSideTab === 'exclusao' }" @click="activeSideTab = 'exclusao'">Exclusão</button>
-          </div>
-          <div class="card table-wrap card-tight side-panel">
+          <div class="side-content">
+            <div class="side-tabs">
+              <button class="side-tab-btn" :class="{ active: activeSideTab === 'marcacoes' }" @click="activeSideTab = 'marcacoes'">Marcações</button>
+              <button class="side-tab-btn" :class="{ active: activeSideTab === 'ocorrencias' }" @click="activeSideTab = 'ocorrencias'">Ocorrências</button>
+              <button class="side-tab-btn" :class="{ active: activeSideTab === 'smart' }" @click="activeSideTab = 'smart'">Smart</button>
+              <button class="side-tab-btn" :class="{ active: activeSideTab === 'exclusao' }" @click="activeSideTab = 'exclusao'">Exclusão</button>
+            </div>
+            <div class="card table-wrap card-tight side-panel">
             <div v-if="activeSideTab === 'marcacoes'">
               <div class="vb6-group-header">
                 <h3>Marcações do dia selecionado</h3>
@@ -1767,6 +1768,7 @@ onMounted(async () => {
                   </tbody>
                 </table>
               </div>
+            </div>
             </div>
           </div>
         </template>
