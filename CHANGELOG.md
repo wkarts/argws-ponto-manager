@@ -1,3 +1,13 @@
+## [1.16.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.0...v1.16.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* **build:** corrige falha no cargo fmt ajustando formatação do timecalc ([53253b8](https://github.com/wkarts/argws-ponto-manager/commit/53253b84895ce1009d5b373e91e71d32fd1e8081))
+* **build:** corrige falha no cargo fmt na validação de data final de férias ([0935b2d](https://github.com/wkarts/argws-ponto-manager/commit/0935b2dab4e4ed53a6142c4dda049107818d3ac1))
+* **cartao-ponto:** move recursos para sidebar lateral e considera pré-admissão na apuração ([6f1c7f6](https://github.com/wkarts/argws-ponto-manager/commit/6f1c7f67cf825063d08e39c99e0b26f02114e00d))
+* **employees:** corrige erro de build ao restaurar campos de férias no save ([8a8448d](https://github.com/wkarts/argws-ponto-manager/commit/8a8448d1ade300032383f862432c1d855df7bcf5))
+
 # [1.16.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.15.0...v1.16.0) (2026-04-04)
 
 
