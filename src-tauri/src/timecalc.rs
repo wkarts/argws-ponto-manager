@@ -401,6 +401,7 @@ pub fn resolve_schedule_for_employee(
                     h.saida_2,
                     COALESCE(h.carga_horaria_minutos, 480),
                     es.dias_ativos,
+                    f.data_admissao,
                     f.data_demissao,
                     f.ferias_inicio,
                     f.ferias_fim,
@@ -446,7 +447,8 @@ pub fn resolve_schedule_for_employee(
                 row.get::<_, Option<String>>(26)?,
                 row.get::<_, Option<String>>(27)?,
                 row.get::<_, Option<String>>(28)?,
-                row.get::<_, i64>(29)?,
+                row.get::<_, Option<String>>(29)?,
+                row.get::<_, i64>(30)?,
             ))
         })
         .optional()
@@ -482,11 +484,38 @@ pub fn resolve_schedule_for_employee(
         h_saida_2,
         h_carga,
         escala_dias,
+        data_admissao,
         data_demissao,
         ferias_inicio,
         ferias_fim,
         ferias_dias,
     ) = row;
+
+    if let Some(admissao) = data_admissao.as_deref() {
+        if date_iso < admissao {
+            return Ok(ResolvedSchedule {
+                jornada_id,
+                jornada_nome: jornada_nome
+                    .clone()
+                    .unwrap_or_else(|| "Jornada".to_string()),
+                tipo_jornada: "pre_admissao".to_string(),
+                tolerancia_entrada_minutos: tolerancia_entrada,
+                tolerancia_saida_minutos: tolerancia_saida,
+                tolerancia_intervalo_minutos: tolerancia_intervalo,
+                exige_marcacao_intervalo: exige_marcacao_intervalo == 1,
+                expected_minutes: 0,
+                entrada_1: None,
+                saida_1: None,
+                entrada_2: None,
+                saida_2: None,
+                is_day_off: true,
+                is_holiday: false,
+                holiday_label: Some(format!("Pré-admissão até {}", admissao)),
+                holiday_compensation: None,
+                holiday_jornada_rule: Some("employee_pre_admission".to_string()),
+            });
+        }
+    }
 
     if let Some(demissao) = data_demissao.as_deref() {
         if demissao <= date_iso {

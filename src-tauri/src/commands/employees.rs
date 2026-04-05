@@ -423,6 +423,12 @@ pub fn employee_save(
                 "Data inicial de férias inválida. Utilize o formato YYYY-MM-DD.".to_string(),
             );
         }
+
+        if value < data_admissao.as_str() {
+            return Err(
+                "Data inicial de férias não pode ser menor que a data de admissão.".to_string(),
+            );
+        }
     }
 
     let ferias_fim = get_string(&payload, "ferias_fim");
@@ -430,19 +436,25 @@ pub fn employee_save(
         if !validate_iso_date(value) {
             return Err("Data final de férias inválida. Utilize o formato YYYY-MM-DD.".to_string());
         }
+
+        if value < data_admissao.as_str() {
+            return Err(
+                "Data final de férias não pode ser menor que a data de admissão.".to_string(),
+            );
+        }
     }
 
     if let (Some(inicio), Some(fim)) = (ferias_inicio.as_deref(), ferias_fim.as_deref()) {
         if fim < inicio {
-            return Err("Data final de férias não pode ser menor que a data inicial.".to_string());
+            return Err(
+                "Data final de férias não pode ser menor que a data inicial de férias.".to_string(),
+            );
         }
     }
 
-    let ferias_dias = get_i64(&payload, "ferias_dias");
-    if let Some(value) = ferias_dias {
-        if value < 0 {
-            return Err("Quantidade de dias de férias não pode ser negativa.".to_string());
-        }
+    let ferias_dias = get_i64(&payload, "ferias_dias").unwrap_or(0);
+    if ferias_dias < 0 {
+        return Err("Quantidade de dias de férias não pode ser negativa.".to_string());
     }
 
     let email = get_string(&payload, "email");
@@ -640,7 +652,7 @@ pub fn employee_save(
                 escala_id, jornada_id, observacoes, ativo, created_at, updated_at
              ) VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18,
-                ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?33
+                ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35
              )",
             params![
                 empresa_id,
