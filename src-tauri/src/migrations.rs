@@ -628,6 +628,82 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
             "heuristica_troca_folga",
             "INTEGER NOT NULL DEFAULT 1",
         ),
+        (
+            "jornadas_trabalho",
+            "dias_trabalho_semana",
+            "INTEGER NOT NULL DEFAULT 6",
+        ),
+        (
+            "jornadas_trabalho",
+            "folgas_mensais",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        (
+            "jornadas_trabalho",
+            "sabado_tipo",
+            "TEXT NOT NULL DEFAULT 'integral'",
+        ),
+        (
+            "jornadas_trabalho",
+            "suporta_diarista_generico",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        (
+            "jornadas_trabalho",
+            "limite_dias_diarista",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        (
+            "jornadas_trabalho",
+            "semana_alternada_folga",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        (
+            "jornadas_trabalho",
+            "tolerancia_entrada_minutos",
+            "INTEGER NOT NULL DEFAULT 5",
+        ),
+        (
+            "jornadas_trabalho",
+            "tolerancia_saida_minutos",
+            "INTEGER NOT NULL DEFAULT 5",
+        ),
+        (
+            "jornadas_trabalho",
+            "tolerancia_intervalo_minutos",
+            "INTEGER NOT NULL DEFAULT 5",
+        ),
+        (
+            "jornadas_trabalho",
+            "carga_semanal_minutos",
+            "INTEGER NOT NULL DEFAULT 2640",
+        ),
+        (
+            "jornadas_trabalho",
+            "limite_diario_minutos",
+            "INTEGER NOT NULL DEFAULT 600",
+        ),
+        (
+            "jornadas_trabalho",
+            "banco_horas_ativo",
+            "INTEGER NOT NULL DEFAULT 1",
+        ),
+        (
+            "jornadas_trabalho",
+            "exige_marcacao_intervalo",
+            "INTEGER NOT NULL DEFAULT 1",
+        ),
+        (
+            "jornadas_trabalho",
+            "compensa_atraso_com_extra",
+            "INTEGER NOT NULL DEFAULT 1",
+        ),
+        (
+            "jornadas_trabalho",
+            "modo_tratamento_afd",
+            "TEXT NOT NULL DEFAULT 'auto'",
+        ),
+        ("jornadas_trabalho", "observacoes", "TEXT"),
         ("batidas", "afd_importacao_id", "INTEGER"),
         ("batidas", "afd_layout_portaria", "TEXT"),
         ("batidas", "justificativa_id", "INTEGER"),
