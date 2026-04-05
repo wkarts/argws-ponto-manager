@@ -44,6 +44,25 @@ pub fn count_table(conn: &Connection, table: &str) -> Result<i64, String> {
         .map_err(|err| format!("Falha ao contar tabela {table}: {err}"))
 }
 
+pub fn table_has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
+    let pragma = format!("PRAGMA table_info({table})");
+    let mut stmt = conn
+        .prepare(&pragma)
+        .map_err(|err| format!("Falha ao inspecionar tabela {table}: {err}"))?;
+
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| format!("Falha ao ler metadados da tabela {table}: {err}"))?;
+
+    for item in rows {
+        if item.map_err(|err| format!("Falha ao mapear metadados de {table}: {err}"))? == column {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 pub fn enqueue_sync(
     conn: &Connection,
     entity_name: &str,
