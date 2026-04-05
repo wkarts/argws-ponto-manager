@@ -2,6 +2,8 @@ use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use rusqlite::{params, Connection, OptionalExtension};
 use std::collections::HashMap;
 
+use crate::db::table_has_column;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ResolvedSchedule {
@@ -495,28 +497,64 @@ pub fn resolve_schedule_for_employee(
             )
             .map_err(|err| format!("Falha ao verificar batidas da jornada flexível: {err}"))?;
 
+        let flex_meta_sql = format!(
+            "SELECT {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+             FROM jornadas_trabalho
+             WHERE id = ?1",
+            if table_has_column(conn, "jornadas_trabalho", "dias_trabalho_semana").unwrap_or(false)
+            {
+                "COALESCE(dias_trabalho_semana, 6)"
+            } else {
+                "6"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "folgas_mensais").unwrap_or(false) {
+                "COALESCE(folgas_mensais, 0)"
+            } else {
+                "0"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "sabado_tipo").unwrap_or(false) {
+                "COALESCE(sabado_tipo, 'integral')"
+            } else {
+                "'integral'"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "suporta_diarista_generico")
+                .unwrap_or(false)
+            {
+                "COALESCE(suporta_diarista_generico, 0)"
+            } else {
+                "0"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "limite_dias_diarista").unwrap_or(false)
+            {
+                "COALESCE(limite_dias_diarista, 0)"
+            } else {
+                "0"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "semana_alternada_folga")
+                .unwrap_or(false)
+            {
+                "COALESCE(semana_alternada_folga, 0)"
+            } else {
+                "0"
+            },
+        );
+
         let flex_meta = conn
-            .query_row(
-                "SELECT COALESCE(dias_trabalho_semana, 6),
-                        COALESCE(folgas_mensais, 0),
-                        COALESCE(sabado_tipo, 'integral'),
-                        COALESCE(suporta_diarista_generico, 0),
-                        COALESCE(limite_dias_diarista, 0),
-                        COALESCE(semana_alternada_folga, 0)
-                 FROM jornadas_trabalho
-                 WHERE id = ?1",
-                params![jornada_id],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, i64>(1)?,
-                        row.get::<_, String>(2)?,
-                        row.get::<_, i64>(3)?,
-                        row.get::<_, i64>(4)?,
-                        row.get::<_, i64>(5)?,
-                    ))
-                },
-            )
+            .query_row(&flex_meta_sql, params![jornada_id], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            })
             .optional()
             .map_err(|err| format!("Falha ao ler metadados flexíveis da jornada: {err}"))?
             .unwrap_or((6, 0, "integral".to_string(), 0, 0, 0));
