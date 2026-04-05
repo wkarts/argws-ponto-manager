@@ -1,3 +1,10 @@
+## [1.16.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.3...v1.16.4) (2026-04-05)
+
+
+### Bug Fixes
+
+* **cartao-ponto:** restaura guias e expansão da grade ao recolher sidebar ([0cf95d2](https://github.com/wkarts/argws-ponto-manager/commit/0cf95d2a63fe29e0f0395b019a3a1ed45ef82a95))
+
 ## [1.16.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.2...v1.16.3) (2026-04-05)
 
 
