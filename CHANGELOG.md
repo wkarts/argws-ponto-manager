@@ -1,3 +1,11 @@
+## [1.16.6](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.5...v1.16.6) (2026-04-06)
+
+
+### Bug Fixes
+
+* **apuracao:** normaliza previsão mensal com swap semanal e adiciona diagnóstico de jornadas inconsistentes ([232dc8b](https://github.com/wkarts/argws-ponto-manager/commit/232dc8bf02c772d64624be2dea8e94b473e0d8e7))
+* **build:** corrige falha no cargo fmt em jornadas e timecalc ([b83add2](https://github.com/wkarts/argws-ponto-manager/commit/b83add25a0aeec43d5e712a4ea2d04ee547774a3))
+
 ## [1.16.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.4...v1.16.5) (2026-04-05)
 
 
