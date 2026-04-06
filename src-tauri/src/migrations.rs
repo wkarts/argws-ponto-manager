@@ -628,6 +628,7 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
             "INTEGER NOT NULL DEFAULT 0",
         ),
         ("jornadas_trabalho", "dia_folga_base", "INTEGER"),
+        ("jornadas_trabalho", "dia_folga_mensal_base", "INTEGER"),
         ("jornadas_trabalho", "periodo_meia_folga", "TEXT"),
         (
             "jornadas_trabalho",
