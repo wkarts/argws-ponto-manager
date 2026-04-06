@@ -208,6 +208,21 @@ fn is_monthly_alternate_day_off(date: NaiveDate, monthly_offs: i64, alternate: b
     }
 }
 
+fn should_apply_weekly_half_day(
+    date: NaiveDate,
+    base_weekday: i64,
+    weekly_anchor_weekday: u32,
+) -> bool {
+    if i64::from(date.weekday().number_from_monday()) != base_weekday {
+        return false;
+    }
+
+    let current = i64::from(date.weekday().number_from_monday());
+    let anchor_delta = i64::from(weekly_anchor_weekday) - current;
+    let anchor_date = date + chrono::Duration::days(anchor_delta);
+    anchor_date.month() == date.month() && anchor_date.year() == date.year()
+}
+
 fn choose_dynamic_off_dates(
     conn: &Connection,
     employee_id: i64,
@@ -465,8 +480,8 @@ pub fn resolve_schedule_for_employee(
         tipo_jornada,
         perfil_flexivel,
         permite_folga_movel,
-        _permite_meia_folga,
-        _dia_folga_base,
+        permite_meia_folga,
+        dia_folga_base,
         _periodo_meia_folga,
         heuristica_troca_folga,
         tolerancia_entrada,
@@ -600,6 +615,8 @@ pub fn resolve_schedule_for_employee(
                     {},
                     {},
                     {},
+                    {},
+                    {},
                     {}
              FROM jornadas_trabalho
              WHERE id = ?1",
@@ -639,6 +656,18 @@ pub fn resolve_schedule_for_employee(
             } else {
                 "0"
             },
+            if table_has_column(conn, "jornadas_trabalho", "dia_folga_mensal_base").unwrap_or(false)
+            {
+                "dia_folga_mensal_base"
+            } else {
+                "NULL"
+            },
+            if table_has_column(conn, "jornadas_trabalho", "carga_semanal_minutos").unwrap_or(false)
+            {
+                "COALESCE(carga_semanal_minutos, 0)"
+            } else {
+                "0"
+            },
         );
 
         let flex_meta = conn
@@ -650,11 +679,13 @@ pub fn resolve_schedule_for_employee(
                     row.get::<_, i64>(3)?,
                     row.get::<_, i64>(4)?,
                     row.get::<_, i64>(5)?,
+                    row.get::<_, Option<i64>>(6)?,
+                    row.get::<_, i64>(7)?,
                 ))
             })
             .optional()
             .map_err(|err| format!("Falha ao ler metadados flexíveis da jornada: {err}"))?
-            .unwrap_or((6, 0, "integral".to_string(), 0, 0, 0));
+            .unwrap_or((6, 0, "integral".to_string(), 0, 0, 0, None, 0));
 
         let (
             dias_trabalho_semana,
@@ -663,10 +694,41 @@ pub fn resolve_schedule_for_employee(
             suporta_diarista_generico,
             limite_dias_diarista,
             semana_alternada_folga,
+            dia_folga_mensal_base,
+            carga_semanal_minutos,
         ) = flex_meta;
 
+        let target_monthly_off_weekday = dia_folga_mensal_base.unwrap_or(6);
+
+        let full_day_reference = if carga_semanal_minutos > 0 && dias_trabalho_semana > 0 {
+            (carga_semanal_minutos / dias_trabalho_semana).max(expected_minutes)
+        } else {
+            expected_minutes
+        };
+        let half_day_reduction = if permite_meia_folga == 1
+            && dia_folga_base.unwrap_or(0) > 0
+            && expected_minutes > 0
+            && full_day_reference > expected_minutes
+        {
+            full_day_reference - expected_minutes
+        } else {
+            0
+        };
+
+        if permite_meia_folga == 1
+            && sabado_tipo == "integral"
+            && dia_folga_base.unwrap_or(0) > 0
+            && half_day_reduction > 0
+        {
+            if should_apply_weekly_half_day(date, dia_folga_base.unwrap_or(0), 6) {
+                expected_minutes = full_day_reference - half_day_reduction;
+            } else if weekday != 7 && jd_folga == 0 {
+                expected_minutes = full_day_reference;
+            }
+        }
+
         if folgas_mensais > 0
-            && weekday == 6
+            && i64::from(weekday) == target_monthly_off_weekday
             && sabado_tipo != "folga"
             && is_monthly_alternate_day_off(date, folgas_mensais, semana_alternada_folga == 1)
             && has_punches_today == 0

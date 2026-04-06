@@ -55,6 +55,7 @@ function defaultForm() {
     heuristica_troca_folga: true,
     dias_trabalho_semana: 6,
     folgas_mensais: 0,
+    dia_folga_mensal_base: "",
     sabado_tipo: "integral",
     suporta_diarista_generico: false,
     limite_dias_diarista: 0,
@@ -122,6 +123,7 @@ async function editRow(id: number) {
       heuristica_troca_folga: Number(record.heuristica_troca_folga) === 1 || record.heuristica_troca_folga === true,
       dias_trabalho_semana: Number(record.dias_trabalho_semana || 6),
       folgas_mensais: Number(record.folgas_mensais || 0),
+      dia_folga_mensal_base: record.dia_folga_mensal_base ? String(record.dia_folga_mensal_base) : "",
       sabado_tipo: String(record.sabado_tipo || "integral"),
       suporta_diarista_generico: Number(record.suporta_diarista_generico) === 1 || record.suporta_diarista_generico === true,
       limite_dias_diarista: Number(record.limite_dias_diarista || 0),
@@ -220,6 +222,9 @@ onMounted(async () => {
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
+    <div v-if="visibleRows.some((row) => Number(row.carga_semanal_diff_minutos || 0) !== 0)" class="alert warning">
+      Existem jornadas com diferença entre carga semanal declarada e soma real dos dias. Revise antes de apurar a competência.
+    </div>
 
     <div class="card grid page-gap">
       <div class="toolbar">
@@ -238,7 +243,9 @@ onMounted(async () => {
               <th>Código</th>
               <th>Descrição</th>
               <th>Tipo</th>
-              <th>Carga semanal</th>
+              <th>Carga declarada</th>
+              <th>Carga real</th>
+              <th>Dif.</th>
               <th>Dias</th>
               <th>Status</th>
               <th>Ações</th>
@@ -252,6 +259,12 @@ onMounted(async () => {
               <td>{{ row.descricao }}</td>
               <td>{{ row.tipo_jornada || '-' }}</td>
               <td>{{ formatMinutes(Number(row.carga_semanal_minutos || 0)) }}</td>
+              <td>{{ formatMinutes(Number(row.carga_semanal_real_minutos || 0)) }}</td>
+              <td>
+                <span :class="Number(row.carga_semanal_diff_minutos || 0) === 0 ? 'status-chip active' : 'status-chip pending'">
+                  {{ formatMinutes(Math.abs(Number(row.carga_semanal_diff_minutos || 0))) }}
+                </span>
+              </td>
               <td>{{ row.total_dias || 0 }}</td>
               <td>{{ booleanLabel(row.ativo) }}</td>
               <td>

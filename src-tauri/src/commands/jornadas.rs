@@ -143,7 +143,7 @@ pub fn jornada_preset_list() -> Result<Vec<Map<String, Value>>, String> {
         ]}),
         json!({"codigo":"DIARISTA-1D","descricao":"Diarista 1 dia por semana","tipo_jornada":"diarista","perfil_flexivel":"diarista_1_dia","permite_folga_movel":false,"permite_meia_folga":false,"dia_folga_base":null,"periodo_meia_folga":null,"dias_trabalho_semana":1,"folgas_mensais":0,"sabado_tipo":"folga","suporta_diarista_generico":true,"limite_dias_diarista":1,"semana_alternada_folga":0,"carga_semanal_minutos":480,"limite_diario_minutos":480,"dias":[
             {"dia_semana":1,"entrada_1":"08:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":480,"intervalo_minutos":60,"folga":false},
-            {"dia_semana":2,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":2,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
             {"dia_semana":3,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
             {"dia_semana":4,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
             {"dia_semana":5,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
@@ -152,16 +152,16 @@ pub fn jornada_preset_list() -> Result<Vec<Map<String, Value>>, String> {
         ]}),
         json!({"codigo":"DIARISTA-2D","descricao":"Diarista 2 dias por semana","tipo_jornada":"diarista","perfil_flexivel":"diarista_2_dias","permite_folga_movel":false,"permite_meia_folga":false,"dia_folga_base":null,"periodo_meia_folga":null,"carga_semanal_minutos":960,"limite_diario_minutos":480,"dias":[
             {"dia_semana":1,"entrada_1":"08:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":480,"intervalo_minutos":60,"folga":false},
-            {"dia_semana":2,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":2,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
             {"dia_semana":3,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
             {"dia_semana":4,"entrada_1":"08:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":480,"intervalo_minutos":60,"folga":false},
             {"dia_semana":5,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
             {"dia_semana":6,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
             {"dia_semana":7,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true}
         ]}),
-        json!({"codigo":"MERC-SAB-2F","descricao":"Mercado sábado integral com 2 folgas mensais alternadas","tipo_jornada":"flexivel","perfil_flexivel":"mercado_sabado_duas_folgas_mensais","permite_folga_movel":true,"permite_meia_folga":false,"dia_folga_base":2,"periodo_meia_folga":null,"dias_trabalho_semana":6,"folgas_mensais":2,"sabado_tipo":"integral","suporta_diarista_generico":false,"limite_dias_diarista":0,"semana_alternada_folga":1,"carga_semanal_minutos":2640,"limite_diario_minutos":540,"dias":[
+        json!({"codigo":"MERC-SAB-2F","descricao":"Mercado sábado integral com 2 folgas mensais alternadas","tipo_jornada":"flexivel","perfil_flexivel":"mercado_sabado_duas_folgas_mensais","permite_folga_movel":true,"permite_meia_folga":false,"dia_folga_base":2,"dia_folga_mensal_base":2,"periodo_meia_folga":null,"dias_trabalho_semana":6,"folgas_mensais":2,"sabado_tipo":"integral","suporta_diarista_generico":false,"limite_dias_diarista":0,"semana_alternada_folga":1,"carga_semanal_minutos":2640,"limite_diario_minutos":540,"dias":[
             {"dia_semana":1,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
-            {"dia_semana":2,"entrada_1":"","saida_1":"","entrada_2":"","saida_2":"","carga_prevista_minutos":0,"intervalo_minutos":0,"folga":true},
+            {"dia_semana":2,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
             {"dia_semana":3,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
             {"dia_semana":4,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
             {"dia_semana":5,"entrada_1":"07:00","saida_1":"12:00","entrada_2":"13:00","saida_2":"17:00","carga_prevista_minutos":540,"intervalo_minutos":60,"folga":false},
@@ -218,6 +218,7 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
                 jt.heuristica_troca_folga,
                 {} AS dias_trabalho_semana,
                 {} AS folgas_mensais,
+                {} AS dia_folga_mensal_base,
                 {} AS sabado_tipo,
                 {} AS suporta_diarista_generico,
                 {} AS limite_dias_diarista,
@@ -241,6 +242,7 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
          ORDER BY jt.descricao ASC",
         legacy_safe_jornada_expr(&conn, "dias_trabalho_semana", "6"),
         legacy_safe_jornada_expr(&conn, "folgas_mensais", "0"),
+        legacy_safe_jornada_expr(&conn, "dia_folga_mensal_base", "NULL"),
         legacy_safe_jornada_expr(&conn, "sabado_tipo", "'integral'"),
         legacy_safe_jornada_expr(&conn, "suporta_diarista_generico", "0"),
         legacy_safe_jornada_expr(&conn, "limite_dias_diarista", "0"),
@@ -265,7 +267,60 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
         .map_err(|err| format!("Falha ao executar listagem de jornadas: {err}"))?;
 
     let rows: Result<Vec<_>, _> = rows.collect();
-    rows.map_err(|err| format!("Falha ao mapear jornadas: {err}"))
+    let mut rows = rows.map_err(|err| format!("Falha ao mapear jornadas: {err}"))?;
+
+    for row in &mut rows {
+        if let Some(id) = row.get("id").and_then(|value| value.as_i64()) {
+            let mut diag_stmt = conn
+                .prepare(
+                    "SELECT dia_semana, COALESCE(carga_prevista_minutos, 0), COALESCE(folga, 0) FROM jornada_dias WHERE jornada_id = ?1 ORDER BY dia_semana ASC",
+                )
+                .map_err(|err| format!("Falha ao preparar diagnóstico da jornada: {err}"))?;
+            let diag_rows = diag_stmt
+                .query_map([id], |diag_row| {
+                    Ok((
+                        diag_row.get::<_, i64>(0)?,
+                        diag_row.get::<_, i64>(1)?,
+                        diag_row.get::<_, i64>(2)?,
+                    ))
+                })
+                .map_err(|err| format!("Falha ao consultar diagnóstico da jornada: {err}"))?;
+            let mut soma_real = 0i64;
+            let mut total_dias = 0i64;
+            for diag in diag_rows {
+                let (dia_semana, carga, folga) =
+                    diag.map_err(|err| format!("Falha ao ler diagnóstico da jornada: {err}"))?;
+                if dia_semana != 7 && folga == 0 {
+                    total_dias += 1;
+                    soma_real += carga;
+                }
+            }
+            let declarada = row
+                .get("carga_semanal_minutos")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0);
+            let diff = declarada - soma_real;
+            row.insert(
+                "carga_semanal_real_minutos".to_string(),
+                Value::from(soma_real),
+            );
+            row.insert("carga_semanal_diff_minutos".to_string(), Value::from(diff));
+            row.insert(
+                "jornada_inconsistente".to_string(),
+                Value::from(
+                    diff != 0
+                        && row
+                            .get("folgas_mensais")
+                            .and_then(|value| value.as_i64())
+                            .unwrap_or(0)
+                            == 0,
+                ),
+            );
+            row.insert("total_dias".to_string(), Value::from(total_dias));
+        }
+    }
+
+    Ok(rows)
 }
 
 #[tauri::command]
@@ -286,6 +341,7 @@ pub fn jornada_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String,
                 jt.heuristica_troca_folga,
                 {} AS dias_trabalho_semana,
                 {} AS folgas_mensais,
+                {} AS dia_folga_mensal_base,
                 {} AS sabado_tipo,
                 {} AS suporta_diarista_generico,
                 {} AS limite_dias_diarista,
@@ -307,6 +363,7 @@ pub fn jornada_get(state: State<'_, SharedState>, id: i64) -> Result<Map<String,
          WHERE jt.id = ?1",
         legacy_safe_jornada_expr(&conn, "dias_trabalho_semana", "6"),
         legacy_safe_jornada_expr(&conn, "folgas_mensais", "0"),
+        legacy_safe_jornada_expr(&conn, "dia_folga_mensal_base", "NULL"),
         legacy_safe_jornada_expr(&conn, "sabado_tipo", "'integral'"),
         legacy_safe_jornada_expr(&conn, "suporta_diarista_generico", "0"),
         legacy_safe_jornada_expr(&conn, "limite_dias_diarista", "0"),
@@ -380,6 +437,40 @@ pub fn jornada_save(
         return Err("Informe ao menos um dia para a jornada de trabalho.".to_string());
     }
 
+    let mut soma_semana = 0i64;
+    let mut dias_trabalho_calculado = 0i64;
+    for day in dias_array {
+        let (dia_semana, _entrada_1, _saida_1, _entrada_2, _saida_2, carga, _intervalo, folga) =
+            day_payload_to_sql(day)?;
+        if dia_semana != 7 && folga == 0 {
+            dias_trabalho_calculado += 1;
+            soma_semana += carga;
+        }
+    }
+
+    let dias_trabalho_payload =
+        get_i64(&payload, "dias_trabalho_semana").unwrap_or(dias_trabalho_calculado.max(1));
+    if dias_trabalho_payload != dias_trabalho_calculado {
+        return Err(format!(
+            "Dias de trabalho/semana inconsistente. Informado={}, calculado={}.",
+            dias_trabalho_payload, dias_trabalho_calculado
+        ));
+    }
+
+    let carga_payload = get_i64(&payload, "carga_semanal_minutos").unwrap_or(soma_semana.max(0));
+    let folgas_mensais_payload = get_i64(&payload, "folgas_mensais").unwrap_or(0);
+    let permite_meia_folga_payload = get_bool(&payload, "permite_meia_folga", false);
+    if folgas_mensais_payload == 0
+        && permite_meia_folga_payload == 0
+        && soma_semana > 0
+        && (carga_payload - soma_semana).abs() > 5
+    {
+        return Err(format!(
+            "Carga semanal inconsistente. Informado={} min, soma dos dias={} min. Ajuste a jornada ou habilite a regra mensal/semanal correspondente.",
+            carga_payload, soma_semana
+        ));
+    }
+
     let duplicate: Option<i64> = conn
         .query_row(
             "SELECT id FROM jornadas_trabalho WHERE descricao = ?1 AND (?2 IS NULL OR id <> ?2) LIMIT 1",
@@ -408,23 +499,24 @@ pub fn jornada_save(
                     heuristica_troca_folga = ?10,
                     dias_trabalho_semana = ?11,
                     folgas_mensais = ?12,
-                    sabado_tipo = ?13,
-                    suporta_diarista_generico = ?14,
-                    limite_dias_diarista = ?15,
-                    semana_alternada_folga = ?16,
-                    tolerancia_entrada_minutos = ?17,
-                    tolerancia_saida_minutos = ?18,
-                    tolerancia_intervalo_minutos = ?19,
-                    carga_semanal_minutos = ?20,
-                    limite_diario_minutos = ?21,
-                    banco_horas_ativo = ?22,
-                    exige_marcacao_intervalo = ?23,
-                    compensa_atraso_com_extra = ?24,
-                    modo_tratamento_afd = ?25,
-                    observacoes = ?26,
-                    ativo = ?27,
-                    updated_at = ?28
-              WHERE id = ?29",
+                    dia_folga_mensal_base = ?13,
+                    sabado_tipo = ?14,
+                    suporta_diarista_generico = ?15,
+                    limite_dias_diarista = ?16,
+                    semana_alternada_folga = ?17,
+                    tolerancia_entrada_minutos = ?18,
+                    tolerancia_saida_minutos = ?19,
+                    tolerancia_intervalo_minutos = ?20,
+                    carga_semanal_minutos = ?21,
+                    limite_diario_minutos = ?22,
+                    banco_horas_ativo = ?23,
+                    exige_marcacao_intervalo = ?24,
+                    compensa_atraso_com_extra = ?25,
+                    modo_tratamento_afd = ?26,
+                    observacoes = ?27,
+                    ativo = ?28,
+                    updated_at = ?29
+              WHERE id = ?30",
             params![
                 empresa_id,
                 get_string(&payload, "codigo"),
@@ -438,6 +530,8 @@ pub fn jornada_save(
                 get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "dias_trabalho_semana").unwrap_or(6),
                 get_i64(&payload, "folgas_mensais").unwrap_or(0),
+                get_i64(&payload, "dia_folga_mensal_base")
+                    .or_else(|| get_i64(&payload, "dia_folga_base")),
                 get_string(&payload, "sabado_tipo").unwrap_or_else(|| "integral".to_string()),
                 get_bool(&payload, "suporta_diarista_generico", false),
                 get_i64(&payload, "limite_dias_diarista").unwrap_or(0),
@@ -445,7 +539,7 @@ pub fn jornada_save(
                 get_i64(&payload, "tolerancia_entrada_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_saida_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_intervalo_minutos").unwrap_or(5),
-                get_i64(&payload, "carga_semanal_minutos").unwrap_or(2640),
+                get_i64(&payload, "carga_semanal_minutos").unwrap_or(soma_semana.max(0)),
                 get_i64(&payload, "limite_diario_minutos").unwrap_or(600),
                 get_bool(&payload, "banco_horas_ativo", true),
                 get_bool(&payload, "exige_marcacao_intervalo", true),
@@ -469,12 +563,12 @@ pub fn jornada_save(
             "INSERT INTO jornadas_trabalho (
                 empresa_id, codigo, descricao, tipo_jornada, perfil_flexivel, permite_folga_movel,
                 permite_meia_folga, dia_folga_base, periodo_meia_folga, heuristica_troca_folga,
-                dias_trabalho_semana, folgas_mensais, sabado_tipo, suporta_diarista_generico, limite_dias_diarista, semana_alternada_folga,
+                dias_trabalho_semana, folgas_mensais, dia_folga_mensal_base, sabado_tipo, suporta_diarista_generico, limite_dias_diarista, semana_alternada_folga,
                 tolerancia_entrada_minutos, tolerancia_saida_minutos, tolerancia_intervalo_minutos, carga_semanal_minutos,
                 limite_diario_minutos, banco_horas_ativo, exige_marcacao_intervalo,
                 compensa_atraso_com_extra, modo_tratamento_afd, observacoes, ativo, created_at, updated_at
             ) VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?28
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?29
             )",
             params![
                 empresa_id,
@@ -489,6 +583,8 @@ pub fn jornada_save(
                 get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "dias_trabalho_semana").unwrap_or(6),
                 get_i64(&payload, "folgas_mensais").unwrap_or(0),
+                get_i64(&payload, "dia_folga_mensal_base")
+                    .or_else(|| get_i64(&payload, "dia_folga_base")),
                 get_string(&payload, "sabado_tipo").unwrap_or_else(|| "integral".to_string()),
                 get_bool(&payload, "suporta_diarista_generico", false),
                 get_i64(&payload, "limite_dias_diarista").unwrap_or(0),
@@ -496,7 +592,7 @@ pub fn jornada_save(
                 get_i64(&payload, "tolerancia_entrada_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_saida_minutos").unwrap_or(5),
                 get_i64(&payload, "tolerancia_intervalo_minutos").unwrap_or(5),
-                get_i64(&payload, "carga_semanal_minutos").unwrap_or(2640),
+                get_i64(&payload, "carga_semanal_minutos").unwrap_or(soma_semana.max(0)),
                 get_i64(&payload, "limite_diario_minutos").unwrap_or(600),
                 get_bool(&payload, "banco_horas_ativo", true),
                 get_bool(&payload, "exige_marcacao_intervalo", true),
