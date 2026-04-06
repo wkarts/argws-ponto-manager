@@ -275,7 +275,6 @@ fn choose_dynamic_off_dates(
         .collect())
 }
 
-
 #[derive(Debug, Clone)]
 pub struct MandatoryMonthResult {
     pub total_minutes: i64,
@@ -333,7 +332,8 @@ fn jornada_full_and_min_minutes(conn: &Connection, jornada_id: i64) -> Result<(i
     let mut max_full = 0i64;
     let mut min_nonzero = i64::MAX;
     for row in rows {
-        let (carga, folga, dia_semana) = row.map_err(|e| format!("Falha ao ler jornada_dias: {e}"))?;
+        let (carga, folga, dia_semana) =
+            row.map_err(|e| format!("Falha ao ler jornada_dias: {e}"))?;
         if folga == 1 || carga <= 0 || dia_semana == 7 {
             continue;
         }
@@ -349,7 +349,14 @@ fn jornada_full_and_min_minutes(conn: &Connection, jornada_id: i64) -> Result<(i
         return Ok((480, 480));
     }
 
-    Ok((max_full, if min_nonzero == i64::MAX { max_full } else { min_nonzero }))
+    Ok((
+        max_full,
+        if min_nonzero == i64::MAX {
+            max_full
+        } else {
+            min_nonzero
+        },
+    ))
 }
 
 pub fn compute_mandatory_month_for_employee(
@@ -424,14 +431,17 @@ pub fn compute_mandatory_month_for_employee(
     };
     let reduction = (full_day - min_nonzero).max(0);
 
-    let start = NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| "Competência inválida".to_string())?;
+    let start = NaiveDate::from_ymd_opt(year, month, 1)
+        .ok_or_else(|| "Competência inválida".to_string())?;
     let next = if month == 12 {
         NaiveDate::from_ymd_opt(year + 1, 1, 1)
     } else {
         NaiveDate::from_ymd_opt(year, month + 1, 1)
     }
     .ok_or_else(|| "Competência inválida".to_string())?;
-    let end = next.pred_opt().ok_or_else(|| "Falha ao calcular fim do mês".to_string())?;
+    let end = next
+        .pred_opt()
+        .ok_or_else(|| "Falha ao calcular fim do mês".to_string())?;
 
     let saturdays_in_month = count_weekday_in_month(year, month, 6);
     let mut total = 0i64;
@@ -440,7 +450,11 @@ pub fn compute_mandatory_month_for_employee(
     let mut debug = Vec::new();
 
     if tipo == "diarista" || suporta_diarista == 1 {
-        let days_per_week = if limite_diarista > 0 { limite_diarista } else { dias_semana.max(1) };
+        let days_per_week = if limite_diarista > 0 {
+            limite_diarista
+        } else {
+            dias_semana.max(1)
+        };
         total = saturdays_in_month * days_per_week * full_day;
         debug.push(format!("Modo diarista: semanas={saturdays_in_month}, dias/semana={days_per_week}, full={full_day}."));
         return Ok(MandatoryMonthResult {
@@ -514,7 +528,9 @@ pub fn compute_mandatory_month_for_employee(
     let meia_weeks = if must_apply_meia { saturdays_worked } else { 0 };
     if must_apply_meia {
         total -= meia_weeks * reduction;
-        debug.push(format!("Meia folga aplicada: semanas={meia_weeks}, reduction={reduction}."));
+        debug.push(format!(
+            "Meia folga aplicada: semanas={meia_weeks}, reduction={reduction}."
+        ));
     }
 
     Ok(MandatoryMonthResult {

@@ -750,7 +750,6 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
     )
     .map_err(|err| format!("Falha ao normalizar dados existentes: {err}"))?;
 
-
     conn.execute_batch(
         r#"
         UPDATE jornadas_trabalho

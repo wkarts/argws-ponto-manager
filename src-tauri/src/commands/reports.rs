@@ -13,7 +13,10 @@ use crate::{
     app_state::SharedState,
     db::open_connection,
     models::{ApuracaoDia, ApuracaoRequest, ApuracaoResumo, PunchFilters},
-    timecalc::{calculate_day, compute_mandatory_month_for_employee, parse_iso_date, resolve_schedule_for_employee},
+    timecalc::{
+        calculate_day, compute_mandatory_month_for_employee, parse_iso_date,
+        resolve_schedule_for_employee,
+    },
 };
 
 #[derive(Debug)]
@@ -550,10 +553,8 @@ pub fn apurar_periodo_internal(
     let mut total_saldo = 0i64;
     let mut total_atraso = 0i64;
     let mut total_extra = 0i64;
-    let is_full_month = inicio.day() == 1
-        && inicio.year() == fim.year()
-        && inicio.month() == fim.month()
-        && {
+    let is_full_month =
+        inicio.day() == 1 && inicio.year() == fim.year() && inicio.month() == fim.month() && {
             let next = if inicio.month() == 12 {
                 NaiveDate::from_ymd_opt(inicio.year() + 1, 1, 1).unwrap()
             } else {
