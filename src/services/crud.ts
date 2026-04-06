@@ -29,6 +29,7 @@ export interface ApuracaoResumo {
   total_funcionarios: number;
   total_dias: number;
   total_esperado_minutos: number;
+  total_esperado_diario_minutos?: number | null;
   total_trabalhado_minutos: number;
   total_saldo_minutos: number;
   total_atraso_minutos: number;

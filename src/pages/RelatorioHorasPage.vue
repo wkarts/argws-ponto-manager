@@ -185,7 +185,7 @@ function buildReportHtml(): string {
     <section class="kpis">
       <div class="kpi"><strong>Colaboradores</strong><span>${result.value.total_funcionarios}</span></div>
       <div class="kpi"><strong>Dias apurados</strong><span>${result.value.total_dias}</span></div>
-      <div class="kpi"><strong>Previsto</strong><span>${formatMinutes(result.value.total_esperado_minutos)}</span></div>
+      <div class="kpi"><strong>Obrigatório (base)</strong><span>${formatMinutes(result.value.total_esperado_minutos)}</span>${result.value.total_esperado_diario_minutos != null ? `<small class="muted">Previsto (soma diária): ${formatMinutes(result.value.total_esperado_diario_minutos)}</small>` : ""}</div>
       <div class="kpi"><strong>Trabalhado</strong><span>${formatMinutes(result.value.total_trabalhado_minutos)}</span></div>
       <div class="kpi"><strong>Saldo</strong><span>${formatMinutes(result.value.total_saldo_minutos)}</span></div>
       <div class="kpi"><strong>Extras</strong><span>${formatMinutes(result.value.total_extra_minutos)}</span></div>
@@ -463,7 +463,7 @@ onMounted(loadEmployees);
       <div class="kpis">
         <div class="kpi"><strong>Colaboradores</strong><span>{{ result.total_funcionarios }}</span></div>
         <div class="kpi"><strong>Dias apurados</strong><span>{{ result.total_dias }}</span></div>
-        <div class="kpi"><strong>Previsto</strong><span>{{ formatMinutes(result.total_esperado_minutos) }}</span></div>
+        <div class="kpi"><strong>Obrigatório (base)</strong><span>{{ formatMinutes(result.total_esperado_minutos) }}</span><small v-if="result.total_esperado_diario_minutos != null" class="muted">Previsto (soma diária): {{ formatMinutes(result.total_esperado_diario_minutos || 0) }}</small></div>
         <div class="kpi"><strong>Trabalhado</strong><span>{{ formatMinutes(result.total_trabalhado_minutos) }}</span></div>
         <div class="kpi"><strong>Saldo</strong><span>{{ formatMinutes(result.total_saldo_minutos) }}</span></div>
         <div class="kpi"><strong>Horas extras</strong><span>{{ formatMinutes(result.total_extra_minutos) }}</span></div>

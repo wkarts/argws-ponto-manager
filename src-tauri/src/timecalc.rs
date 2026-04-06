@@ -275,6 +275,259 @@ fn choose_dynamic_off_dates(
         .collect())
 }
 
+
+#[derive(Debug, Clone)]
+pub struct MandatoryMonthResult {
+    pub total_minutes: i64,
+    pub full_day_minutes: i64,
+    pub reduction_minutes: i64,
+    pub saturdays_count: i64,
+    pub meia_folga_weeks: i64,
+    pub monthly_off_days: i64,
+    pub debug: Vec<String>,
+}
+
+fn count_weekday_in_month(year: i32, month: u32, weekday_from_monday: u32) -> i64 {
+    let start = match NaiveDate::from_ymd_opt(year, month, 1) {
+        Some(value) => value,
+        None => return 0,
+    };
+    let next = if month == 12 {
+        NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1)
+    };
+    let end = match next.and_then(|value| value.pred_opt()) {
+        Some(value) => value,
+        None => return 0,
+    };
+    let mut count = 0i64;
+    let mut d = start;
+    while d <= end {
+        if d.weekday().number_from_monday() == weekday_from_monday {
+            count += 1;
+        }
+        d += chrono::Duration::days(1);
+    }
+    count
+}
+
+fn jornada_full_and_min_minutes(conn: &Connection, jornada_id: i64) -> Result<(i64, i64), String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT COALESCE(carga_prevista_minutos, 0), COALESCE(folga, 0), dia_semana
+             FROM jornada_dias
+             WHERE jornada_id = ?1",
+        )
+        .map_err(|e| format!("Falha ao ler jornada_dias: {e}"))?;
+    let rows = stmt
+        .query_map([jornada_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| format!("Falha ao mapear jornada_dias: {e}"))?;
+
+    let mut max_full = 0i64;
+    let mut min_nonzero = i64::MAX;
+    for row in rows {
+        let (carga, folga, dia_semana) = row.map_err(|e| format!("Falha ao ler jornada_dias: {e}"))?;
+        if folga == 1 || carga <= 0 || dia_semana == 7 {
+            continue;
+        }
+        if carga > max_full {
+            max_full = carga;
+        }
+        if carga < min_nonzero {
+            min_nonzero = carga;
+        }
+    }
+
+    if max_full <= 0 {
+        return Ok((480, 480));
+    }
+
+    Ok((max_full, if min_nonzero == i64::MAX { max_full } else { min_nonzero }))
+}
+
+pub fn compute_mandatory_month_for_employee(
+    conn: &Connection,
+    employee_id: i64,
+    year: i32,
+    month: u32,
+) -> Result<MandatoryMonthResult, String> {
+    let row = conn
+        .query_row(
+            "SELECT f.jornada_id, f.data_admissao, f.data_demissao, f.ferias_inicio, f.ferias_fim,
+                    COALESCE(jt.tipo_jornada, 'fixa'),
+                    COALESCE(jt.carga_semanal_minutos, 2640),
+                    COALESCE(jt.dias_trabalho_semana, 6),
+                    COALESCE(jt.permite_meia_folga, 0),
+                    COALESCE(jt.folgas_mensais, 0),
+                    COALESCE(jt.sabado_tipo, 'integral'),
+                    COALESCE(jt.semana_alternada_folga, 0),
+                    COALESCE(jt.suporta_diarista_generico, 0),
+                    COALESCE(jt.limite_dias_diarista, 0),
+                    COALESCE(jt.dia_folga_mensal_base, 6)
+             FROM funcionarios f
+             LEFT JOIN jornadas_trabalho jt ON jt.id = f.jornada_id
+             WHERE f.id = ?1",
+            [employee_id],
+            |r| {
+                Ok((
+                    r.get::<_, Option<i64>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, String>(5)?,
+                    r.get::<_, i64>(6)?,
+                    r.get::<_, i64>(7)?,
+                    r.get::<_, i64>(8)?,
+                    r.get::<_, i64>(9)?,
+                    r.get::<_, String>(10)?,
+                    r.get::<_, i64>(11)?,
+                    r.get::<_, i64>(12)?,
+                    r.get::<_, i64>(13)?,
+                    r.get::<_, i64>(14)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|e| format!("Falha ao ler funcionário/jornada: {e}"))?
+        .ok_or_else(|| "Funcionário não encontrado.".to_string())?;
+
+    let (
+        jornada_id,
+        adm,
+        dem,
+        fer_i,
+        fer_f,
+        tipo,
+        _carga_semana,
+        dias_semana,
+        permite_meia,
+        folgas_mensais,
+        sabado_tipo,
+        alterna,
+        suporta_diarista,
+        limite_diarista,
+        dia_folga_mensal_base,
+    ) = row;
+
+    let (full_day, min_nonzero) = if let Some(jid) = jornada_id {
+        jornada_full_and_min_minutes(conn, jid)?
+    } else {
+        (480, 480)
+    };
+    let reduction = (full_day - min_nonzero).max(0);
+
+    let start = NaiveDate::from_ymd_opt(year, month, 1).ok_or_else(|| "Competência inválida".to_string())?;
+    let next = if month == 12 {
+        NaiveDate::from_ymd_opt(year + 1, 1, 1)
+    } else {
+        NaiveDate::from_ymd_opt(year, month + 1, 1)
+    }
+    .ok_or_else(|| "Competência inválida".to_string())?;
+    let end = next.pred_opt().ok_or_else(|| "Falha ao calcular fim do mês".to_string())?;
+
+    let saturdays_in_month = count_weekday_in_month(year, month, 6);
+    let mut total = 0i64;
+    let mut monthly_off_days = 0i64;
+    let mut saturdays_worked = 0i64;
+    let mut debug = Vec::new();
+
+    if tipo == "diarista" || suporta_diarista == 1 {
+        let days_per_week = if limite_diarista > 0 { limite_diarista } else { dias_semana.max(1) };
+        total = saturdays_in_month * days_per_week * full_day;
+        debug.push(format!("Modo diarista: semanas={saturdays_in_month}, dias/semana={days_per_week}, full={full_day}."));
+        return Ok(MandatoryMonthResult {
+            total_minutes: total,
+            full_day_minutes: full_day,
+            reduction_minutes: reduction,
+            saturdays_count: saturdays_in_month,
+            meia_folga_weeks: 0,
+            monthly_off_days: 0,
+            debug,
+        });
+    }
+
+    let mut d = start;
+    while d <= end {
+        let iso = d.format("%Y-%m-%d").to_string();
+        if let Some(a) = adm.as_deref() {
+            if iso < a {
+                d += chrono::Duration::days(1);
+                continue;
+            }
+        }
+        if let Some(dm) = dem.as_deref() {
+            if dm <= iso.as_str() {
+                d += chrono::Duration::days(1);
+                continue;
+            }
+        }
+        if let (Some(fi), Some(ff)) = (fer_i.as_deref(), fer_f.as_deref()) {
+            if fi <= iso.as_str() && iso.as_str() <= ff {
+                d += chrono::Duration::days(1);
+                continue;
+            }
+        }
+        if load_holiday_for_employee(conn, employee_id, &iso)?.is_some() {
+            d += chrono::Duration::days(1);
+            continue;
+        }
+        let wd = d.weekday().number_from_monday();
+        if wd == 7 {
+            d += chrono::Duration::days(1);
+            continue;
+        }
+        if i64::from(wd) == dia_folga_mensal_base
+            && folgas_mensais > 0
+            && is_monthly_alternate_day_off(d, folgas_mensais, alterna == 1)
+        {
+            monthly_off_days += 1;
+            d += chrono::Duration::days(1);
+            continue;
+        }
+        if wd == 6 {
+            if sabado_tipo == "folga" {
+                d += chrono::Duration::days(1);
+                continue;
+            }
+            saturdays_worked += 1;
+            if sabado_tipo == "meio" && reduction > 0 {
+                total += full_day - reduction;
+            } else {
+                total += full_day;
+            }
+            d += chrono::Duration::days(1);
+            continue;
+        }
+        total += full_day;
+        d += chrono::Duration::days(1);
+    }
+
+    let must_apply_meia = sabado_tipo == "integral" && reduction > 0 && permite_meia == 1;
+    let meia_weeks = if must_apply_meia { saturdays_worked } else { 0 };
+    if must_apply_meia {
+        total -= meia_weeks * reduction;
+        debug.push(format!("Meia folga aplicada: semanas={meia_weeks}, reduction={reduction}."));
+    }
+
+    Ok(MandatoryMonthResult {
+        total_minutes: total,
+        full_day_minutes: full_day,
+        reduction_minutes: reduction,
+        saturdays_count: saturdays_in_month,
+        meia_folga_weeks: meia_weeks,
+        monthly_off_days,
+        debug,
+    })
+}
+
 fn derive_minutes_from_pairs(
     entrada_1: Option<&str>,
     saida_1: Option<&str>,

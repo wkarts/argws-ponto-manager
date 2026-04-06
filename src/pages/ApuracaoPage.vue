@@ -99,8 +99,9 @@ onMounted(async () => {
           <span>{{ result.total_dias }}</span>
         </div>
         <div class="kpi">
-          <strong>Esperado</strong>
+          <strong>Obrigatório (base)</strong>
           <span>{{ formatMinutes(result.total_esperado_minutos) }}</span>
+          <small v-if="result.total_esperado_diario_minutos != null" class="muted">Previsto (soma diária): {{ formatMinutes(result.total_esperado_diario_minutos || 0) }}</small>
         </div>
         <div class="kpi">
           <strong>Trabalhado</strong>

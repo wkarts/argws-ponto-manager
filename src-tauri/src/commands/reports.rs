@@ -13,7 +13,7 @@ use crate::{
     app_state::SharedState,
     db::open_connection,
     models::{ApuracaoDia, ApuracaoRequest, ApuracaoResumo, PunchFilters},
-    timecalc::{calculate_day, parse_iso_date, resolve_schedule_for_employee},
+    timecalc::{calculate_day, compute_mandatory_month_for_employee, parse_iso_date, resolve_schedule_for_employee},
 };
 
 #[derive(Debug)]
@@ -544,13 +544,36 @@ pub fn apurar_periodo_internal(
         funcionarios.map_err(|err| format!("Falha ao mapear funcionários da apuração: {err}"))?;
 
     let mut rows: Vec<ApuracaoDia> = Vec::new();
-    let mut total_esperado = 0i64;
+    let mut total_esperado_diario = 0i64;
+    let mut total_esperado_obrigatorio = 0i64;
     let mut total_trabalhado = 0i64;
     let mut total_saldo = 0i64;
     let mut total_atraso = 0i64;
     let mut total_extra = 0i64;
+    let is_full_month = inicio.day() == 1
+        && inicio.year() == fim.year()
+        && inicio.month() == fim.month()
+        && {
+            let next = if inicio.month() == 12 {
+                NaiveDate::from_ymd_opt(inicio.year() + 1, 1, 1).unwrap()
+            } else {
+                NaiveDate::from_ymd_opt(inicio.year(), inicio.month() + 1, 1).unwrap()
+            };
+            let last = next - Duration::days(1);
+            fim == last
+        };
 
     for funcionario in &funcionarios {
+        if is_full_month {
+            let mandatory = compute_mandatory_month_for_employee(
+                conn,
+                funcionario.id,
+                inicio.year(),
+                inicio.month(),
+            )?;
+            total_esperado_obrigatorio += mandatory.total_minutes;
+        }
+
         let mut date: NaiveDate = inicio;
         while date <= fim {
             let current_date = date.format("%Y-%m-%d").to_string();
@@ -641,7 +664,7 @@ pub fn apurar_periodo_internal(
                         .push("Batidas registradas em dia configurado como folga.".to_string());
                 }
 
-                total_esperado += calc.expected_minutes;
+                total_esperado_diario += calc.expected_minutes;
                 total_trabalhado += calc.worked_minutes;
                 total_saldo += calc.saldo_minutes;
                 total_atraso += calc.atraso_minutes;
@@ -684,7 +707,16 @@ pub fn apurar_periodo_internal(
     Ok(ApuracaoResumo {
         total_funcionarios: funcionarios_set.len(),
         total_dias: rows.len(),
-        total_esperado_minutos: total_esperado,
+        total_esperado_minutos: if is_full_month {
+            total_esperado_obrigatorio
+        } else {
+            total_esperado_diario
+        },
+        total_esperado_diario_minutos: if is_full_month {
+            Some(total_esperado_diario)
+        } else {
+            None
+        },
         total_trabalhado_minutos: total_trabalhado,
         total_saldo_minutos: total_saldo,
         total_atraso_minutos: total_atraso,

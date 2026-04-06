@@ -750,6 +750,80 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
     )
     .map_err(|err| format!("Falha ao normalizar dados existentes: {err}"))?;
 
+
+    conn.execute_batch(
+        r#"
+        UPDATE jornadas_trabalho
+           SET dia_folga_mensal_base = CASE
+               WHEN codigo LIKE 'MERC-6X1-SEG-2M' THEN 1
+               WHEN codigo LIKE 'MERC-6X1-TER-2M' THEN 2
+               WHEN codigo LIKE 'MERC-6X1-QUA-2M' THEN 3
+               WHEN codigo LIKE 'MERC-6X1-QUI-2M' THEN 4
+               WHEN codigo LIKE 'MERC-6X1-SEX-2M' THEN 5
+               WHEN codigo LIKE 'MERC-6X1-SAB-2M' THEN 6
+               ELSE dia_folga_mensal_base
+           END,
+               folgas_mensais = CASE WHEN codigo LIKE 'MERC-6X1-%-2M' THEN 2 ELSE folgas_mensais END,
+               semana_alternada_folga = CASE WHEN codigo LIKE 'MERC-6X1-%-2M' THEN 1 ELSE semana_alternada_folga END,
+               sabado_tipo = CASE WHEN codigo LIKE 'MERC-6X1-%-2M' THEN 'integral' ELSE sabado_tipo END
+         WHERE codigo LIKE 'MERC-6X1-%-2M';
+
+        UPDATE jornada_dias
+           SET folga = 0,
+               carga_prevista_minutos = COALESCE((
+                    SELECT jd2.carga_prevista_minutos
+                      FROM jornada_dias jd2
+                     WHERE jd2.jornada_id = jornada_dias.jornada_id
+                       AND COALESCE(jd2.folga, 0) = 0
+                       AND COALESCE(jd2.carga_prevista_minutos, 0) > 0
+                     ORDER BY jd2.carga_prevista_minutos DESC, jd2.dia_semana ASC
+                     LIMIT 1
+               ), jornada_dias.carga_prevista_minutos),
+               entrada_1 = COALESCE((
+                    SELECT jd2.entrada_1
+                      FROM jornada_dias jd2
+                     WHERE jd2.jornada_id = jornada_dias.jornada_id
+                       AND COALESCE(jd2.folga, 0) = 0
+                       AND COALESCE(jd2.carga_prevista_minutos, 0) > 0
+                     ORDER BY jd2.carga_prevista_minutos DESC, jd2.dia_semana ASC
+                     LIMIT 1
+               ), jornada_dias.entrada_1),
+               saida_1 = COALESCE((
+                    SELECT jd2.saida_1
+                      FROM jornada_dias jd2
+                     WHERE jd2.jornada_id = jornada_dias.jornada_id
+                       AND COALESCE(jd2.folga, 0) = 0
+                       AND COALESCE(jd2.carga_prevista_minutos, 0) > 0
+                     ORDER BY jd2.carga_prevista_minutos DESC, jd2.dia_semana ASC
+                     LIMIT 1
+               ), jornada_dias.saida_1),
+               entrada_2 = COALESCE((
+                    SELECT jd2.entrada_2
+                      FROM jornada_dias jd2
+                     WHERE jd2.jornada_id = jornada_dias.jornada_id
+                       AND COALESCE(jd2.folga, 0) = 0
+                       AND COALESCE(jd2.carga_prevista_minutos, 0) > 0
+                     ORDER BY jd2.carga_prevista_minutos DESC, jd2.dia_semana ASC
+                     LIMIT 1
+               ), jornada_dias.entrada_2),
+               saida_2 = COALESCE((
+                    SELECT jd2.saida_2
+                      FROM jornada_dias jd2
+                     WHERE jd2.jornada_id = jornada_dias.jornada_id
+                       AND COALESCE(jd2.folga, 0) = 0
+                       AND COALESCE(jd2.carga_prevista_minutos, 0) > 0
+                     ORDER BY jd2.carga_prevista_minutos DESC, jd2.dia_semana ASC
+                     LIMIT 1
+               ), jornada_dias.saida_2)
+         WHERE jornada_id IN (
+                SELECT id FROM jornadas_trabalho WHERE codigo LIKE 'MERC-6X1-%-2M'
+         )
+           AND COALESCE(folga, 0) = 1
+           AND dia_semana <> 7;
+        "#,
+    )
+    .map_err(|err| format!("Falha ao corrigir jornadas 2M existentes: {err}"))?;
+
     Ok(())
 }
 
