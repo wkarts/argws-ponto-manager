@@ -300,11 +300,21 @@ pub fn jornada_list(state: State<'_, SharedState>) -> Result<Vec<Map<String, Val
                 .and_then(|value| value.as_i64())
                 .unwrap_or(0);
             let diff = declarada - soma_real;
-            row.insert("carga_semanal_real_minutos".to_string(), Value::from(soma_real));
+            row.insert(
+                "carga_semanal_real_minutos".to_string(),
+                Value::from(soma_real),
+            );
             row.insert("carga_semanal_diff_minutos".to_string(), Value::from(diff));
             row.insert(
                 "jornada_inconsistente".to_string(),
-                Value::from(diff != 0 && row.get("folgas_mensais").and_then(|value| value.as_i64()).unwrap_or(0) == 0),
+                Value::from(
+                    diff != 0
+                        && row
+                            .get("folgas_mensais")
+                            .and_then(|value| value.as_i64())
+                            .unwrap_or(0)
+                            == 0,
+                ),
             );
             row.insert("total_dias".to_string(), Value::from(total_dias));
         }
@@ -438,7 +448,8 @@ pub fn jornada_save(
         }
     }
 
-    let dias_trabalho_payload = get_i64(&payload, "dias_trabalho_semana").unwrap_or(dias_trabalho_calculado.max(1));
+    let dias_trabalho_payload =
+        get_i64(&payload, "dias_trabalho_semana").unwrap_or(dias_trabalho_calculado.max(1));
     if dias_trabalho_payload != dias_trabalho_calculado {
         return Err(format!(
             "Dias de trabalho/semana inconsistente. Informado={}, calculado={}.",
@@ -449,7 +460,11 @@ pub fn jornada_save(
     let carga_payload = get_i64(&payload, "carga_semanal_minutos").unwrap_or(soma_semana.max(0));
     let folgas_mensais_payload = get_i64(&payload, "folgas_mensais").unwrap_or(0);
     let permite_meia_folga_payload = get_bool(&payload, "permite_meia_folga", false);
-    if folgas_mensais_payload == 0 && permite_meia_folga_payload == 0 && soma_semana > 0 && (carga_payload - soma_semana).abs() > 5 {
+    if folgas_mensais_payload == 0
+        && permite_meia_folga_payload == 0
+        && soma_semana > 0
+        && (carga_payload - soma_semana).abs() > 5
+    {
         return Err(format!(
             "Carga semanal inconsistente. Informado={} min, soma dos dias={} min. Ajuste a jornada ou habilite a regra mensal/semanal correspondente.",
             carga_payload, soma_semana
@@ -515,7 +530,8 @@ pub fn jornada_save(
                 get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "dias_trabalho_semana").unwrap_or(6),
                 get_i64(&payload, "folgas_mensais").unwrap_or(0),
-                get_i64(&payload, "dia_folga_mensal_base").or_else(|| get_i64(&payload, "dia_folga_base")),
+                get_i64(&payload, "dia_folga_mensal_base")
+                    .or_else(|| get_i64(&payload, "dia_folga_base")),
                 get_string(&payload, "sabado_tipo").unwrap_or_else(|| "integral".to_string()),
                 get_bool(&payload, "suporta_diarista_generico", false),
                 get_i64(&payload, "limite_dias_diarista").unwrap_or(0),
@@ -567,7 +583,8 @@ pub fn jornada_save(
                 get_bool(&payload, "heuristica_troca_folga", true),
                 get_i64(&payload, "dias_trabalho_semana").unwrap_or(6),
                 get_i64(&payload, "folgas_mensais").unwrap_or(0),
-                get_i64(&payload, "dia_folga_mensal_base").or_else(|| get_i64(&payload, "dia_folga_base")),
+                get_i64(&payload, "dia_folga_mensal_base")
+                    .or_else(|| get_i64(&payload, "dia_folga_base")),
                 get_string(&payload, "sabado_tipo").unwrap_or_else(|| "integral".to_string()),
                 get_bool(&payload, "suporta_diarista_generico", false),
                 get_i64(&payload, "limite_dias_diarista").unwrap_or(0),

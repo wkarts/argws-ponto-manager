@@ -208,7 +208,6 @@ fn is_monthly_alternate_day_off(date: NaiveDate, monthly_offs: i64, alternate: b
     }
 }
 
-
 fn should_apply_weekly_half_day(
     date: NaiveDate,
     base_weekday: i64,
@@ -657,15 +656,13 @@ pub fn resolve_schedule_for_employee(
             } else {
                 "0"
             },
-            if table_has_column(conn, "jornadas_trabalho", "dia_folga_mensal_base")
-                .unwrap_or(false)
+            if table_has_column(conn, "jornadas_trabalho", "dia_folga_mensal_base").unwrap_or(false)
             {
                 "dia_folga_mensal_base"
             } else {
                 "NULL"
             },
-            if table_has_column(conn, "jornadas_trabalho", "carga_semanal_minutos")
-                .unwrap_or(false)
+            if table_has_column(conn, "jornadas_trabalho", "carga_semanal_minutos").unwrap_or(false)
             {
                 "COALESCE(carga_semanal_minutos, 0)"
             } else {
