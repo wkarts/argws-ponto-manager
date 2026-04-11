@@ -1,3 +1,10 @@
+## [1.17.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.0...v1.17.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* consulta IE exige CNPJ e usa fluxo via CNPJ ([bb2c478](https://github.com/wkarts/argws-ponto-manager/commit/bb2c4786a040fa02428057c26b09cd00d71566d1))
+
 # [1.17.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.7...v1.17.0) (2026-04-11)
 
 
