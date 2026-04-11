@@ -1,3 +1,10 @@
+## [1.17.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.4...v1.17.5) (2026-04-11)
+
+
+### Bug Fixes
+
+* **empresas:** evitar toast duplicado ao atualizar cadastro ([73bad67](https://github.com/wkarts/argws-ponto-manager/commit/73bad6799a3bb43aaea54ed17d2468e7b9f9b6d4))
+
 ## [1.17.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.3...v1.17.4) (2026-04-11)
 
 
