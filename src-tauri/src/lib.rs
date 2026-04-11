@@ -58,6 +58,8 @@ pub fn run() {
             commands::access::profile_delete,
             commands::access::user_list,
             commands::access::user_get,
+            commands::access::user_policy_get,
+            commands::access::user_policy_save,
             commands::access::user_save,
             commands::access::user_delete,
             commands::companies::company_list,
