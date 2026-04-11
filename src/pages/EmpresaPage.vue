@@ -12,6 +12,7 @@ import {
   type GenericRecord,
 } from "../services/crud";
 import { booleanLabel, formatCpfCnpj, formatPhone } from "../services/format";
+import { showSplashError, showSplashInfo, showSplashSuccess, showSplashWarning } from "../services/splash";
 
 const rows = ref<GenericRecord[]>([]);
 const loading = ref(false);
@@ -22,6 +23,10 @@ const error = ref("");
 const search = ref("");
 const onlyActive = ref(false);
 const modalOpen = ref(false);
+
+function onlyDigits(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
 
 function defaultForm() {
   return {
@@ -70,9 +75,12 @@ function assignIfPresent(key: keyof typeof form, value: unknown) {
 }
 
 function applyLookupResult(payload: GenericRecord) {
+  const documentoAtual = String(form.documento || "").trim();
   assignIfPresent("nome", payload.nome);
   assignIfPresent("nome_fantasia", payload.nome_fantasia || payload.fantasia);
-  assignIfPresent("documento", payload.documento || form.documento);
+  if (!documentoAtual) {
+    assignIfPresent("documento", payload.documento);
+  }
   assignIfPresent("inscricao_estadual", payload.inscricao_estadual || payload.ie);
   assignIfPresent("inscricao_municipal", payload.inscricao_municipal);
   assignIfPresent("telefone", payload.telefone);
@@ -92,8 +100,18 @@ async function consultCnpj() {
   try {
     const payload = await lookupCompanyCnpj(form.documento, form.estado || null);
     applyLookupResult(payload);
+    if (payload.cache_hit === true) {
+      showSplashInfo("Consulta retornada do cache local para evitar consumo desnecessário dos provedores.");
+    } else if (String(payload.source || "").length) {
+      showSplashSuccess(`Consulta CNPJ concluída via ${String(payload.source)}.`);
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao consultar CNPJ.";
+    if (error.value.includes("limite") || error.value.includes("429")) {
+      showSplashWarning("Serviços públicos atingiram limite temporário. Aguarde o cooldown e tente novamente.");
+    } else {
+      showSplashError(error.value);
+    }
   } finally {
     lookupCnpjLoading.value = false;
   }
@@ -103,10 +121,24 @@ async function consultIe() {
   lookupIeLoading.value = true;
   error.value = "";
   try {
-    const payload = await lookupCompanyIe(form.documento, form.estado || null);
+    const cnpj = onlyDigits(form.documento);
+    if (cnpj.length !== 14) {
+      throw new Error("Para consultar inscrição estadual, informe primeiro um CNPJ válido com 14 dígitos.");
+    }
+    const payload = await lookupCompanyIe(cnpj, form.estado || null);
     applyLookupResult(payload);
+    if (payload.cache_hit === true) {
+      showSplashInfo("Consulta IE retornada do cache local via CNPJ.");
+    } else if (String(payload.source || "").length) {
+      showSplashSuccess(`Consulta IE concluída via ${String(payload.source)}.`);
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao consultar IE.";
+    if (error.value.includes("limite") || error.value.includes("429")) {
+      showSplashWarning("Serviços públicos em limite temporário para IE/CNPJ. Aguarde alguns segundos.");
+    } else {
+      showSplashError(error.value);
+    }
   } finally {
     lookupIeLoading.value = false;
   }
@@ -148,6 +180,7 @@ async function persist() {
     await load();
     closeModal();
     resetForm();
+    showSplashSuccess(form.id ? "Empresa atualizada com sucesso." : "Empresa cadastrada com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar empresa.";
   } finally {
@@ -161,6 +194,7 @@ async function removeRow(id: number) {
   try {
     await deleteCompany(id);
     await load();
+    showSplashSuccess("Empresa excluída com sucesso.");
     if (Number(form.id) === id) {
       resetForm();
       closeModal();
@@ -269,7 +303,7 @@ onMounted(load);
                 {{ lookupCnpjLoading ? "Consultando..." : "Consultar CNPJ" }}
               </button>
               <button class="secondary" type="button" :disabled="lookupIeLoading || saving" @click="consultIe">
-                {{ lookupIeLoading ? "Consultando..." : "Consultar IE" }}
+                {{ lookupIeLoading ? "Consultando..." : "Consultar IE (via CNPJ)" }}
               </button>
             </div>
           </div>
