@@ -70,9 +70,12 @@ function assignIfPresent(key: keyof typeof form, value: unknown) {
 }
 
 function applyLookupResult(payload: GenericRecord) {
+  const documentoAtual = String(form.documento || "").trim();
   assignIfPresent("nome", payload.nome);
   assignIfPresent("nome_fantasia", payload.nome_fantasia || payload.fantasia);
-  assignIfPresent("documento", payload.documento || form.documento);
+  if (!documentoAtual) {
+    assignIfPresent("documento", payload.documento);
+  }
   assignIfPresent("inscricao_estadual", payload.inscricao_estadual || payload.ie);
   assignIfPresent("inscricao_municipal", payload.inscricao_municipal);
   assignIfPresent("telefone", payload.telefone);
