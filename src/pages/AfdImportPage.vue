@@ -71,9 +71,11 @@ async function processImport() {
     });
 
     message.value = `Importação concluída. Layout ${result.layout_portaria}, processadas ${result.total_processadas}, descartadas ${result.total_descartadas}.`;
+    showSplashSuccess(message.value);
     await load();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao importar AFD.";
+    showSplashError(error.value);
   } finally {
     importing.value = false;
   }
