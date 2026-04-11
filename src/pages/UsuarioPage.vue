@@ -143,7 +143,6 @@ async function persistPolicy() {
     loginMinAllowed.value = Number(payload.login_min_allowed || loginMinAllowed.value);
     loginMaxAllowed.value = Number(payload.login_max_allowed || loginMaxAllowed.value);
     logAppInfo("usuarios", "Política de login atualizada com sucesso.", { login_min_length: loginMinLength.value });
-    showSplashSuccess("Política de login atualizada com sucesso.");
   } catch (err) {
     policyError.value = err instanceof Error ? err.message : "Falha ao salvar política de login.";
     logAppError("usuarios", "Falha ao salvar política de login.", {
