@@ -1,3 +1,11 @@
+## [1.17.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.1...v1.17.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* aplica rustfmt e garante splash acima de modais ([8fd0917](https://github.com/wkarts/argws-ponto-manager/commit/8fd0917eb2d77dd62a67622bf268fa8e2c846978))
+* padroniza splash global e adiciona rate limit em consulta CNPJ ([7e17cd0](https://github.com/wkarts/argws-ponto-manager/commit/7e17cd07cfd54555baef8170d3c983c484ef441a))
+
 ## [1.17.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.0...v1.17.1) (2026-04-11)
 
 
