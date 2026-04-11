@@ -180,7 +180,6 @@ async function persist() {
     await load();
     closeModal();
     resetForm();
-    showSplashSuccess(form.id ? "Empresa atualizada com sucesso." : "Empresa cadastrada com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar empresa.";
   } finally {
