@@ -1,3 +1,10 @@
+## [1.17.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.2...v1.17.3) (2026-04-11)
+
+
+### Bug Fixes
+
+* exibe splash em sucesso e info nos fluxos de cadastro e relatórios ([fd62857](https://github.com/wkarts/argws-ponto-manager/commit/fd62857240f3727ddc172193187887f03544d452))
+
 ## [1.17.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.1...v1.17.2) (2026-04-11)
 
 
