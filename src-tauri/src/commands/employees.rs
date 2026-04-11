@@ -689,6 +689,7 @@ pub fn employee_save(
                 observacoes,
                 ativo,
                 now,
+                now,
             ],
         )
         .map_err(|err| format!("Falha ao inserir funcionário: {err}"))?;
