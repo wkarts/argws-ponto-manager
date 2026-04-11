@@ -321,6 +321,14 @@ export async function getUser(sessionToken: string, id: number): Promise<Generic
   return invokeCommand<GenericRecord>("user_get", { session_token: sessionToken, id });
 }
 
+export async function getUserPolicy(sessionToken: string): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("user_policy_get", { session_token: sessionToken });
+}
+
+export async function saveUserPolicy(sessionToken: string, payload: GenericRecord): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("user_policy_save", { session_token: sessionToken, payload });
+}
+
 export async function saveUser(sessionToken: string, payload: GenericRecord): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("user_save", { session_token: sessionToken, payload });
 }

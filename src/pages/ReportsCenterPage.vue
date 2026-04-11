@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, registerGeneratedReport, type ApuracaoResumo } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
+import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 
 const session = useSessionStore();
 const employees = ref<{ id: number; nome: string }[]>([]);
@@ -100,6 +101,7 @@ async function downloadCurrent() {
     contentBase64: toBase64Utf8(previewHtml.value),
   });
   message.value = "Relatório exportado com sucesso e registrado na Central de Relatórios Gerados.";
+  showSplashSuccess(message.value);
 }
 
 function printCurrent() {
@@ -144,6 +146,7 @@ async function generate() {
       });
       previewHtml.value = buildApuracaoHtml(result);
       message.value = "Prévia de apuração gerada. Use Imprimir para selecionar impressora ou salvar como PDF.";
+      showSplashInfo(message.value);
     } else {
       const result = await gerarFechamentoRelatorio({
         funcionarioId: funcionarioId.value,
@@ -154,6 +157,7 @@ async function generate() {
       previewHtml.value = `<!DOCTYPE html><html lang="pt-BR"><body style="font-family:Arial;padding:24px"><h1>Fechamento mensal gerado</h1><p>Arquivo salvo em:</p><code>${path}</code><p>Use o botão abaixo para abrir o arquivo no sistema.</p></body></html>`;
       if (path) window.open(`file://${path}`, "_blank");
       message.value = "Relatório de fechamento gerado. O arquivo HTML foi aberto e pode ser impresso ou salvo como PDF pelo diálogo do sistema.";
+      showSplashSuccess(message.value);
       if (path) {
         await registerGeneratedReport({
           descricao: "Fechamento mensal",
@@ -173,6 +177,7 @@ async function generate() {
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao gerar relatório.";
+    showSplashError(error.value);
   }
 }
 

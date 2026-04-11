@@ -6,8 +6,10 @@ import {
   comboList,
   deleteUser,
   getUser,
+  getUserPolicy,
   listProfiles,
   listUsers,
+  saveUserPolicy,
   saveUser,
   type ComboOption
 } from "../services/crud";
@@ -19,7 +21,10 @@ const session = useSessionStore();
 const rows = ref<Record<string, unknown>[]>([]);
 const loading = ref(false);
 const saving = ref(false);
+const policyLoading = ref(false);
+const policySaving = ref(false);
 const error = ref("");
+const policyError = ref("");
 const search = ref("");
 const filterEmpresaId = ref<number | null>(null);
 const onlyActive = ref(true);
@@ -27,6 +32,9 @@ const modalOpen = ref(false);
 
 const companyOptions = ref<ComboOption[]>([]);
 const profileOptions = ref<ComboOption[]>([]);
+const loginMinLength = ref(2);
+const loginMinAllowed = ref(1);
+const loginMaxAllowed = ref(64);
 
 function defaultForm() {
   return {
@@ -105,6 +113,46 @@ async function load() {
   }
 }
 
+async function loadPolicy() {
+  if (!session.isMaster) return;
+  await ensureSession();
+  policyLoading.value = true;
+  policyError.value = "";
+  try {
+    const payload = await getUserPolicy(session.sessionToken!);
+    loginMinLength.value = Number(payload.login_min_length || 2);
+    loginMinAllowed.value = Number(payload.login_min_allowed || 1);
+    loginMaxAllowed.value = Number(payload.login_max_allowed || 64);
+  } catch (err) {
+    policyError.value = err instanceof Error ? err.message : "Falha ao carregar política de login.";
+    logAppError("usuarios", "Falha ao carregar política de login.", { error: policyError.value });
+  } finally {
+    policyLoading.value = false;
+  }
+}
+
+async function persistPolicy() {
+  if (!canManage.value || !session.isMaster) return;
+  await ensureSession();
+  policySaving.value = true;
+  policyError.value = "";
+  try {
+    const payload = await saveUserPolicy(session.sessionToken!, { login_min_length: Number(loginMinLength.value) });
+    loginMinLength.value = Number(payload.login_min_length || loginMinLength.value);
+    loginMinAllowed.value = Number(payload.login_min_allowed || loginMinAllowed.value);
+    loginMaxAllowed.value = Number(payload.login_max_allowed || loginMaxAllowed.value);
+    logAppInfo("usuarios", "Política de login atualizada com sucesso.", { login_min_length: loginMinLength.value });
+  } catch (err) {
+    policyError.value = err instanceof Error ? err.message : "Falha ao salvar política de login.";
+    logAppError("usuarios", "Falha ao salvar política de login.", {
+      error: policyError.value,
+      login_min_length: loginMinLength.value
+    });
+  } finally {
+    policySaving.value = false;
+  }
+}
+
 async function editRow(id: number) {
   error.value = "";
   try {
@@ -169,6 +217,7 @@ async function removeRow(id: number) {
 onMounted(async () => {
   try {
     await loadOptions();
+    await loadPolicy();
     await load();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao inicializar cadastro de usuários.";
@@ -192,6 +241,31 @@ onMounted(async () => {
     <div v-if="!session.can('usuarios:view')" class="alert error">Você não possui permissão para visualizar usuários.</div>
     <div v-else class="grid page-gap">
       <div v-if="error" class="alert error">{{ error }}</div>
+      <div v-if="policyError" class="alert error">{{ policyError }}</div>
+
+      <div v-if="session.isMaster" class="card grid page-gap">
+        <div class="toolbar">
+          <div>
+            <h3>Políticas de login</h3>
+            <div class="muted-text">Parâmetro global aplicado na criação e atualização de usuários.</div>
+          </div>
+          <div class="actions align-end">
+            <div class="field min-field">
+              <label>Mínimo de caracteres no login</label>
+              <input
+                v-model.number="loginMinLength"
+                type="number"
+                :min="loginMinAllowed"
+                :max="loginMaxAllowed"
+                :disabled="policyLoading || policySaving || !canManage"
+              />
+            </div>
+            <button class="secondary" :disabled="policyLoading || policySaving || !canManage" @click="persistPolicy">
+              {{ policySaving ? "Salvando..." : "Salvar política" }}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div class="card grid page-gap">
         <div class="toolbar">

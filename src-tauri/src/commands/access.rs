@@ -11,6 +11,11 @@ use crate::{
 
 use super::auth::{all_permission_keys, require_session_by_token};
 
+const USER_LOGIN_MIN_LENGTH_KEY: &str = "user_login_min_length";
+const USER_LOGIN_MIN_LENGTH_DEFAULT: i64 = 2;
+const USER_LOGIN_MIN_LENGTH_MIN: i64 = 1;
+const USER_LOGIN_MIN_LENGTH_MAX: i64 = 64;
+
 fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
     payload
         .get(key)
@@ -128,6 +133,88 @@ fn validate_email(value: &str) -> bool {
 
 fn normalize_login(value: &str) -> String {
     value.trim().to_lowercase()
+}
+
+fn clamp_login_min_length(value: i64) -> i64 {
+    value.clamp(USER_LOGIN_MIN_LENGTH_MIN, USER_LOGIN_MIN_LENGTH_MAX)
+}
+
+fn load_login_min_length(conn: &rusqlite::Connection) -> Result<i64, String> {
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [USER_LOGIN_MIN_LENGTH_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar política de login: {err}"))?;
+
+    let parsed = raw
+        .as_deref()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .unwrap_or(USER_LOGIN_MIN_LENGTH_DEFAULT);
+    Ok(clamp_login_min_length(parsed))
+}
+
+#[tauri::command]
+pub fn user_policy_get(
+    state: State<'_, SharedState>,
+    session_token: String,
+) -> Result<Map<String, Value>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let _ = ensure_master(&conn, &session_token)?;
+    let login_min_length = load_login_min_length(&conn)?;
+    Ok(json!({
+        "login_min_length": login_min_length,
+        "login_min_allowed": USER_LOGIN_MIN_LENGTH_MIN,
+        "login_max_allowed": USER_LOGIN_MIN_LENGTH_MAX
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default())
+}
+
+#[tauri::command]
+pub fn user_policy_save(
+    state: State<'_, SharedState>,
+    session_token: String,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let actor_id = ensure_master(&conn, &session_token)?;
+    let now = Utc::now().to_rfc3339();
+
+    let value = get_i64(&payload, "login_min_length")
+        .ok_or_else(|| "Informe a quantidade mínima de caracteres para login.".to_string())?;
+    let login_min_length = clamp_login_min_length(value);
+    if login_min_length != value {
+        return Err(format!(
+            "A política de login deve ficar entre {} e {} caracteres.",
+            USER_LOGIN_MIN_LENGTH_MIN, USER_LOGIN_MIN_LENGTH_MAX
+        ));
+    }
+
+    conn.execute(
+        "INSERT INTO app_settings (chave, valor, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?3)
+         ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, updated_at = excluded.updated_at",
+        params![USER_LOGIN_MIN_LENGTH_KEY, login_min_length.to_string(), now],
+    )
+    .map_err(|err| format!("Falha ao salvar política de login: {err}"))?;
+
+    let value = json!({ "login_min_length": login_min_length });
+    write_audit(&conn, "user_policy", "update", Some(actor_id), &value)?;
+
+    Ok(json!({
+        "login_min_length": login_min_length,
+        "login_min_allowed": USER_LOGIN_MIN_LENGTH_MIN,
+        "login_max_allowed": USER_LOGIN_MIN_LENGTH_MAX
+    })
+    .as_object()
+    .cloned()
+    .unwrap_or_default())
 }
 
 #[tauri::command]
@@ -566,9 +653,13 @@ pub fn user_save(
     let password = get_string(&payload, "senha");
     let profile_ids = get_i64_array(&payload, "profile_ids");
     let empresa_ids = get_i64_array(&payload, "empresa_ids");
+    let login_min_length = load_login_min_length(&conn)?;
 
-    if login.len() < 3 {
-        return Err("O login deve conter ao menos 3 caracteres.".to_string());
+    if login.len() < login_min_length as usize {
+        return Err(format!(
+            "O login deve conter ao menos {} caracteres.",
+            login_min_length
+        ));
     }
 
     if let Some(value) = email.as_deref() {

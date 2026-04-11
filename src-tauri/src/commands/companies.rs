@@ -1,11 +1,15 @@
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Map, Value};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Mutex, OnceLock},
+};
 use tauri::State;
 
 use crate::{
     app_state::SharedState,
-    db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
+    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput},
 };
 
 fn get_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
@@ -747,17 +751,176 @@ fn parse_receita_ws_response(body: &str) -> Result<Map<String, Value>, String> {
     Ok(result)
 }
 
-async fn fetch_json_text(url: String) -> Result<String, String> {
-    reqwest::Client::new()
+#[derive(Clone, Debug)]
+struct ProviderRateState {
+    minute_window_start: i64,
+    recent_requests: VecDeque<i64>,
+    cooldown_until: i64,
+}
+
+#[derive(Clone, Debug)]
+struct LookupCacheEntry {
+    expires_at: i64,
+    payload: Map<String, Value>,
+}
+
+#[derive(Default)]
+struct LookupRuntime {
+    providers: HashMap<String, ProviderRateState>,
+    cache: HashMap<String, LookupCacheEntry>,
+}
+
+static LOOKUP_RUNTIME: OnceLock<Mutex<LookupRuntime>> = OnceLock::new();
+
+fn lookup_runtime() -> &'static Mutex<LookupRuntime> {
+    LOOKUP_RUNTIME.get_or_init(|| Mutex::new(LookupRuntime::default()))
+}
+
+#[derive(Clone, Debug)]
+struct ProviderConfig {
+    key: &'static str,
+    label: &'static str,
+    base_url: String,
+}
+
+#[derive(Debug)]
+struct FetchError {
+    status: Option<u16>,
+    message: String,
+}
+
+fn get_setting_i64(
+    conn: &rusqlite::Connection,
+    key: &str,
+    default_value: i64,
+    min: i64,
+    max: i64,
+) -> Result<i64, String> {
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [key],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar configuração {key}: {err}"))?;
+    let value = raw
+        .as_deref()
+        .and_then(|item| item.trim().parse::<i64>().ok())
+        .unwrap_or(default_value);
+    Ok(value.clamp(min, max))
+}
+
+fn purge_old_requests(state: &mut ProviderRateState, now_ts: i64) {
+    while state
+        .recent_requests
+        .front()
+        .map(|ts| now_ts - *ts >= 60)
+        .unwrap_or(false)
+    {
+        let _ = state.recent_requests.pop_front();
+    }
+}
+
+fn sanitize_lookup_cache(runtime: &mut LookupRuntime, now_ts: i64) {
+    runtime.cache.retain(|_, item| item.expires_at > now_ts);
+}
+
+fn provider_can_run(
+    runtime: &mut LookupRuntime,
+    provider_key: &str,
+    now_ts: i64,
+    limit_per_minute: usize,
+) -> Result<(), String> {
+    let state = runtime
+        .providers
+        .entry(provider_key.to_string())
+        .or_insert_with(|| ProviderRateState {
+            minute_window_start: now_ts,
+            recent_requests: VecDeque::new(),
+            cooldown_until: 0,
+        });
+    if now_ts >= state.minute_window_start + 60 {
+        state.minute_window_start = now_ts;
+        state.recent_requests.clear();
+    }
+    purge_old_requests(state, now_ts);
+    if now_ts < state.cooldown_until {
+        return Err(format!(
+            "Provedor em cooldown por {} segundo(s).",
+            state.cooldown_until - now_ts
+        ));
+    }
+    if state.recent_requests.len() >= limit_per_minute {
+        return Err(format!(
+            "Limite por minuto atingido ({} req/min).",
+            limit_per_minute
+        ));
+    }
+    state.recent_requests.push_back(now_ts);
+    Ok(())
+}
+
+fn provider_mark_cooldown(
+    runtime: &mut LookupRuntime,
+    provider_key: &str,
+    now_ts: i64,
+    cooldown: i64,
+) {
+    let state = runtime
+        .providers
+        .entry(provider_key.to_string())
+        .or_insert_with(|| ProviderRateState {
+            minute_window_start: now_ts,
+            recent_requests: VecDeque::new(),
+            cooldown_until: 0,
+        });
+    state.cooldown_until = now_ts + cooldown;
+}
+
+fn provider_log(
+    conn: &rusqlite::Connection,
+    state: &State<'_, SharedState>,
+    level: &'static str,
+    message: &str,
+    details: Value,
+) {
+    if let Ok(data_dir) = state.data_dir() {
+        let _ = write_app_log(
+            conn,
+            &data_dir,
+            AppLogInput {
+                level,
+                category: "company_lookup",
+                message,
+                source: Some("backend"),
+                route: Some("#/empresas"),
+                details: Some(&details),
+            },
+        );
+    }
+}
+
+async fn fetch_json_text(url: String) -> Result<String, FetchError> {
+    let response = reqwest::Client::new()
         .get(url)
         .send()
         .await
-        .map_err(|err| format!("Falha ao consultar serviço público: {err}"))?
-        .error_for_status()
-        .map_err(|err| format!("Serviço público retornou erro: {err}"))?
-        .text()
-        .await
-        .map_err(|err| format!("Falha ao ler resposta do serviço público: {err}"))
+        .map_err(|err| FetchError {
+            status: None,
+            message: format!("Falha ao consultar serviço público: {err}"),
+        })?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(FetchError {
+            status: Some(status.as_u16()),
+            message: format!("Serviço público retornou erro HTTP {}.", status.as_u16()),
+        });
+    }
+    response.text().await.map_err(|err| FetchError {
+        status: Some(status.as_u16()),
+        message: format!("Falha ao ler resposta do serviço público: {err}"),
+    })
 }
 
 #[tauri::command]
@@ -772,41 +935,167 @@ pub async fn company_lookup_cnpj(
     if digits.len() != 14 {
         return Err("Informe um CNPJ válido com 14 dígitos para consulta.".to_string());
     }
+    let now_ts = Utc::now().timestamp();
+    let limit_per_minute =
+        get_setting_i64(&conn, "company_lookup_rate_limit_per_minute", 3, 1, 30)? as usize;
+    let cooldown_seconds = get_setting_i64(&conn, "company_lookup_cooldown_seconds", 90, 15, 900)?;
+    let cache_ttl_seconds =
+        get_setting_i64(&conn, "company_lookup_cache_ttl_seconds", 120, 10, 1800)?;
 
-    let publica_base = get_setting_url(
-        &conn,
-        "company_lookup_publica_url",
-        "https://publica.cnpj.ws/cnpj/",
-    )?;
-    let receita_base = get_setting_url(
-        &conn,
-        "company_lookup_receita_url",
-        "https://www.receitaws.com.br/v1/cnpj/",
-    )?;
+    {
+        let runtime_mutex = lookup_runtime();
+        let mut runtime = runtime_mutex
+            .lock()
+            .map_err(|_| "Falha ao obter lock de consulta de CNPJ.".to_string())?;
+        sanitize_lookup_cache(&mut runtime, now_ts);
+        if let Some(hit) = runtime.cache.get(&digits) {
+            let mut payload = hit.payload.clone();
+            payload.insert("cache_hit".to_string(), Value::Bool(true));
+            payload.insert(
+                "message".to_string(),
+                Value::String("Consulta retornada do cache local.".to_string()),
+            );
+            return Ok(payload);
+        }
+    }
+
+    let providers = vec![
+        ProviderConfig {
+            key: "publica_cnpj_ws",
+            label: "Publica CNPJ WS",
+            base_url: get_setting_url(
+                &conn,
+                "company_lookup_publica_url",
+                "https://publica.cnpj.ws/cnpj/",
+            )?,
+        },
+        ProviderConfig {
+            key: "receita_ws",
+            label: "ReceitaWS",
+            base_url: get_setting_url(
+                &conn,
+                "company_lookup_receita_url",
+                "https://www.receitaws.com.br/v1/cnpj/",
+            )?,
+        },
+    ];
     let uf_hint = uf
         .map(|value| value.trim().to_uppercase())
         .filter(|value| !value.is_empty());
+    let mut attempt_errors: Vec<String> = Vec::new();
+    let mut skipped: Vec<String> = Vec::new();
 
-    let publica_url = format!("{}/{}", publica_base.trim_end_matches('/'), digits);
-    let publica_error = match fetch_json_text(publica_url)
-        .await
-        .and_then(|body| parse_publica_ws_response(&body, uf_hint.as_deref()))
-    {
-        Ok(result) => return Ok(result),
-        Err(err) => err,
-    };
+    for provider in providers {
+        {
+            let runtime_mutex = lookup_runtime();
+            let mut runtime = runtime_mutex
+                .lock()
+                .map_err(|_| "Falha ao obter lock de rate limit de provedores.".to_string())?;
+            if let Err(reason) =
+                provider_can_run(&mut runtime, provider.key, now_ts, limit_per_minute)
+            {
+                skipped.push(format!("{} indisponível agora: {}", provider.label, reason));
+                continue;
+            }
+        }
 
-    let receita_url = format!("{}/{}", receita_base.trim_end_matches('/'), digits);
-    match fetch_json_text(receita_url)
-        .await
-        .and_then(|body| parse_receita_ws_response(&body))
-    {
-        Ok(result) => Ok(result),
-        Err(err) => Err(format!(
-            "Falha ao consultar CNPJ nos serviços públicos. Último erro: {}; erro anterior: {}",
-            err, publica_error
-        )),
+        let url = format!("{}/{}", provider.base_url.trim_end_matches('/'), digits);
+        let fetched = fetch_json_text(url).await;
+        let parse_result = match fetched {
+            Ok(body) => {
+                if provider.key == "publica_cnpj_ws" {
+                    parse_publica_ws_response(&body, uf_hint.as_deref())
+                } else {
+                    parse_receita_ws_response(&body)
+                }
+            }
+            Err(err) => {
+                if err.status == Some(429) {
+                    let runtime_mutex = lookup_runtime();
+                    if let Ok(mut runtime) = runtime_mutex.lock() {
+                        provider_mark_cooldown(
+                            &mut runtime,
+                            provider.key,
+                            now_ts,
+                            cooldown_seconds,
+                        );
+                    }
+                    provider_log(
+                        &conn,
+                        &state,
+                        "warning",
+                        "Provedor público em cooldown por rate limit.",
+                        json!({
+                            "provider": provider.key,
+                            "documento": digits,
+                            "cooldown_seconds": cooldown_seconds,
+                            "http_status": 429
+                        }),
+                    );
+                    attempt_errors.push(format!(
+                        "{} indisponível por limite de requisições (429).",
+                        provider.label
+                    ));
+                } else {
+                    attempt_errors.push(format!("{}: {}", provider.label, err.message));
+                }
+                continue;
+            }
+        };
+
+        match parse_result {
+            Ok(mut payload) => {
+                payload.insert("cache_hit".to_string(), Value::Bool(false));
+                if let Some(source) = payload
+                    .get("source")
+                    .and_then(Value::as_str)
+                    .map(|value| value.to_string())
+                {
+                    payload.insert(
+                        "message".to_string(),
+                        Value::String(format!("Consulta concluída via {source}.")),
+                    );
+                }
+                let runtime_mutex = lookup_runtime();
+                if let Ok(mut runtime) = runtime_mutex.lock() {
+                    runtime.cache.insert(
+                        digits.clone(),
+                        LookupCacheEntry {
+                            expires_at: now_ts + cache_ttl_seconds,
+                            payload: payload.clone(),
+                        },
+                    );
+                }
+                return Ok(payload);
+            }
+            Err(err) => {
+                attempt_errors.push(format!("{}: {}", provider.label, err));
+            }
+        }
     }
+
+    provider_log(
+        &conn,
+        &state,
+        "warning",
+        "Falha de consulta CNPJ em todos os provedores disponíveis.",
+        json!({
+            "documento": digits,
+            "erros": attempt_errors,
+            "indisponiveis": skipped,
+        }),
+    );
+
+    let skipped_text = if skipped.is_empty() {
+        String::new()
+    } else {
+        format!(" Provedores em cooldown/limite: {}.", skipped.join(" | "))
+    };
+    Err(format!(
+        "Não foi possível consultar o CNPJ agora. {}{}",
+        attempt_errors.join(" | "),
+        skipped_text
+    ))
 }
 
 #[tauri::command]
@@ -815,6 +1104,11 @@ pub async fn company_lookup_ie(
     documento: String,
     uf: Option<String>,
 ) -> Result<Map<String, Value>, String> {
+    if only_digits(&documento).len() != 14 {
+        return Err(
+            "Consulta de inscrição estadual é feita via CNPJ. Informe um CNPJ válido com 14 dígitos.".to_string(),
+        );
+    }
     let mut payload = company_lookup_cnpj(state, documento, uf.clone()).await?;
     if optional_json_string(payload.get("inscricao_estadual"))
         .unwrap_or_default()
