@@ -1,3 +1,10 @@
+## [1.17.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.3...v1.17.4) (2026-04-11)
+
+
+### Bug Fixes
+
+* resolve typecheck do AFD e evita splash duplicado ([07b7a94](https://github.com/wkarts/argws-ponto-manager/commit/07b7a94dc8c4f171b91019aa8393bf687bc8691b))
+
 ## [1.17.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.2...v1.17.3) (2026-04-11)
 
 
