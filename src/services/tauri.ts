@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { showSplashError, showSplashInfo, showSplashWarning } from "./splash";
 
 function toCamelCase(key: string): string {
   return key.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
@@ -36,12 +37,21 @@ export async function invokeCommand<T>(command: string, args?: Record<string, un
   try {
     return await invoke<T>(command, normalizedArgs);
   } catch (error) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    if (errorText.includes("429 Too Many Requests") || errorText.toLowerCase().includes("rate limit")) {
+      showSplashWarning("Limite temporário de consulta atingido nos serviços públicos. Aguarde alguns segundos e tente novamente.");
+    } else {
+      showSplashError(errorText);
+    }
+    if (command === "company_lookup_cnpj" || command === "company_lookup_ie") {
+      showSplashInfo("A aplicação tenta fallback automático entre provedores quando disponível.");
+    }
     if (command !== "app_log_write") {
-      void import("./logger").then(({ logAppError }) => {
+      void import("./logger").then(({ logAppError, sanitizeForLog }) => {
         logAppError("invoke", `Falha ao executar comando ${command}.`, {
           command,
-          args: normalizedArgs,
-          error: error instanceof Error ? error.message : String(error),
+          args: sanitizeForLog(normalizedArgs),
+          error: errorText,
         });
       });
     }

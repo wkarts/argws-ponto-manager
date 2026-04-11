@@ -11,6 +11,41 @@ export interface AppLogPayload {
   details?: unknown;
 }
 
+const SENSITIVE_KEY_MARKERS = [
+  "senha",
+  "password",
+  "confirm_password",
+  "password_confirmation",
+  "token",
+  "secret",
+  "api_key",
+  "apikey",
+  "authorization",
+];
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Object.prototype.toString.call(value) === "[object Object]";
+}
+
+function isSensitiveKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase();
+  return SENSITIVE_KEY_MARKERS.some((marker) => normalized.includes(marker));
+}
+
+export function sanitizeForLog(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeForLog(item));
+  }
+  if (isPlainObject(value)) {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      sanitized[key] = isSensitiveKey(key) ? "***" : sanitizeForLog(item);
+    }
+    return sanitized;
+  }
+  return value;
+}
+
 export async function writeAppLog(payload: AppLogPayload): Promise<void> {
   const normalized = {
     level: payload.level ?? "info",
@@ -18,12 +53,12 @@ export async function writeAppLog(payload: AppLogPayload): Promise<void> {
     message: payload.message,
     source: payload.source ?? "frontend",
     route: payload.route ?? window.location.hash,
-    details: payload.details ?? null,
+    details: sanitizeForLog(payload.details ?? null),
   };
   try {
     await invoke<boolean>("app_log_write", { payload: normalized });
   } catch (error) {
-    console.error("Falha ao gravar log da aplicação", normalized, error);
+    console.error("Falha ao gravar log da aplicação", sanitizeForLog(normalized), error);
   }
 }
 

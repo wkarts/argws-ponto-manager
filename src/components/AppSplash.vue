@@ -3,18 +3,20 @@ import { dismissSplash, splashState } from "../services/splash";
 </script>
 
 <template>
-  <div class="splash-stack" aria-live="polite" aria-atomic="true">
-    <div
-      v-for="item in splashState.messages"
-      :key="item.id"
-      class="splash-item"
-      :class="`splash-${item.tone}`"
-      role="status"
-    >
-      <span>{{ item.text }}</span>
-      <button type="button" class="splash-close" @click="dismissSplash(item.id)">×</button>
+  <Teleport to="body">
+    <div class="splash-stack" aria-live="polite" aria-atomic="true">
+      <div
+        v-for="item in splashState.messages"
+        :key="item.id"
+        class="splash-item"
+        :class="`splash-${item.tone}`"
+        role="status"
+      >
+        <span class="splash-text">{{ item.text }}</span>
+        <button type="button" class="splash-close" @click="dismissSplash(item.id)">×</button>
+      </div>
     </div>
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -22,10 +24,11 @@ import { dismissSplash, splashState } from "../services/splash";
   position: fixed;
   top: 14px;
   right: 16px;
-  z-index: 1000;
+  z-index: 2147483000;
   display: grid;
-  gap: 8px;
-  width: min(420px, calc(100vw - 20px));
+  gap: 10px;
+  width: min(560px, calc(100vw - 24px));
+  max-width: 100vw;
   pointer-events: none;
 }
 
@@ -37,8 +40,18 @@ import { dismissSplash, splashState } from "../services/splash";
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.18);
+  animation: splash-in 160ms ease-out;
+  overflow: hidden;
+}
+
+.splash-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .splash-success {
@@ -72,5 +85,18 @@ import { dismissSplash, splashState } from "../services/splash";
   font-size: 18px;
   line-height: 1;
   color: inherit;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+@keyframes splash-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>
