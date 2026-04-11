@@ -23,6 +23,10 @@ const search = ref("");
 const onlyActive = ref(false);
 const modalOpen = ref(false);
 
+function onlyDigits(value: string) {
+  return String(value || "").replace(/\D/g, "");
+}
+
 function defaultForm() {
   return {
     id: undefined as number | undefined,
@@ -106,7 +110,11 @@ async function consultIe() {
   lookupIeLoading.value = true;
   error.value = "";
   try {
-    const payload = await lookupCompanyIe(form.documento, form.estado || null);
+    const cnpj = onlyDigits(form.documento);
+    if (cnpj.length !== 14) {
+      throw new Error("Para consultar inscrição estadual, informe primeiro um CNPJ válido com 14 dígitos.");
+    }
+    const payload = await lookupCompanyIe(cnpj, form.estado || null);
     applyLookupResult(payload);
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao consultar IE.";
@@ -272,7 +280,7 @@ onMounted(load);
                 {{ lookupCnpjLoading ? "Consultando..." : "Consultar CNPJ" }}
               </button>
               <button class="secondary" type="button" :disabled="lookupIeLoading || saving" @click="consultIe">
-                {{ lookupIeLoading ? "Consultando..." : "Consultar IE" }}
+                {{ lookupIeLoading ? "Consultando..." : "Consultar IE (via CNPJ)" }}
               </button>
             </div>
           </div>
