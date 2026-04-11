@@ -180,6 +180,7 @@ async function persist() {
     await load();
     closeModal();
     resetForm();
+    showSplashSuccess(form.id ? "Empresa atualizada com sucesso." : "Empresa cadastrada com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar empresa.";
   } finally {
@@ -193,6 +194,7 @@ async function removeRow(id: number) {
   try {
     await deleteCompany(id);
     await load();
+    showSplashSuccess("Empresa excluída com sucesso.");
     if (Number(form.id) === id) {
       resetForm();
       closeModal();

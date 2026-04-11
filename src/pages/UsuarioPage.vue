@@ -16,6 +16,7 @@ import {
 import { booleanLabel, formatPhone } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
+import { showSplashSuccess } from "../services/splash";
 
 const session = useSessionStore();
 const rows = ref<Record<string, unknown>[]>([]);
@@ -142,6 +143,7 @@ async function persistPolicy() {
     loginMinAllowed.value = Number(payload.login_min_allowed || loginMinAllowed.value);
     loginMaxAllowed.value = Number(payload.login_max_allowed || loginMaxAllowed.value);
     logAppInfo("usuarios", "Política de login atualizada com sucesso.", { login_min_length: loginMinLength.value });
+    showSplashSuccess("Política de login atualizada com sucesso.");
   } catch (err) {
     policyError.value = err instanceof Error ? err.message : "Falha ao salvar política de login.";
     logAppError("usuarios", "Falha ao salvar política de login.", {
@@ -189,6 +191,7 @@ async function persist() {
     closeModal();
     resetForm();
     logAppInfo("usuarios", "Usuário salvo com sucesso.");
+    showSplashSuccess(form.id ? "Usuário atualizado com sucesso." : "Usuário criado com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar usuário.";
     logAppError("usuarios", "Falha ao salvar usuário.", { error: error.value, payload: form });

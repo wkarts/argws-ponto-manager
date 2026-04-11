@@ -10,6 +10,7 @@ import {
 } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
+import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 
 type ModoColaborador = "todos" | "ativos" | "inativos" | "selecionados";
 type ModoPeriodo = "competencia" | "intervalo";
@@ -139,6 +140,7 @@ async function gerarRelatorio() {
   message.value = "";
   if (filters.modoColaborador === "selecionados" && filters.selectedIds.length === 0) {
     error.value = "Selecione pelo menos um colaborador para o filtro manual.";
+    showSplashError(error.value);
     return;
   }
 
@@ -154,8 +156,10 @@ async function gerarRelatorio() {
       dataFinal: filters.modoPeriodo === "intervalo" ? filters.dataFinal : null,
     });
     message.value = "Relatório consolidado gerado com sucesso.";
+    showSplashSuccess(message.value);
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao gerar relatório de horas.";
+    showSplashError(error.value);
   } finally {
     loading.value = false;
   }
@@ -370,6 +374,7 @@ async function exportarExcel() {
     contentBase64: toBase64Utf8(reportHtml),
   });
   message.value = "Relatório exportado em Excel com layout A4.";
+  showSplashSuccess(message.value);
 }
 
 async function exportarPdf() {
@@ -377,6 +382,7 @@ async function exportarPdf() {
   const reportHtml = buildReportHtml();
   printOnlyReport(reportHtml);
   message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora desejada ou 'Salvar como PDF'.";
+  showSplashInfo(message.value);
 }
 
 function imprimirRelatorio() {

@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from "vue";
 import { comboList, importAfdFile, listAfdImports, type ComboOption, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
+import { showSplashError, showSplashSuccess } from "../services/splash";
 
 const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
@@ -54,6 +55,7 @@ async function processImport() {
   message.value = "";
   if (!selectedFile.value) {
     error.value = "Selecione um arquivo AFD para importar.";
+    showSplashError(error.value);
     return;
   }
 
@@ -69,9 +71,11 @@ async function processImport() {
     });
 
     message.value = `Importação concluída. Layout ${result.layout_portaria}, processadas ${result.total_processadas}, descartadas ${result.total_descartadas}.`;
+    showSplashSuccess(message.value);
     await load();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao importar AFD.";
+    showSplashError(error.value);
   } finally {
     importing.value = false;
   }
