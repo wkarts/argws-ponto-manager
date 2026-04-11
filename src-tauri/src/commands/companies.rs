@@ -861,7 +861,12 @@ fn provider_can_run(
     Ok(())
 }
 
-fn provider_mark_cooldown(runtime: &mut LookupRuntime, provider_key: &str, now_ts: i64, cooldown: i64) {
+fn provider_mark_cooldown(
+    runtime: &mut LookupRuntime,
+    provider_key: &str,
+    now_ts: i64,
+    cooldown: i64,
+) {
     let state = runtime
         .providers
         .entry(provider_key.to_string())
@@ -931,9 +936,11 @@ pub async fn company_lookup_cnpj(
         return Err("Informe um CNPJ válido com 14 dígitos para consulta.".to_string());
     }
     let now_ts = Utc::now().timestamp();
-    let limit_per_minute = get_setting_i64(&conn, "company_lookup_rate_limit_per_minute", 3, 1, 30)? as usize;
+    let limit_per_minute =
+        get_setting_i64(&conn, "company_lookup_rate_limit_per_minute", 3, 1, 30)? as usize;
     let cooldown_seconds = get_setting_i64(&conn, "company_lookup_cooldown_seconds", 90, 15, 900)?;
-    let cache_ttl_seconds = get_setting_i64(&conn, "company_lookup_cache_ttl_seconds", 120, 10, 1800)?;
+    let cache_ttl_seconds =
+        get_setting_i64(&conn, "company_lookup_cache_ttl_seconds", 120, 10, 1800)?;
 
     {
         let runtime_mutex = lookup_runtime();
@@ -944,7 +951,10 @@ pub async fn company_lookup_cnpj(
         if let Some(hit) = runtime.cache.get(&digits) {
             let mut payload = hit.payload.clone();
             payload.insert("cache_hit".to_string(), Value::Bool(true));
-            payload.insert("message".to_string(), Value::String("Consulta retornada do cache local.".to_string()));
+            payload.insert(
+                "message".to_string(),
+                Value::String("Consulta retornada do cache local.".to_string()),
+            );
             return Ok(payload);
         }
     }
@@ -953,12 +963,20 @@ pub async fn company_lookup_cnpj(
         ProviderConfig {
             key: "publica_cnpj_ws",
             label: "Publica CNPJ WS",
-            base_url: get_setting_url(&conn, "company_lookup_publica_url", "https://publica.cnpj.ws/cnpj/")?,
+            base_url: get_setting_url(
+                &conn,
+                "company_lookup_publica_url",
+                "https://publica.cnpj.ws/cnpj/",
+            )?,
         },
         ProviderConfig {
             key: "receita_ws",
             label: "ReceitaWS",
-            base_url: get_setting_url(&conn, "company_lookup_receita_url", "https://www.receitaws.com.br/v1/cnpj/")?,
+            base_url: get_setting_url(
+                &conn,
+                "company_lookup_receita_url",
+                "https://www.receitaws.com.br/v1/cnpj/",
+            )?,
         },
     ];
     let uf_hint = uf
@@ -973,7 +991,8 @@ pub async fn company_lookup_cnpj(
             let mut runtime = runtime_mutex
                 .lock()
                 .map_err(|_| "Falha ao obter lock de rate limit de provedores.".to_string())?;
-            if let Err(reason) = provider_can_run(&mut runtime, provider.key, now_ts, limit_per_minute)
+            if let Err(reason) =
+                provider_can_run(&mut runtime, provider.key, now_ts, limit_per_minute)
             {
                 skipped.push(format!("{} indisponível agora: {}", provider.label, reason));
                 continue;
@@ -994,7 +1013,12 @@ pub async fn company_lookup_cnpj(
                 if err.status == Some(429) {
                     let runtime_mutex = lookup_runtime();
                     if let Ok(mut runtime) = runtime_mutex.lock() {
-                        provider_mark_cooldown(&mut runtime, provider.key, now_ts, cooldown_seconds);
+                        provider_mark_cooldown(
+                            &mut runtime,
+                            provider.key,
+                            now_ts,
+                            cooldown_seconds,
+                        );
                     }
                     provider_log(
                         &conn,
@@ -1029,7 +1053,7 @@ pub async fn company_lookup_cnpj(
                 {
                     payload.insert(
                         "message".to_string(),
-                        Value::String(format!("Consulta concluída via {source}."))
+                        Value::String(format!("Consulta concluída via {source}.")),
                     );
                 }
                 let runtime_mutex = lookup_runtime();

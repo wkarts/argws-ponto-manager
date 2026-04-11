@@ -24,7 +24,7 @@ import { dismissSplash, splashState } from "../services/splash";
   position: fixed;
   top: 14px;
   right: 16px;
-  z-index: 5000;
+  z-index: 2147483000;
   display: grid;
   gap: 10px;
   width: min(560px, calc(100vw - 24px));
