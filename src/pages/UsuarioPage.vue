@@ -16,6 +16,7 @@ import {
 import { booleanLabel, formatPhone } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
+import { showSplashSuccess } from "../services/splash";
 
 const session = useSessionStore();
 const rows = ref<Record<string, unknown>[]>([]);
@@ -189,6 +190,7 @@ async function persist() {
     closeModal();
     resetForm();
     logAppInfo("usuarios", "Usuário salvo com sucesso.");
+    showSplashSuccess(form.id ? "Usuário atualizado com sucesso." : "Usuário criado com sucesso.");
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao salvar usuário.";
     logAppError("usuarios", "Falha ao salvar usuário.", { error: error.value, payload: form });

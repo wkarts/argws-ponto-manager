@@ -75,6 +75,7 @@ async function processImport() {
     await load();
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao importar AFD.";
+    showSplashError(error.value);
   } finally {
     importing.value = false;
   }
