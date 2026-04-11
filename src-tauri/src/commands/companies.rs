@@ -815,6 +815,11 @@ pub async fn company_lookup_ie(
     documento: String,
     uf: Option<String>,
 ) -> Result<Map<String, Value>, String> {
+    if only_digits(&documento).len() != 14 {
+        return Err(
+            "Consulta de inscrição estadual é feita via CNPJ. Informe um CNPJ válido com 14 dígitos.".to_string(),
+        );
+    }
     let mut payload = company_lookup_cnpj(state, documento, uf.clone()).await?;
     if optional_json_string(payload.get("inscricao_estadual"))
         .unwrap_or_default()
