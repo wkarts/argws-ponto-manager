@@ -1,3 +1,32 @@
+## [1.17.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.1...v1.17.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* aplica rustfmt e garante splash acima de modais ([8fd0917](https://github.com/wkarts/argws-ponto-manager/commit/8fd0917eb2d77dd62a67622bf268fa8e2c846978))
+* padroniza splash global e adiciona rate limit em consulta CNPJ ([7e17cd0](https://github.com/wkarts/argws-ponto-manager/commit/7e17cd07cfd54555baef8170d3c983c484ef441a))
+
+## [1.17.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.0...v1.17.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* consulta IE exige CNPJ e usa fluxo via CNPJ ([bb2c478](https://github.com/wkarts/argws-ponto-manager/commit/bb2c4786a040fa02428057c26b09cd00d71566d1))
+
+# [1.17.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.7...v1.17.0) (2026-04-11)
+
+
+### Features
+
+* parametriza política de login e preserva CNPJ informado ([8e6ece1](https://github.com/wkarts/argws-ponto-manager/commit/8e6ece192d7ce3ce7bdd906382db8195f9c6e2a4))
+
+## [1.16.7](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.6...v1.16.7) (2026-04-10)
+
+
+### Bug Fixes
+
+* corrige parâmetros do insert de funcionários ([79788be](https://github.com/wkarts/argws-ponto-manager/commit/79788bedc0884603c4878017295ff2a99551cc34))
+
 ## [1.16.6](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.5...v1.16.6) (2026-04-06)
 
 
