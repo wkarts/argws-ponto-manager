@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.7...v1.17.0) (2026-04-11)
+
+
+### Features
+
+* parametriza política de login e preserva CNPJ informado ([8e6ece1](https://github.com/wkarts/argws-ponto-manager/commit/8e6ece192d7ce3ce7bdd906382db8195f9c6e2a4))
+
 ## [1.16.7](https://github.com/wkarts/argws-ponto-manager/compare/v1.16.6...v1.16.7) (2026-04-10)
 
 
