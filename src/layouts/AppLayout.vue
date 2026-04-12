@@ -6,6 +6,7 @@ import { getAppMeta } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import logoMark from "../assets/branding/logo-mark.png";
 import { logAppError, logAppInfo } from "../services/logger";
+import AppSwitch from "../components/AppSwitch.vue";
 
 const session = useSessionStore();
 const router = useRouter();
@@ -17,6 +18,8 @@ const now = ref(new Date());
 let timer: number | undefined;
 
 const MENU_STATE_KEY = "ponto-shell-menu-state";
+const THEME_PREFERENCE_KEY = "ponto-shell-theme";
+const isDarkMode = ref(false);
 
 function readMenuState() {
   if (typeof window === "undefined") return null;
@@ -25,6 +28,17 @@ function readMenuState() {
   } catch {
     return null;
   }
+}
+
+function readThemePreference(): "light" | "dark" {
+  if (typeof window === "undefined") return "light";
+  const raw = window.localStorage.getItem(THEME_PREFERENCE_KEY);
+  return raw === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme: "light" | "dark") {
+  if (typeof document === "undefined") return;
+  document.documentElement.setAttribute("data-theme", theme);
 }
 
 const savedMenuState = readMenuState();
@@ -117,8 +131,18 @@ watch(groupState, (value) => {
     window.localStorage.setItem(MENU_STATE_KEY, JSON.stringify(value));
   }
 }, { deep: true });
+watch(isDarkMode, (enabled) => {
+  const theme = enabled ? "dark" : "light";
+  applyTheme(theme);
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(THEME_PREFERENCE_KEY, theme);
+  }
+});
 
 onMounted(async () => {
+  const savedTheme = readThemePreference();
+  isDarkMode.value = savedTheme === "dark";
+  applyTheme(savedTheme);
   try {
     const payload = await getAppMeta();
     meta.version = String(payload.version || meta.version);
@@ -225,6 +249,11 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="topbar-right">
+          <AppSwitch
+            v-model="isDarkMode"
+            label="Modo escuro"
+            :aria-label="isDarkMode ? 'Desativar modo escuro' : 'Ativar modo escuro'"
+          />
           <label class="company-selector">
             <span>Empresa ativa</span>
             <select :value="session.activeCompanyId ?? ''" @change="session.setActiveCompany(Number(($event.target as HTMLSelectElement).value) || null)">
