@@ -1,3 +1,17 @@
+## [1.18.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.0...v1.18.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ui:** aplicar sidebar clara no tema padrão ([4f6b47d](https://github.com/wkarts/argws-ponto-manager/commit/4f6b47d40a982b47ccc9485ab799af84ddf4866f))
+
+# [1.18.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.5...v1.18.0) (2026-04-12)
+
+
+### Features
+
+* **ui:** adicionar tema claro padrão com modo escuro opcional ([c8e0463](https://github.com/wkarts/argws-ponto-manager/commit/c8e046301137e5cf7dca4cc2dcb4f49143f26cac))
+
 ## [1.17.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.4...v1.17.5) (2026-04-11)
 
 
