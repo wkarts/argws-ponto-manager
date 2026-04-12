@@ -28,6 +28,9 @@
   --sidebar-hover-bg: rgba(37, 99, 235, 0.08);
   --sidebar-footer-bg: rgba(255, 255, 255, 0.88);
   --sidebar-border: rgba(148, 163, 184, 0.35);
+  --scrollbar-thumb: rgba(100, 116, 139, 0.18);
+  --scrollbar-thumb-hover: rgba(100, 116, 139, 0.28);
+  --scrollbar-track: transparent;
 }
 
 :root[data-theme="dark"] {
@@ -49,6 +52,9 @@
   --sidebar-hover-bg: rgba(255, 255, 255, 0.08);
   --sidebar-footer-bg: rgba(15, 23, 42, 0.92);
   --sidebar-border: rgba(255, 255, 255, 0.08);
+  --scrollbar-thumb: rgba(148, 163, 184, 0.2);
+  --scrollbar-thumb-hover: rgba(148, 163, 184, 0.3);
+  --scrollbar-track: transparent;
 }
 
 html, body, #app {
@@ -60,6 +66,49 @@ html, body, #app {
 body { background: var(--page-bg); color: var(--text-color); font-size: var(--font-size-base); }
 button, input, select, textarea { font: inherit; }
 a { color: inherit; }
+
+.sidebar-scroll,
+.page-content-scroll,
+.table-wrap,
+.app-modal-body,
+.side-panel {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.sidebar-scroll::-webkit-scrollbar,
+.page-content-scroll::-webkit-scrollbar,
+.table-wrap::-webkit-scrollbar,
+.app-modal-body::-webkit-scrollbar,
+.side-panel::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track,
+.page-content-scroll::-webkit-scrollbar-track,
+.table-wrap::-webkit-scrollbar-track,
+.app-modal-body::-webkit-scrollbar-track,
+.side-panel::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb,
+.page-content-scroll::-webkit-scrollbar-thumb,
+.table-wrap::-webkit-scrollbar-thumb,
+.app-modal-body::-webkit-scrollbar-thumb,
+.side-panel::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover,
+.page-content-scroll::-webkit-scrollbar-thumb:hover,
+.table-wrap::-webkit-scrollbar-thumb:hover,
+.app-modal-body::-webkit-scrollbar-thumb:hover,
+.side-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
 
 .shell-root {
   display: grid;
