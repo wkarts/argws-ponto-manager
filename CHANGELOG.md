@@ -1,3 +1,10 @@
+## [1.18.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.1...v1.18.2) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ui:** manter páginas claras e aplicar tema escuro somente na sidebar ([fedcf56](https://github.com/wkarts/argws-ponto-manager/commit/fedcf566b9ca902154a38bf3ef274402887a9804))
+
 ## [1.18.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.0...v1.18.1) (2026-04-12)
 
 
