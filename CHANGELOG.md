@@ -1,3 +1,10 @@
+## [1.18.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.0...v1.18.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ui:** aplicar sidebar clara no tema padrão ([4f6b47d](https://github.com/wkarts/argws-ponto-manager/commit/4f6b47d40a982b47ccc9485ab799af84ddf4866f))
+
 # [1.18.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.5...v1.18.0) (2026-04-12)
 
 
