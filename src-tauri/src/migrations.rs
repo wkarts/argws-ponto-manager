@@ -750,7 +750,11 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
         ("equipamentos", "conector_device_id", "TEXT"),
         ("equipamentos", "conector_base_url", "TEXT"),
         ("equipamentos", "conector_api_token", "TEXT"),
-        ("equipamentos", "conector_timeout", "INTEGER NOT NULL DEFAULT 30"),
+        (
+            "equipamentos",
+            "conector_timeout",
+            "INTEGER NOT NULL DEFAULT 30",
+        ),
         ("equipamentos", "conector_ultimo_nsr", "INTEGER"),
         ("equipamentos", "conector_ultima_coleta_em", "TEXT"),
     ] {
