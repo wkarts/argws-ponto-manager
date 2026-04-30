@@ -498,7 +498,8 @@ pub async fn conector_baixar_afd(
         Utc::now().format("%Y%m%d%H%M%S"),
         sanitize_file_name(&remote_filename)
     ));
-    fs::write(&arquivo, content.as_bytes()).map_err(|err| format!("Falha ao salvar arquivo AFD: {err}"))?;
+    fs::write(&arquivo, content.as_bytes())
+        .map_err(|err| format!("Falha ao salvar arquivo AFD: {err}"))?;
 
     let result = json!({
         "equipamento_id": equipamento_id,
