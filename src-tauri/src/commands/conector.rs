@@ -29,7 +29,6 @@ pub struct ConectorImportarAfdArgs {
     pub data_fim: Option<String>,
 }
 
-
 #[derive(Debug, Clone)]
 struct EquipamentoConectorConfig {
     equipamento_id: i64,
@@ -56,7 +55,11 @@ fn carregar_config_conector_equipamento(
                 equipamento_id: row.get(0)?,
                 usar_conector: row.get(1)?,
                 device_id: row.get::<_, String>(2)?.trim().to_string(),
-                base_url: row.get::<_, String>(3)?.trim().trim_end_matches('/').to_string(),
+                base_url: row
+                    .get::<_, String>(3)?
+                    .trim()
+                    .trim_end_matches('/')
+                    .to_string(),
                 api_token: row.get::<_, String>(4)?.trim().to_string(),
                 ultimo_nsr: row.get(5)?,
                 timeout_secs: row.get::<_, i64>(6)?.max(5) as u64,
@@ -73,10 +76,14 @@ fn validar_config_conector_equipamento(config: &EquipamentoConectorConfig) -> Re
         return Err("Este REP não está marcado para usar o Ponto Manager Conector. Ative a opção no cadastro do equipamento.".to_string());
     }
     if config.base_url.is_empty() {
-        return Err("Configure a URL da API do Ponto Manager Conector no cadastro deste REP.".to_string());
+        return Err(
+            "Configure a URL da API do Ponto Manager Conector no cadastro deste REP.".to_string(),
+        );
     }
     if config.api_token.is_empty() {
-        return Err("Configure o token da API do Ponto Manager Conector no cadastro deste REP.".to_string());
+        return Err(
+            "Configure o token da API do Ponto Manager Conector no cadastro deste REP.".to_string(),
+        );
     }
     if config.device_id.is_empty() {
         return Err("Configure o ID do dispositivo no conector no cadastro deste REP.".to_string());
@@ -84,7 +91,9 @@ fn validar_config_conector_equipamento(config: &EquipamentoConectorConfig) -> Re
     Ok(())
 }
 
-fn build_client_from_equipamento(config: &EquipamentoConectorConfig) -> Result<ConectorClient, String> {
+fn build_client_from_equipamento(
+    config: &EquipamentoConectorConfig,
+) -> Result<ConectorClient, String> {
     validar_config_conector_equipamento(config)?;
     let _ = config.equipamento_id;
     ConectorClient::new(
@@ -222,7 +231,10 @@ pub async fn conector_coletar_batidas(
         "data_fim": data_fim,
     });
 
-    let resposta = match client.coletar_batidas(&equipamento.device_id, &payload).await {
+    let resposta = match client
+        .coletar_batidas(&equipamento.device_id, &payload)
+        .await
+    {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
@@ -494,7 +506,10 @@ pub async fn conector_importar_afd(
     });
 
     let client = build_client_from_equipamento(&equipamento)?;
-    let bytes = match client.baixar_afd(&equipamento.device_id, &request_payload).await {
+    let bytes = match client
+        .baixar_afd(&equipamento.device_id, &request_payload)
+        .await
+    {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
