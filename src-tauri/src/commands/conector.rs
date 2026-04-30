@@ -374,7 +374,11 @@ pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String
         )
         .unwrap_or(0);
     let ultima_coleta: Option<String> = conn
-        .query_row("SELECT MAX(created_at) FROM conector_coletas_log", [], |row| row.get(0))
+        .query_row(
+            "SELECT MAX(created_at) FROM conector_coletas_log",
+            [],
+            |row| row.get(0),
+        )
         .optional()
         .map_err(|err| format!("Falha ao consultar última coleta do conector: {err}"))?
         .flatten();
