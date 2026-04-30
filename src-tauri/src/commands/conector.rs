@@ -7,6 +7,7 @@ use crate::{
 };
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
+use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::fs;
 use tauri::{command, State};
@@ -14,6 +15,19 @@ use tauri::{command, State};
 const SETTING_CONECTOR_URL: &str = "ponto_conector_url";
 const SETTING_CONECTOR_TOKEN: &str = "ponto_conector_token";
 const SETTING_CONECTOR_TIMEOUT: &str = "ponto_conector_timeout";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConectorImportarAfdArgs {
+    pub empresa_id: Option<i64>,
+    pub equipamento_id: i64,
+    pub mode: Option<String>,
+    pub completo: Option<bool>,
+    pub nsr_inicio: Option<i64>,
+    pub nsr_fim: Option<i64>,
+    pub data_inicio: Option<String>,
+    pub data_fim: Option<String>,
+}
 
 fn setting_value(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
     conn.query_row(
@@ -435,15 +449,18 @@ pub fn conector_configuracao_salvar(
 #[command]
 pub async fn conector_importar_afd(
     state: State<'_, SharedState>,
-    empresa_id: Option<i64>,
-    equipamento_id: i64,
-    mode: Option<String>,
-    completo: Option<bool>,
-    nsr_inicio: Option<i64>,
-    nsr_fim: Option<i64>,
-    data_inicio: Option<String>,
-    data_fim: Option<String>,
+    args: ConectorImportarAfdArgs,
 ) -> Result<Value, String> {
+    let ConectorImportarAfdArgs {
+        empresa_id,
+        equipamento_id,
+        mode,
+        completo,
+        nsr_inicio,
+        nsr_fim,
+        data_inicio,
+        data_fim,
+    } = args;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let data_dir = state.data_dir()?;
