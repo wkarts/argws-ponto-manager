@@ -1,3 +1,11 @@
+# [1.19.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.2...v1.19.0) (2026-04-30)
+
+
+### Features
+
+* **conector:** adiciona sincronização incremental de batidas e download de AFD ([42cc808](https://github.com/wkarts/argws-ponto-manager/commit/42cc808fcef345c9c229037498e76316284a808c))
+* integração com Ponto Manager Conector para coleta de batidas e AFD ([21d1497](https://github.com/wkarts/argws-ponto-manager/commit/21d14979947a422166d318fc4ff60a9993505fbd))
+
 ## [1.18.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.1...v1.18.2) (2026-04-12)
 
 
