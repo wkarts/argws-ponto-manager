@@ -1,3 +1,15 @@
+# [1.20.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.19.0...v1.20.0) (2026-04-30)
+
+
+### Bug Fixes
+
+* **apuracao:** normaliza obrigatório mensal e corrige jornadas inconsistentes no fechamento ([34b058a](https://github.com/wkarts/argws-ponto-manager/commit/34b058a36f98dd5a2b98a9e8093a39cf164eb33a))
+
+
+### Features
+
+* sincronização incremental por NSR, storage de AFD e base de dashboard ([3a2f431](https://github.com/wkarts/argws-ponto-manager/commit/3a2f431c33a31475637113e304ef728ccdf54a29))
+
 # [1.19.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.2...v1.19.0) (2026-04-30)
 
 
