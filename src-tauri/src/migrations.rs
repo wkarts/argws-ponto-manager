@@ -210,6 +210,10 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             modelo TEXT,
             ip TEXT,
             porta INTEGER,
+            usar_conector INTEGER NOT NULL DEFAULT 0,
+            conector_device_id TEXT,
+            conector_ultimo_nsr INTEGER,
+            conector_ultima_coleta_em TEXT,
             ativo INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
@@ -565,6 +569,25 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (empresa_id) REFERENCES empresas(id)
         );
 
+
+        CREATE TABLE IF NOT EXISTS conector_coletas_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            equipamento_id INTEGER NOT NULL,
+            conector_device_id TEXT,
+            tipo TEXT NOT NULL,
+            status TEXT NOT NULL,
+            mensagem TEXT,
+            total_recebidas INTEGER NOT NULL DEFAULT 0,
+            total_importadas INTEGER NOT NULL DEFAULT 0,
+            total_duplicadas INTEGER NOT NULL DEFAULT 0,
+            nsr_inicio INTEGER,
+            nsr_fim INTEGER,
+            arquivo_path TEXT,
+            payload_json TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id)
+        );
+
         CREATE TABLE IF NOT EXISTS configuracoes (
             nome TEXT PRIMARY KEY,
             valor TEXT,
@@ -716,6 +739,14 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
         ("batidas", "justificativa_id", "INTEGER"),
         ("batidas", "manual_ajuste", "INTEGER NOT NULL DEFAULT 0"),
         ("batidas", "validado", "INTEGER NOT NULL DEFAULT 1"),
+        (
+            "equipamentos",
+            "usar_conector",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("equipamentos", "conector_device_id", "TEXT"),
+        ("equipamentos", "conector_ultimo_nsr", "INTEGER"),
+        ("equipamentos", "conector_ultima_coleta_em", "TEXT"),
     ] {
         add_column_if_missing(conn, table, column, definition)?;
     }
