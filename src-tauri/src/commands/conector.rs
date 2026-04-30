@@ -157,15 +157,105 @@ fn parse_datetime(value: &str) -> Option<(String, String)> {
     None
 }
 
+fn normalize_date_start(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else if trimmed.contains('T') {
+            Some(trimmed.to_string())
+        } else {
+            Some(format!("{trimmed}T00:00:00Z"))
+        }
+    })
+}
+
+fn normalize_date_end(value: Option<String>) -> Option<String> {
+    value.and_then(|raw| {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            None
+        } else if trimmed.contains('T') {
+            Some(trimmed.to_string())
+        } else {
+            Some(format!("{trimmed}T23:59:59Z"))
+        }
+    })
+}
+
+fn build_afd_request_payload(
+    full: bool,
+    nsr_start: Option<i64>,
+    nsr_end: Option<i64>,
+    date_start: Option<String>,
+    date_end: Option<String>,
+) -> Value {
+    json!({
+        "full": full,
+        "nsr_start": nsr_start.and_then(|value| if value > 0 { Some(value as u64) } else { None }),
+        "nsr_end": nsr_end.and_then(|value| if value > 0 { Some(value as u64) } else { None }),
+        "date_start": normalize_date_start(date_start),
+        "date_end": normalize_date_end(date_end),
+    })
+}
+
+fn extract_afd_file(response: &Value) -> Result<(String, String), String> {
+    let filename = response
+        .get("filename")
+        .and_then(Value::as_str)
+        .unwrap_or("afd_conector.txt")
+        .to_string();
+    let content = response
+        .get("content")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            format!(
+                "Resposta da API do conector não contém o campo content do AFD. Resposta recebida: {}",
+                response.to_string().chars().take(500).collect::<String>()
+            )
+        })?
+        .to_string();
+    if content.trim().is_empty() {
+        return Err("API do conector retornou AFD vazio.".to_string());
+    }
+    Ok((filename, content))
+}
+
+fn extract_punches(response: &Value) -> Vec<Value> {
+    if let Some(items) = response.as_array() {
+        return items.clone();
+    }
+    if let Some(items) = response.get("punches").and_then(Value::as_array) {
+        return items.clone();
+    }
+    if let Some(items) = response.get("data").and_then(Value::as_array) {
+        return items.clone();
+    }
+    Vec::new()
+}
+
+fn sanitize_file_name(value: &str) -> String {
+    value.replace(['/', '\\'], "_")
+}
+
 fn find_funcionario(
     conn: &rusqlite::Connection,
     raw: &Map<String, Value>,
 ) -> Result<Option<i64>, String> {
+    let employee_id = raw
+        .get("employee_id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let matricula = raw
         .get("matricula")
         .and_then(Value::as_str)
-        .unwrap_or_default();
-    let pis = raw.get("pis").and_then(Value::as_str).unwrap_or_default();
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(employee_id);
+    let pis = raw
+        .get("pis")
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(employee_id);
     let documento = raw
         .get("documento")
         .and_then(Value::as_str)
@@ -219,17 +309,19 @@ pub async fn conector_coletar_batidas(
         None
     } else if nsr_inicio.is_some() {
         nsr_inicio
-    } else {
+    } else if equipamento.ultimo_nsr > 0 {
         Some(equipamento.ultimo_nsr + 1)
+    } else {
+        None
     };
 
-    let payload = json!({
-        "completo": completo.unwrap_or(false),
-        "nsr_inicio": nsr_start,
-        "nsr_fim": nsr_fim,
-        "data_inicio": data_inicio,
-        "data_fim": data_fim,
-    });
+    let payload = build_afd_request_payload(
+        completo.unwrap_or(false) || nsr_start.is_none(),
+        nsr_start,
+        nsr_fim,
+        data_inicio,
+        data_fim,
+    );
 
     let resposta = match client
         .coletar_batidas(&equipamento.device_id, &payload)
@@ -255,11 +347,7 @@ pub async fn conector_coletar_batidas(
                 .to_string());
         }
     };
-    let punches = resposta
-        .get("punches")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
+    let punches = extract_punches(&resposta);
 
     let mut total_importadas = 0i64;
     let mut total_duplicadas = 0i64;
@@ -287,6 +375,8 @@ pub async fn conector_coletar_batidas(
         ) {
             (data.to_string(), hora.to_string())
         } else if let Some(dt) = item.get("data_hora").and_then(Value::as_str) {
+            parse_datetime(dt).unwrap_or_default()
+        } else if let Some(dt) = item.get("punched_at").and_then(Value::as_str) {
             parse_datetime(dt).unwrap_or_default()
         } else {
             (String::new(), String::new())
@@ -374,7 +464,11 @@ pub async fn conector_baixar_afd(
 
     let equipamento = carregar_config_conector_equipamento(&conn, equipamento_id)?;
     let client = build_client_from_equipamento(&equipamento)?;
-    let bytes = match client.baixar_afd(&equipamento.device_id, &json!({})).await {
+    let request_payload = build_afd_request_payload(true, None, None, None, None);
+    let response = match client
+        .baixar_afd(&equipamento.device_id, &request_payload)
+        .await
+    {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
@@ -383,6 +477,7 @@ pub async fn conector_baixar_afd(
                 "tipo": "afd",
                 "status": "erro",
                 "mensagem": err,
+                "payload_json": request_payload,
             });
             let _ = log_coleta(&conn, &result);
             return Err(result
@@ -392,12 +487,18 @@ pub async fn conector_baixar_afd(
                 .to_string());
         }
     };
+    let (remote_filename, content) = extract_afd_file(&response)?;
+
     let dir = data_dir
         .join("afd")
         .join(format!("equipamento_{equipamento_id}"));
     fs::create_dir_all(&dir).map_err(|err| format!("Falha ao criar diretório de AFD: {err}"))?;
-    let arquivo = dir.join(format!("afd_{}.txt", Utc::now().format("%Y%m%d%H%M%S")));
-    fs::write(&arquivo, &bytes).map_err(|err| format!("Falha ao salvar arquivo AFD: {err}"))?;
+    let arquivo = dir.join(format!(
+        "afd_{}_{}",
+        Utc::now().format("%Y%m%d%H%M%S"),
+        sanitize_file_name(&remote_filename)
+    ));
+    fs::write(&arquivo, content.as_bytes()).map_err(|err| format!("Falha ao salvar arquivo AFD: {err}"))?;
 
     let result = json!({
         "equipamento_id": equipamento_id,
@@ -406,7 +507,7 @@ pub async fn conector_baixar_afd(
         "status": "sucesso",
         "arquivo_path": arquivo.to_string_lossy(),
         "total_recebidas": 1,
-        "payload_json": {"bytes": bytes.len()},
+        "payload_json": {"bytes": content.len(), "request": request_payload, "response": response},
     });
     log_coleta(&conn, &result)?;
     write_audit(
@@ -497,16 +598,16 @@ pub async fn conector_importar_afd(
         None
     };
 
-    let request_payload = json!({
-        "completo": completo.unwrap_or(false) || nsr_start.is_none(),
-        "nsr_inicio": nsr_start,
-        "nsr_fim": nsr_fim,
-        "data_inicio": data_inicio,
-        "data_fim": data_fim,
-    });
+    let request_payload = build_afd_request_payload(
+        completo.unwrap_or(false) || nsr_start.is_none(),
+        nsr_start,
+        nsr_fim,
+        data_inicio,
+        data_fim,
+    );
 
     let client = build_client_from_equipamento(&equipamento)?;
-    let bytes = match client
+    let response = match client
         .baixar_afd(&equipamento.device_id, &request_payload)
         .await
     {
@@ -530,21 +631,22 @@ pub async fn conector_importar_afd(
                 .to_string());
         }
     };
+    let (remote_filename, content) = extract_afd_file(&response)?;
 
     let dir = data_dir
         .join("afd")
         .join(format!("equipamento_{equipamento_id}"));
     fs::create_dir_all(&dir).map_err(|err| format!("Falha ao criar diretório de AFD: {err}"))?;
     let file_name = format!(
-        "afd_equipamento_{}_{}.txt",
+        "afd_equipamento_{}_{}_{}",
         equipamento_id,
-        Utc::now().format("%Y%m%d%H%M%S")
+        Utc::now().format("%Y%m%d%H%M%S"),
+        sanitize_file_name(&remote_filename)
     );
     let arquivo = dir.join(&file_name);
-    fs::write(&arquivo, &bytes)
+    fs::write(&arquivo, content.as_bytes())
         .map_err(|err| format!("Falha ao salvar arquivo AFD baixado do conector: {err}"))?;
 
-    let content = String::from_utf8_lossy(&bytes).to_string();
     drop(conn);
 
     let import_result = afd_import_file(
