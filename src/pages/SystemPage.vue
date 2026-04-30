@@ -92,9 +92,9 @@ onMounted(load);
 
     <div class="card grid page-gap">
       <div class="section-title">Integrações</div>
-      <div class="muted-text">Os parâmetros da API do Ponto Manager Conector ficam em uma tela própria, evitando repetir URL/token em cada REP.</div>
+      <div class="muted-text">A configuração da API do Conector é individual por REP. Use a página Ponto Conector apenas como playground para testar conexão, coleta e download.</div>
       <div class="actions">
-        <RouterLink class="button secondary" to="/conector-config">Abrir parâmetros do Ponto Conector</RouterLink>
+        <RouterLink class="button secondary" to="/conector-dashboard">Abrir playground do Ponto Conector</RouterLink>
       </div>
     </div>
 

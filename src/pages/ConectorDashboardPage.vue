@@ -114,8 +114,8 @@ onMounted(carregar);
   <div class="grid page-gap">
     <div class="toolbar">
       <div>
-        <h2>Dashboard de coleta do Conector</h2>
-        <div class="muted-text">Acompanhamento da integração Ponto Manager x Ponto Manager Conector, com NSR incremental, AFD e logs.</div>
+        <h2>Ponto Conector</h2>
+        <div class="muted-text">Playground operacional para testar conexão, coletar batidas, baixar AFD e acompanhar logs do Ponto Manager Conector por REP.</div>
       </div>
       <div class="actions">
         <button class="primary" :disabled="loading" @click="carregar">Atualizar</button>
