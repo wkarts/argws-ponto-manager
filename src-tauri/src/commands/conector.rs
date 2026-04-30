@@ -318,16 +318,15 @@ pub async fn conector_coletar_batidas(
         None
     };
 
-    let has_date_filter = data_inicio.as_ref().is_some_and(|value| !value.trim().is_empty())
-        || data_fim.as_ref().is_some_and(|value| !value.trim().is_empty());
+    let has_date_filter = data_inicio
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty())
+        || data_fim
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
     let full_request = completo.unwrap_or(false) || (nsr_start.is_none() && !has_date_filter);
-    let payload = build_afd_request_payload(
-        full_request,
-        nsr_start,
-        nsr_fim,
-        data_inicio,
-        data_fim,
-    );
+    let payload =
+        build_afd_request_payload(full_request, nsr_start, nsr_fim, data_inicio, data_fim);
 
     let resposta = match client
         .coletar_batidas(&equipamento.device_id, &payload)
@@ -605,16 +604,15 @@ pub async fn conector_importar_afd(
         None
     };
 
-    let has_date_filter = data_inicio.as_ref().is_some_and(|value| !value.trim().is_empty())
-        || data_fim.as_ref().is_some_and(|value| !value.trim().is_empty());
+    let has_date_filter = data_inicio
+        .as_ref()
+        .is_some_and(|value| !value.trim().is_empty())
+        || data_fim
+            .as_ref()
+            .is_some_and(|value| !value.trim().is_empty());
     let full_request = completo.unwrap_or(false) || (nsr_start.is_none() && !has_date_filter);
-    let request_payload = build_afd_request_payload(
-        full_request,
-        nsr_start,
-        nsr_fim,
-        data_inicio,
-        data_fim,
-    );
+    let request_payload =
+        build_afd_request_payload(full_request, nsr_start, nsr_fim, data_inicio, data_fim);
 
     let client = build_client_from_equipamento(&equipamento)?;
     let response = match client
