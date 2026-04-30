@@ -218,6 +218,9 @@ fn extract_afd_file(response: &Value) -> Result<(String, String), String> {
     if content.trim().is_empty() {
         return Err("API do conector retornou AFD vazio.".to_string());
     }
+    if content.contains("Download AFD interrompido após resposta parcial") {
+        return Err("O Conector informou que o AFD foi interrompido e bloqueou retorno parcial. Ajuste a conexão/timeout/lote RR do REP e tente novamente.".to_string());
+    }
     Ok((filename, content))
 }
 
@@ -315,8 +318,11 @@ pub async fn conector_coletar_batidas(
         None
     };
 
+    let has_date_filter = data_inicio.as_ref().is_some_and(|value| !value.trim().is_empty())
+        || data_fim.as_ref().is_some_and(|value| !value.trim().is_empty());
+    let full_request = completo.unwrap_or(false) || (nsr_start.is_none() && !has_date_filter);
     let payload = build_afd_request_payload(
-        completo.unwrap_or(false) || nsr_start.is_none(),
+        full_request,
         nsr_start,
         nsr_fim,
         data_inicio,
@@ -599,8 +605,11 @@ pub async fn conector_importar_afd(
         None
     };
 
+    let has_date_filter = data_inicio.as_ref().is_some_and(|value| !value.trim().is_empty())
+        || data_fim.as_ref().is_some_and(|value| !value.trim().is_empty());
+    let full_request = completo.unwrap_or(false) || (nsr_start.is_none() && !has_date_filter);
     let request_payload = build_afd_request_payload(
-        completo.unwrap_or(false) || nsr_start.is_none(),
+        full_request,
         nsr_start,
         nsr_fim,
         data_inicio,
