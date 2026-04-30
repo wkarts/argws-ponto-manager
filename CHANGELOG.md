@@ -1,3 +1,10 @@
+# [1.21.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.20.0...v1.21.0) (2026-04-30)
+
+
+### Features
+
+* integra importação AFD via Conector e ajusta configuração do REP ([acb115a](https://github.com/wkarts/argws-ponto-manager/commit/acb115a1ad2f1f1764dbaf68bff3fb5223c206b5))
+
 # [1.20.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.19.0...v1.20.0) (2026-04-30)
 
 
