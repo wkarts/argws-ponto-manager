@@ -1,3 +1,61 @@
+# [1.19.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.2...v1.19.0) (2026-04-30)
+
+
+### Features
+
+* **conector:** adiciona sincronização incremental de batidas e download de AFD ([42cc808](https://github.com/wkarts/argws-ponto-manager/commit/42cc808fcef345c9c229037498e76316284a808c))
+* integração com Ponto Manager Conector para coleta de batidas e AFD ([21d1497](https://github.com/wkarts/argws-ponto-manager/commit/21d14979947a422166d318fc4ff60a9993505fbd))
+
+## [1.18.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.1...v1.18.2) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ui:** manter páginas claras e aplicar tema escuro somente na sidebar ([fedcf56](https://github.com/wkarts/argws-ponto-manager/commit/fedcf566b9ca902154a38bf3ef274402887a9804))
+
+## [1.18.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.18.0...v1.18.1) (2026-04-12)
+
+
+### Bug Fixes
+
+* **ui:** aplicar sidebar clara no tema padrão ([4f6b47d](https://github.com/wkarts/argws-ponto-manager/commit/4f6b47d40a982b47ccc9485ab799af84ddf4866f))
+
+# [1.18.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.5...v1.18.0) (2026-04-12)
+
+
+### Features
+
+* **ui:** adicionar tema claro padrão com modo escuro opcional ([c8e0463](https://github.com/wkarts/argws-ponto-manager/commit/c8e046301137e5cf7dca4cc2dcb4f49143f26cac))
+
+## [1.17.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.4...v1.17.5) (2026-04-11)
+
+
+### Bug Fixes
+
+* **empresas:** evitar toast duplicado ao atualizar cadastro ([73bad67](https://github.com/wkarts/argws-ponto-manager/commit/73bad6799a3bb43aaea54ed17d2468e7b9f9b6d4))
+
+## [1.17.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.3...v1.17.4) (2026-04-11)
+
+
+### Bug Fixes
+
+* resolve typecheck do AFD e evita splash duplicado ([07b7a94](https://github.com/wkarts/argws-ponto-manager/commit/07b7a94dc8c4f171b91019aa8393bf687bc8691b))
+
+## [1.17.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.2...v1.17.3) (2026-04-11)
+
+
+### Bug Fixes
+
+* exibe splash em sucesso e info nos fluxos de cadastro e relatórios ([fd62857](https://github.com/wkarts/argws-ponto-manager/commit/fd62857240f3727ddc172193187887f03544d452))
+
+## [1.17.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.1...v1.17.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* aplica rustfmt e garante splash acima de modais ([8fd0917](https://github.com/wkarts/argws-ponto-manager/commit/8fd0917eb2d77dd62a67622bf268fa8e2c846978))
+* padroniza splash global e adiciona rate limit em consulta CNPJ ([7e17cd0](https://github.com/wkarts/argws-ponto-manager/commit/7e17cd07cfd54555baef8170d3c983c484ef441a))
+
 ## [1.17.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.17.0...v1.17.1) (2026-04-11)
 
 

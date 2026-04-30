@@ -109,13 +109,49 @@ pub struct AppLogInput<'a> {
     pub details: Option<&'a Value>,
 }
 
+fn is_sensitive_key(key: &str) -> bool {
+    let normalized = key.trim().to_lowercase();
+    [
+        "senha",
+        "password",
+        "confirm_password",
+        "password_confirmation",
+        "token",
+        "secret",
+        "api_key",
+        "apikey",
+        "authorization",
+    ]
+    .iter()
+    .any(|item| normalized.contains(item))
+}
+
+fn sanitize_log_value(value: &Value) -> Value {
+    match value {
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| {
+                    if is_sensitive_key(k) {
+                        (k.clone(), Value::String("***".to_string()))
+                    } else {
+                        (k.clone(), sanitize_log_value(v))
+                    }
+                })
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(sanitize_log_value).collect()),
+        _ => value.clone(),
+    }
+}
+
 pub fn write_app_log(
     conn: &Connection,
     data_dir: &Path,
     input: AppLogInput<'_>,
 ) -> Result<(), String> {
     let now = chrono::Utc::now().to_rfc3339();
-    let details_json = input.details.map(Value::to_string);
+    let sanitized_details = input.details.map(sanitize_log_value);
+    let details_json = sanitized_details.as_ref().map(Value::to_string);
     conn.execute(
         "INSERT INTO app_logs (level, category, message, source, route, details_json, created_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -146,7 +182,7 @@ pub fn write_app_log(
         "message": input.message,
         "source": input.source,
         "route": input.route,
-        "details": input.details.cloned().unwrap_or(Value::Null),
+        "details": sanitized_details.unwrap_or(Value::Null),
     })
     .to_string();
     file.write_all(line.as_bytes())

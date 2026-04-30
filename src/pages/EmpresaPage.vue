@@ -12,6 +12,7 @@ import {
   type GenericRecord,
 } from "../services/crud";
 import { booleanLabel, formatCpfCnpj, formatPhone } from "../services/format";
+import { showSplashError, showSplashInfo, showSplashSuccess, showSplashWarning } from "../services/splash";
 
 const rows = ref<GenericRecord[]>([]);
 const loading = ref(false);
@@ -99,8 +100,18 @@ async function consultCnpj() {
   try {
     const payload = await lookupCompanyCnpj(form.documento, form.estado || null);
     applyLookupResult(payload);
+    if (payload.cache_hit === true) {
+      showSplashInfo("Consulta retornada do cache local para evitar consumo desnecessário dos provedores.");
+    } else if (String(payload.source || "").length) {
+      showSplashSuccess(`Consulta CNPJ concluída via ${String(payload.source)}.`);
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao consultar CNPJ.";
+    if (error.value.includes("limite") || error.value.includes("429")) {
+      showSplashWarning("Serviços públicos atingiram limite temporário. Aguarde o cooldown e tente novamente.");
+    } else {
+      showSplashError(error.value);
+    }
   } finally {
     lookupCnpjLoading.value = false;
   }
@@ -116,8 +127,18 @@ async function consultIe() {
     }
     const payload = await lookupCompanyIe(cnpj, form.estado || null);
     applyLookupResult(payload);
+    if (payload.cache_hit === true) {
+      showSplashInfo("Consulta IE retornada do cache local via CNPJ.");
+    } else if (String(payload.source || "").length) {
+      showSplashSuccess(`Consulta IE concluída via ${String(payload.source)}.`);
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : "Falha ao consultar IE.";
+    if (error.value.includes("limite") || error.value.includes("429")) {
+      showSplashWarning("Serviços públicos em limite temporário para IE/CNPJ. Aguarde alguns segundos.");
+    } else {
+      showSplashError(error.value);
+    }
   } finally {
     lookupIeLoading.value = false;
   }
@@ -172,6 +193,7 @@ async function removeRow(id: number) {
   try {
     await deleteCompany(id);
     await load();
+    showSplashSuccess("Empresa excluída com sucesso.");
     if (Number(form.id) === id) {
       resetForm();
       closeModal();
