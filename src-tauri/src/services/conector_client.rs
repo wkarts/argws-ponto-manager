@@ -1,4 +1,5 @@
 use reqwest::Client;
+use serde_json::Value;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -27,8 +28,7 @@ impl ConectorClient {
     }
 
     pub async fn testar_conexao(&self) -> Result<String, String> {
-        let url = format!("{}/api/health", self.base_url);
-
+        let url = format!("{}/health", self.base_url);
         let res = self.auth(self.client.get(&url)).send().await;
 
         match res {
@@ -37,60 +37,21 @@ impl ConectorClient {
         }
     }
 
-    pub async fn obter_batidas_por_data(
-        &self,
-        device_id: &str,
-        data_inicio: &str,
-        data_fim: &str,
-    ) -> Result<serde_json::Value, String> {
-        let url = format!("{}/api/punches/date", self.base_url);
-
-        let payload = serde_json::json!({
-            "device_id": device_id,
-            "data_inicio": data_inicio,
-            "data_fim": data_fim
-        });
-
-        let res = self
-            .auth(self.client.post(&url).json(&payload))
-            .send()
-            .await;
-
+    pub async fn coletar_batidas(&self, device_id: &str, payload: &Value) -> Result<Value, String> {
+        let url = format!(
+            "{}/api/devices/{}/punches/collect",
+            self.base_url, device_id
+        );
+        let res = self.auth(self.client.post(&url).json(payload)).send().await;
         match res {
             Ok(r) => r.json().await.map_err(|e| e.to_string()),
             Err(e) => Err(e.to_string()),
         }
     }
 
-    pub async fn obter_batidas_por_nsr(
-        &self,
-        device_id: &str,
-        nsr_inicio: i64,
-        nsr_fim: Option<i64>,
-    ) -> Result<serde_json::Value, String> {
-        let url = format!("{}/api/punches/nsr", self.base_url);
-
-        let payload = serde_json::json!({
-            "device_id": device_id,
-            "nsr_inicio": nsr_inicio,
-            "nsr_fim": nsr_fim
-        });
-
-        let res = self
-            .auth(self.client.post(&url).json(&payload))
-            .send()
-            .await;
-
-        match res {
-            Ok(r) => r.json().await.map_err(|e| e.to_string()),
-            Err(e) => Err(e.to_string()),
-        }
-    }
-
-    pub async fn obter_afd(&self, device_id: &str) -> Result<Vec<u8>, String> {
-        let url = format!("{}/api/afd/{}", self.base_url, device_id);
-
-        let res = self.auth(self.client.get(&url)).send().await;
+    pub async fn baixar_afd(&self, device_id: &str, payload: &Value) -> Result<Vec<u8>, String> {
+        let url = format!("{}/api/devices/{}/afd/download", self.base_url, device_id);
+        let res = self.auth(self.client.post(&url).json(payload)).send().await;
 
         match res {
             Ok(r) => r

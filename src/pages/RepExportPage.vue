@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { comboList, exportRepEmpresaTxt, exportRepFuncionariosTxt, type ComboOption } from "../services/crud";
-import { baixarAFD, batidasPorData, batidasPorNSR, testarConector } from "../services/conectorService";
+import { baixarAfdConector as baixarAfdConectorApi, coletarBatidasConector, testarConector } from "../services/conectorService";
 import { useSessionStore } from "../stores/session";
 
 const session = useSessionStore();
@@ -10,7 +10,7 @@ const brand = ref("henry");
 const empresaId = ref<number | null>(null);
 const message = ref("");
 const error = ref("");
-const conectorDeviceId = ref("");
+const equipamentoConectorId = ref<number | null>(null);
 
 function download(fileName: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -51,9 +51,9 @@ async function testar() {
 }
 
 async function coletarData() {
-  if (!conectorDeviceId.value) return;
-  const res = await batidasPorData({
-    device_id: conectorDeviceId.value,
+  if (!equipamentoConectorId.value) return;
+  const res = await coletarBatidasConector({
+    equipamento_id: equipamentoConectorId.value,
     data_inicio: "2026-01-01",
     data_fim: "2026-01-31",
   });
@@ -62,18 +62,18 @@ async function coletarData() {
 }
 
 async function coletarNSR() {
-  if (!conectorDeviceId.value) return;
-  const res = await batidasPorNSR({
-    device_id: conectorDeviceId.value,
+  if (!equipamentoConectorId.value) return;
+  const res = await coletarBatidasConector({
+    equipamento_id: equipamentoConectorId.value,
     nsr_inicio: 1,
   });
   console.log(res);
   message.value = "Coleta por NSR executada. Verifique o console para detalhes.";
 }
 
-async function baixarAfdConector() {
-  if (!conectorDeviceId.value) return;
-  const data = await baixarAFD(conectorDeviceId.value);
+async function baixarAfdArquivo() {
+  if (!equipamentoConectorId.value) return;
+  const data = await baixarAfdConectorApi(equipamentoConectorId.value);
   console.log("AFD bytes:", data);
   message.value = "Download de AFD executado. Verifique o console para detalhes.";
 }
@@ -118,14 +118,14 @@ onMounted(loadCompanies);
       </div>
       <div class="grid columns-3 mobile-columns-1">
         <div class="field">
-          <label>Device ID do Conector</label>
-          <input v-model="conectorDeviceId" placeholder="Informe o device_id" />
+          <label>ID do Equipamento (Conector)</label>
+          <input v-model.number="equipamentoConectorId" type="number" placeholder="Informe o equipamento_id" />
         </div>
         <div class="actions align-end">
           <button class="secondary" @click="testar">Testar Conector</button>
           <button class="secondary" @click="coletarData">Coletar por Data</button>
           <button class="secondary" @click="coletarNSR">Coletar por NSR</button>
-          <button class="secondary" @click="baixarAfdConector">Baixar AFD</button>
+          <button class="secondary" @click="baixarAfdArquivo">Baixar AFD</button>
         </div>
       </div>
       <div class="muted-text">A arquitetura foi preparada por adaptadores de marca, facilitando expansão futura sem acoplamento rígido ao cadastro de funcionários.</div>

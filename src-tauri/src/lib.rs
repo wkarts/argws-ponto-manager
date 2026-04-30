@@ -129,8 +129,7 @@ pub fn run() {
             commands::sync::sync_queue_list,
             commands::sync::sync_queue_mark_synced,
             commands::conector::conector_testar,
-            commands::conector::conector_batidas_por_data,
-            commands::conector::conector_batidas_por_nsr,
+            commands::conector::conector_coletar_batidas,
             commands::conector::conector_baixar_afd,
         ])
         .run(tauri::generate_context!())
