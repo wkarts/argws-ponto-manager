@@ -1,3 +1,10 @@
+## [1.21.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.1...v1.21.2) (2026-04-30)
+
+
+### Bug Fixes
+
+* corrige contrato da API do Ponto Manager Conector (AFD e batidas) ([0dd973d](https://github.com/wkarts/argws-ponto-manager/commit/0dd973da5d3ed0c38710bf1e7066c778cbb4217b))
+
 ## [1.21.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.0...v1.21.1) (2026-04-30)
 
 
