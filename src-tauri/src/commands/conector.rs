@@ -7,6 +7,7 @@ use crate::{
 };
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
+use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::fs;
 use tauri::{command, State};
@@ -14,6 +15,19 @@ use tauri::{command, State};
 const SETTING_CONECTOR_URL: &str = "ponto_conector_url";
 const SETTING_CONECTOR_TOKEN: &str = "ponto_conector_token";
 const SETTING_CONECTOR_TIMEOUT: &str = "ponto_conector_timeout";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConectorImportarAfdArgs {
+    pub empresa_id: Option<i64>,
+    pub equipamento_id: i64,
+    pub mode: Option<String>,
+    pub completo: Option<bool>,
+    pub nsr_inicio: Option<i64>,
+    pub nsr_fim: Option<i64>,
+    pub data_inicio: Option<String>,
+    pub data_fim: Option<String>,
+}
 
 fn setting_value(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
     conn.query_row(
@@ -44,17 +58,31 @@ fn build_client(conn: &rusqlite::Connection) -> Result<ConectorClient, String> {
         .unwrap_or_default();
     let timeout_secs = setting_value(conn, SETTING_CONECTOR_TIMEOUT)?
         .and_then(|value| value.parse::<u64>().ok())
-        .or_else(|| std::env::var("PONTO_CONECTOR_TIMEOUT").ok().and_then(|value| value.parse::<u64>().ok()))
+        .or_else(|| {
+            std::env::var("PONTO_CONECTOR_TIMEOUT")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+        })
         .unwrap_or(30);
 
     if base_url.trim().is_empty() {
-        return Err("Configure a URL base da API do Ponto Manager Conector nas configurações do conector.".to_string());
+        return Err(
+            "Configure a URL base da API do Ponto Manager Conector nas configurações do conector."
+                .to_string(),
+        );
     }
     if api_token.trim().is_empty() {
-        return Err("Configure o token da API do Ponto Manager Conector nas configurações do conector.".to_string());
+        return Err(
+            "Configure o token da API do Ponto Manager Conector nas configurações do conector."
+                .to_string(),
+        );
     }
 
-    ConectorClient::new(base_url.trim().trim_end_matches('/').to_string(), api_token, timeout_secs)
+    ConectorClient::new(
+        base_url.trim().trim_end_matches('/').to_string(),
+        api_token,
+        timeout_secs,
+    )
 }
 
 fn log_coleta(conn: &rusqlite::Connection, payload: &Value) -> Result<(), String> {
@@ -418,19 +446,21 @@ pub fn conector_configuracao_salvar(
     }))
 }
 
-
 #[command]
 pub async fn conector_importar_afd(
     state: State<'_, SharedState>,
-    empresa_id: Option<i64>,
-    equipamento_id: i64,
-    mode: Option<String>,
-    completo: Option<bool>,
-    nsr_inicio: Option<i64>,
-    nsr_fim: Option<i64>,
-    data_inicio: Option<String>,
-    data_fim: Option<String>,
+    args: ConectorImportarAfdArgs,
 ) -> Result<Value, String> {
+    let ConectorImportarAfdArgs {
+        empresa_id,
+        equipamento_id,
+        mode,
+        completo,
+        nsr_inicio,
+        nsr_fim,
+        data_inicio,
+        data_fim,
+    } = args;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let data_dir = state.data_dir()?;
@@ -447,7 +477,9 @@ pub async fn conector_importar_afd(
         .ok_or_else(|| "Equipamento não encontrado.".to_string())?;
 
     if usar_conector == 0 || device_id.trim().is_empty() {
-        return Err("Equipamento sem configuração de conector ativa para importar AFD.".to_string());
+        return Err(
+            "Equipamento sem configuração de conector ativa para importar AFD.".to_string(),
+        );
     }
 
     let nsr_start = if completo.unwrap_or(false) {
@@ -483,15 +515,26 @@ pub async fn conector_importar_afd(
                 "payload_json": request_payload,
             });
             let _ = log_coleta(&conn, &result);
-            return Err(result.get("mensagem").and_then(Value::as_str).unwrap_or("Falha ao baixar AFD via conector.").to_string());
+            return Err(result
+                .get("mensagem")
+                .and_then(Value::as_str)
+                .unwrap_or("Falha ao baixar AFD via conector.")
+                .to_string());
         }
     };
 
-    let dir = data_dir.join("afd").join(format!("equipamento_{equipamento_id}"));
+    let dir = data_dir
+        .join("afd")
+        .join(format!("equipamento_{equipamento_id}"));
     fs::create_dir_all(&dir).map_err(|err| format!("Falha ao criar diretório de AFD: {err}"))?;
-    let file_name = format!("afd_equipamento_{}_{}.txt", equipamento_id, Utc::now().format("%Y%m%d%H%M%S"));
+    let file_name = format!(
+        "afd_equipamento_{}_{}.txt",
+        equipamento_id,
+        Utc::now().format("%Y%m%d%H%M%S")
+    );
     let arquivo = dir.join(&file_name);
-    fs::write(&arquivo, &bytes).map_err(|err| format!("Falha ao salvar arquivo AFD baixado do conector: {err}"))?;
+    fs::write(&arquivo, &bytes)
+        .map_err(|err| format!("Falha ao salvar arquivo AFD baixado do conector: {err}"))?;
 
     let content = String::from_utf8_lossy(&bytes).to_string();
     drop(conn);
@@ -545,7 +588,6 @@ pub async fn conector_importar_afd(
     log_coleta(&conn, &result)?;
     Ok(result)
 }
-
 
 #[command]
 pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String> {
