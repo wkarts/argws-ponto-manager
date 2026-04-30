@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from "vue";
 import { clearAppLogs, listAppLogs, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
+import { formatDateTimeLocal } from "../services/format";
 
 const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
@@ -57,7 +58,7 @@ onMounted(load);
     <div class="toolbar">
       <div>
         <h2>Logs da aplicação</h2>
-        <div class="muted-text">Diagnóstico de inicialização, sessão, navegação, páginas e falhas administrativas.</div>
+        <div class="muted-text">Diagnóstico de inicialização, sessão, navegação, páginas e falhas administrativas. Os horários são exibidos no fuso local do computador; o valor original em UTC fica no tooltip da coluna Quando.</div>
       </div>
       <div class="actions">
         <button class="secondary" :disabled="loading" @click="load">Atualizar</button>
@@ -94,7 +95,7 @@ onMounted(load);
       <table>
         <thead>
           <tr>
-            <th>Quando</th>
+            <th>Quando (local)</th>
             <th>Nível</th>
             <th>Categoria</th>
             <th>Mensagem</th>
@@ -105,7 +106,7 @@ onMounted(load);
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="Number(row.id)">
-            <td>{{ row.created_at }}</td>
+            <td :title="String(row.created_at || '')">{{ formatDateTimeLocal(row.created_at) }}</td>
             <td>{{ row.level }}</td>
             <td>{{ row.category }}</td>
             <td>{{ row.message }}</td>

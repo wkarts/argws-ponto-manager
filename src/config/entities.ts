@@ -122,7 +122,7 @@ export const entityConfigs: Record<string, EntityConfig> = {
     key: "equipamentos",
     title: "Equipamentos",
     route: "/equipamentos",
-    columns: ["id", "codigo", "descricao", "modelo", "ip", "porta", "usar_conector", "conector_device_id", "conector_ultimo_nsr", "ativo"],
+    columns: ["id", "codigo", "descricao", "modelo", "ip", "porta", "usar_conector", "conector_device_id", "conector_base_url", "conector_ultimo_nsr", "ativo"],
     fields: [
       { key: "empresa_id", label: "Empresa", type: "select", relationEntity: "empresas" },
       { key: "codigo", label: "Código" },
@@ -132,6 +132,9 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: "porta", label: "Porta", type: "number" },
       { key: "usar_conector", label: "Este relógio usa Ponto Manager Conector", type: "checkbox" },
       { key: "conector_device_id", label: "ID do dispositivo no conector", placeholder: "UUID ou ID registrado no Ponto Manager Conector" },
+      { key: "conector_base_url", label: "URL da API deste conector", placeholder: "http://127.0.0.1:3000" },
+      { key: "conector_api_token", label: "Token da API deste REP", type: "password", placeholder: "Token/API Key individual deste relógio" },
+      { key: "conector_timeout", label: "Timeout do conector (seg)", type: "number", placeholder: "30" },
       { key: "conector_ultimo_nsr", label: "Último NSR importado", type: "number", placeholder: "0 para iniciar com AFD completo" },
       { key: "ativo", label: "Ativo", type: "checkbox" }
     ]

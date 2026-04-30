@@ -23,6 +23,7 @@ import RelatorioHorasPage from "../pages/RelatorioHorasPage.vue";
 import GeneratedReportsPage from "../pages/GeneratedReportsPage.vue";
 import RepExportPage from "../pages/RepExportPage.vue";
 import ConectorDashboardPage from "../pages/ConectorDashboardPage.vue";
+import ConectorSettingsPage from "../pages/ConectorSettingsPage.vue";
 import PunchBatchPage from "../pages/PunchBatchPage.vue";
 import CartaoPontoPage from "../pages/CartaoPontoPage.vue";
 import AboutPage from "../pages/AboutPage.vue";
@@ -83,6 +84,7 @@ const routes: RouteRecordRaw[] = [
       { path: "relatorios-gerados", component: GeneratedReportsPage, meta: { permission: "relatorios:export" } },
       { path: "rep", component: RepExportPage, meta: { permission: "relatorios:export" } },
       { path: "conector-dashboard", component: ConectorDashboardPage, meta: { permission: "equipamentos:view" } },
+      { path: "conector-config", component: ConectorSettingsPage, meta: { permission: "config:view" } },
       { path: "batidas-lote", component: PunchBatchPage, meta: { permission: "batidas:manage" } },
       { path: "sobre", component: AboutPage },
       { path: "logs", component: AppLogsPage, meta: { permission: "config:view" } },
