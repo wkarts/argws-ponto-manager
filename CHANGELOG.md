@@ -1,3 +1,10 @@
+## [1.21.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.0...v1.21.1) (2026-04-30)
+
+
+### Bug Fixes
+
+* usa configuração individual do conector por REP ([e5c1a29](https://github.com/wkarts/argws-ponto-manager/commit/e5c1a29c1a8bea37428fd1009038c519a6000d69))
+
 # [1.21.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.20.0...v1.21.0) (2026-04-30)
 
 
