@@ -13,3 +13,5 @@ export const coletarBatidasConector = (payload: {
 
 export const baixarAfdConector = (equipamento_id: number) =>
   invoke("conector_baixar_afd", { equipamento_id });
+
+export const dashboardConector = () => invoke("conector_dashboard");

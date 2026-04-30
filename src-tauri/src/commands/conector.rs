@@ -132,7 +132,27 @@ pub async fn conector_coletar_batidas(
     });
 
     let client = build_client()?;
-    let resposta = client.coletar_batidas(&equipamento.2, &payload).await?;
+    let resposta = match client.coletar_batidas(&equipamento.2, &payload).await {
+        Ok(value) => value,
+        Err(err) => {
+            let result = json!({
+                "equipamento_id": equipamento_id,
+                "conector_device_id": equipamento.2,
+                "status": "erro",
+                "tipo": "batidas",
+                "mensagem": err,
+                "nsr_inicio": nsr_start,
+                "nsr_fim": nsr_fim,
+                "payload_json": payload,
+            });
+            let _ = log_coleta(&conn, &result);
+            return Err(result
+                .get("mensagem")
+                .and_then(Value::as_str)
+                .unwrap_or("Falha na coleta via conector.")
+                .to_string());
+        }
+    };
     let punches = resposta
         .get("punches")
         .and_then(Value::as_array)
@@ -265,7 +285,24 @@ pub async fn conector_baixar_afd(
     }
 
     let client = build_client()?;
-    let bytes = client.baixar_afd(&device_id, &json!({})).await?;
+    let bytes = match client.baixar_afd(&device_id, &json!({})).await {
+        Ok(value) => value,
+        Err(err) => {
+            let result = json!({
+                "equipamento_id": equipamento_id,
+                "conector_device_id": device_id,
+                "tipo": "afd",
+                "status": "erro",
+                "mensagem": err,
+            });
+            let _ = log_coleta(&conn, &result);
+            return Err(result
+                .get("mensagem")
+                .and_then(Value::as_str)
+                .unwrap_or("Falha ao baixar AFD via conector.")
+                .to_string());
+        }
+    };
     let dir = data_dir
         .join("afd")
         .join(format!("equipamento_{equipamento_id}"));
@@ -291,4 +328,140 @@ pub async fn conector_baixar_afd(
         &result,
     )?;
     Ok(result)
+}
+
+#[command]
+pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+
+    let total_equipamentos: i64 = conn
+        .query_row("SELECT COUNT(*) FROM equipamentos", [], |row| row.get(0))
+        .unwrap_or(0);
+    let total_conector: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM equipamentos WHERE COALESCE(usar_conector,0) = 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let total_importadas: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(total_importadas),0) FROM conector_coletas_log WHERE tipo = 'batidas' AND status = 'sucesso'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let total_duplicadas: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(total_duplicadas),0) FROM conector_coletas_log WHERE tipo = 'batidas'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let total_afd: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM conector_coletas_log WHERE tipo = 'afd' AND status = 'sucesso'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let total_erros: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM conector_coletas_log WHERE status <> 'sucesso'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0);
+    let ultima_coleta: Option<String> = conn
+        .query_row("SELECT MAX(created_at) FROM conector_coletas_log", [], |row| row.get(0))
+        .optional()
+        .map_err(|err| format!("Falha ao consultar última coleta do conector: {err}"))?
+        .flatten();
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT e.id, e.codigo, e.descricao, e.modelo, e.ip, e.porta,
+                    COALESCE(e.usar_conector,0), COALESCE(e.conector_device_id,''),
+                    e.conector_ultimo_nsr, e.conector_ultima_coleta_em,
+                    COALESCE(SUM(l.total_importadas),0), COALESCE(SUM(l.total_duplicadas),0),
+                    MAX(l.created_at)
+             FROM equipamentos e
+             LEFT JOIN conector_coletas_log l ON l.equipamento_id = e.id
+             GROUP BY e.id
+             ORDER BY e.descricao ASC, e.id ASC",
+        )
+        .map_err(|err| format!("Falha ao preparar dashboard do conector: {err}"))?;
+
+    let equipamentos = stmt
+        .query_map([], |row| {
+            Ok(json!({
+                "id": row.get::<_, i64>(0)?,
+                "codigo": row.get::<_, Option<String>>(1)?,
+                "descricao": row.get::<_, String>(2)?,
+                "modelo": row.get::<_, Option<String>>(3)?,
+                "ip": row.get::<_, Option<String>>(4)?,
+                "porta": row.get::<_, Option<i64>>(5)?,
+                "usar_conector": row.get::<_, i64>(6)? == 1,
+                "conector_device_id": row.get::<_, String>(7)?,
+                "conector_ultimo_nsr": row.get::<_, Option<i64>>(8)?,
+                "conector_ultima_coleta_em": row.get::<_, Option<String>>(9)?,
+                "total_importadas": row.get::<_, i64>(10)?,
+                "total_duplicadas": row.get::<_, i64>(11)?,
+                "ultima_execucao": row.get::<_, Option<String>>(12)?,
+            }))
+        })
+        .map_err(|err| format!("Falha ao consultar equipamentos do dashboard: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("Falha ao mapear equipamentos do dashboard: {err}"))?;
+
+    let mut stmt_logs = conn
+        .prepare(
+            "SELECT l.id, l.equipamento_id, COALESCE(e.descricao, 'Equipamento removido'),
+                    l.conector_device_id, l.tipo, l.status, l.mensagem,
+                    l.total_recebidas, l.total_importadas, l.total_duplicadas,
+                    l.nsr_inicio, l.nsr_fim, l.arquivo_path, l.created_at
+             FROM conector_coletas_log l
+             LEFT JOIN equipamentos e ON e.id = l.equipamento_id
+             ORDER BY l.id DESC
+             LIMIT 50",
+        )
+        .map_err(|err| format!("Falha ao preparar logs do conector: {err}"))?;
+
+    let logs = stmt_logs
+        .query_map([], |row| {
+            Ok(json!({
+                "id": row.get::<_, i64>(0)?,
+                "equipamento_id": row.get::<_, i64>(1)?,
+                "equipamento": row.get::<_, String>(2)?,
+                "conector_device_id": row.get::<_, Option<String>>(3)?,
+                "tipo": row.get::<_, String>(4)?,
+                "status": row.get::<_, String>(5)?,
+                "mensagem": row.get::<_, Option<String>>(6)?,
+                "total_recebidas": row.get::<_, i64>(7)?,
+                "total_importadas": row.get::<_, i64>(8)?,
+                "total_duplicadas": row.get::<_, i64>(9)?,
+                "nsr_inicio": row.get::<_, Option<i64>>(10)?,
+                "nsr_fim": row.get::<_, Option<i64>>(11)?,
+                "arquivo_path": row.get::<_, Option<String>>(12)?,
+                "created_at": row.get::<_, String>(13)?,
+            }))
+        })
+        .map_err(|err| format!("Falha ao consultar logs do conector: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("Falha ao mapear logs do conector: {err}"))?;
+
+    Ok(json!({
+        "totais": {
+            "equipamentos": total_equipamentos,
+            "equipamentos_conector": total_conector,
+            "batidas_importadas": total_importadas,
+            "batidas_duplicadas": total_duplicadas,
+            "afd_baixados": total_afd,
+            "erros": total_erros,
+            "ultima_coleta": ultima_coleta,
+        },
+        "equipamentos": equipamentos,
+        "logs": logs,
+    }))
 }

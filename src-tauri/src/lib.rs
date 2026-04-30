@@ -131,6 +131,7 @@ pub fn run() {
             commands::conector::conector_testar,
             commands::conector::conector_coletar_batidas,
             commands::conector::conector_baixar_afd,
+            commands::conector::conector_dashboard,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar a aplicação Tauri");
