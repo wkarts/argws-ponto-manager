@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
+import { RouterLink } from "vue-router";
 import { getSystemInfo, setSystemDataDir } from "../services/crud";
 
 const info = ref<Record<string, unknown>>({});
@@ -86,6 +87,14 @@ onMounted(load);
             <code>{{ info.build_hash || '-' }}</code>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div class="card grid page-gap">
+      <div class="section-title">Integrações</div>
+      <div class="muted-text">Os parâmetros da API do Ponto Manager Conector ficam em uma tela própria, evitando repetir URL/token em cada REP.</div>
+      <div class="actions">
+        <RouterLink class="button secondary" to="/conector-config">Abrir parâmetros do Ponto Conector</RouterLink>
       </div>
     </div>
 

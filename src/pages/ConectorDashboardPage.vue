@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { formatDateTimeLocal } from "../services/format";
 import {
   baixarAfdConector,
   coletarBatidasConector,
@@ -28,13 +29,7 @@ const equipamentos = computed(() => {
 const logs = computed(() => dashboard.value.logs || []);
 
 function formatDate(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
+  return formatDateTimeLocal(value || "");
 }
 
 function asNumber(value: unknown) {
@@ -53,14 +48,17 @@ async function carregar() {
   }
 }
 
-async function testar() {
+async function testar(equipamentoId: number) {
+  actionLoading.value = equipamentoId;
   error.value = "";
   message.value = "";
   try {
-    const status = await testarConector();
-    message.value = `Conector respondeu com status ${status}.`;
+    const status = await testarConector(equipamentoId);
+    message.value = `Conector do REP ${equipamentoId} respondeu com status ${status}.`;
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    actionLoading.value = null;
   }
 }
 
@@ -120,7 +118,6 @@ onMounted(carregar);
         <div class="muted-text">Acompanhamento da integração Ponto Manager x Ponto Manager Conector, com NSR incremental, AFD e logs.</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="testar">Testar Conector</button>
         <button class="primary" :disabled="loading" @click="carregar">Atualizar</button>
       </div>
     </div>
@@ -161,6 +158,7 @@ onMounted(carregar);
               <th>Descrição</th>
               <th>Modelo/IP</th>
               <th>Device ID</th>
+              <th>API</th>
               <th>Últ. NSR</th>
               <th>Últ. coleta</th>
               <th>Import.</th>
@@ -174,18 +172,23 @@ onMounted(carregar);
               <td>{{ item.descricao }}</td>
               <td>{{ item.modelo || '-' }}<br /><span class="muted-text">{{ item.ip || '-' }}:{{ item.porta || '-' }}</span></td>
               <td>{{ item.conector_device_id || '-' }}</td>
+              <td>
+                <span>{{ item.conector_base_url || '-' }}</span><br />
+                <span class="muted-text">Token: {{ item.conector_token_configurado ? 'configurado' : 'não informado' }}</span>
+              </td>
               <td>{{ item.conector_ultimo_nsr || 0 }}</td>
               <td>{{ formatDate(item.conector_ultima_coleta_em || item.ultima_execucao) }}</td>
               <td>{{ asNumber(item.total_importadas) }}</td>
               <td>{{ asNumber(item.total_duplicadas) }}</td>
               <td class="actions nowrap">
+                <button class="secondary" :disabled="actionLoading === item.id || !item.usar_conector" @click="testar(item.id)">Testar</button>
                 <button class="secondary" :disabled="actionLoading === item.id || !item.usar_conector" @click="coletarIncremental(item.id)">Incremental</button>
                 <button class="secondary" :disabled="actionLoading === item.id || !item.usar_conector" @click="coletarCompleta(item.id)">Completa</button>
                 <button class="secondary" :disabled="actionLoading === item.id || !item.usar_conector" @click="baixarAfd(item.id)">AFD</button>
               </td>
             </tr>
             <tr v-if="!equipamentos.length">
-              <td colspan="9" class="muted-text text-center">Nenhum equipamento encontrado.</td>
+              <td colspan="10" class="muted-text text-center">Nenhum equipamento encontrado.</td>
             </tr>
           </tbody>
         </table>
@@ -225,7 +228,7 @@ onMounted(carregar);
               <td class="small-path">{{ log.arquivo_path || '-' }}</td>
             </tr>
             <tr v-if="!logs.length">
-              <td colspan="9" class="muted-text text-center">Nenhum log de coleta encontrado.</td>
+              <td colspan="10" class="muted-text text-center">Nenhum log de coleta encontrado.</td>
             </tr>
           </tbody>
         </table>

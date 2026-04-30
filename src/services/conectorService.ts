@@ -1,6 +1,7 @@
 import { invokeCommand } from "./tauri";
 
-export const testarConector = () => invokeCommand<string>("conector_testar");
+export const testarConector = (equipamento_id?: number) =>
+  invokeCommand<string>("conector_testar", equipamento_id ? { equipamento_id } : {});
 
 export const coletarBatidasConector = (payload: {
   equipamento_id: number;
@@ -34,4 +35,4 @@ export const importarAfdConector = (payload: {
   nsr_fim?: number | null;
   data_inicio?: string | null;
   data_fim?: string | null;
-}) => invokeCommand<Record<string, unknown>>("conector_importar_afd", payload);
+}) => invokeCommand<Record<string, unknown>>("conector_importar_afd", { args: payload });

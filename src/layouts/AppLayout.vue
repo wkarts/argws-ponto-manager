@@ -85,6 +85,7 @@ const relatorios = computed(() => [
   { title: "Relatórios gerados", route: "/relatorios-gerados" },
   { title: "Exportação REP", route: "/rep" },
   { title: "Dashboard de coleta", route: "/conector-dashboard" },
+  { title: "Parâmetros do Conector", route: "/conector-config" },
 ]);
 
 const documentacao = computed(() => [
@@ -93,6 +94,7 @@ const documentacao = computed(() => [
 
 const sistema = computed(() => [
   { title: "Sistema e parâmetros", route: "/sistema" },
+  { title: "Ponto Conector", route: "/conector-config" },
   session.can("usuarios:view") ? { title: "Usuários", route: "/usuarios" } : null,
   session.can("perfis:view") ? { title: "Perfis de acesso", route: "/perfis" } : null,
   session.can("sync:view") ? { title: "Fila técnica de sincronização", route: "/sync-queue" } : null,

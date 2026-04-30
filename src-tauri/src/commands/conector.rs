@@ -29,6 +29,71 @@ pub struct ConectorImportarAfdArgs {
     pub data_fim: Option<String>,
 }
 
+
+#[derive(Debug, Clone)]
+struct EquipamentoConectorConfig {
+    equipamento_id: i64,
+    usar_conector: i64,
+    device_id: String,
+    base_url: String,
+    api_token: String,
+    ultimo_nsr: i64,
+    timeout_secs: u64,
+}
+
+fn carregar_config_conector_equipamento(
+    conn: &rusqlite::Connection,
+    equipamento_id: i64,
+) -> Result<EquipamentoConectorConfig, String> {
+    conn.query_row(
+        "SELECT id, COALESCE(usar_conector,0), COALESCE(conector_device_id,''),
+                COALESCE(conector_base_url,''), COALESCE(conector_api_token,''),
+                COALESCE(conector_ultimo_nsr,0), COALESCE(conector_timeout,30)
+           FROM equipamentos WHERE id = ?1 LIMIT 1",
+        [equipamento_id],
+        |row| {
+            Ok(EquipamentoConectorConfig {
+                equipamento_id: row.get(0)?,
+                usar_conector: row.get(1)?,
+                device_id: row.get::<_, String>(2)?.trim().to_string(),
+                base_url: row.get::<_, String>(3)?.trim().trim_end_matches('/').to_string(),
+                api_token: row.get::<_, String>(4)?.trim().to_string(),
+                ultimo_nsr: row.get(5)?,
+                timeout_secs: row.get::<_, i64>(6)?.max(5) as u64,
+            })
+        },
+    )
+    .optional()
+    .map_err(|err| format!("Falha ao carregar configuração do conector do REP: {err}"))?
+    .ok_or_else(|| "Equipamento/REP não encontrado.".to_string())
+}
+
+fn validar_config_conector_equipamento(config: &EquipamentoConectorConfig) -> Result<(), String> {
+    if config.usar_conector == 0 {
+        return Err("Este REP não está marcado para usar o Ponto Manager Conector. Ative a opção no cadastro do equipamento.".to_string());
+    }
+    if config.base_url.is_empty() {
+        return Err("Configure a URL da API do Ponto Manager Conector no cadastro deste REP.".to_string());
+    }
+    if config.api_token.is_empty() {
+        return Err("Configure o token da API do Ponto Manager Conector no cadastro deste REP.".to_string());
+    }
+    if config.device_id.is_empty() {
+        return Err("Configure o ID do dispositivo no conector no cadastro deste REP.".to_string());
+    }
+    Ok(())
+}
+
+fn build_client_from_equipamento(config: &EquipamentoConectorConfig) -> Result<ConectorClient, String> {
+    validar_config_conector_equipamento(config)?;
+    let _ = config.equipamento_id;
+    ConectorClient::new(
+        config.base_url.clone(),
+        config.api_token.clone(),
+        config.timeout_secs,
+    )
+}
+
 fn setting_value(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
     conn.query_row(
         "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
@@ -47,42 +112,6 @@ fn save_setting(conn: &rusqlite::Connection, key: &str, value: &str) -> Result<(
     )
     .map_err(|err| format!("Falha ao salvar configuração do conector {key}: {err}"))?;
     Ok(())
-}
-
-fn build_client(conn: &rusqlite::Connection) -> Result<ConectorClient, String> {
-    let base_url = setting_value(conn, SETTING_CONECTOR_URL)?
-        .or_else(|| std::env::var("PONTO_CONECTOR_URL").ok())
-        .unwrap_or_default();
-    let api_token = setting_value(conn, SETTING_CONECTOR_TOKEN)?
-        .or_else(|| std::env::var("PONTO_CONECTOR_TOKEN").ok())
-        .unwrap_or_default();
-    let timeout_secs = setting_value(conn, SETTING_CONECTOR_TIMEOUT)?
-        .and_then(|value| value.parse::<u64>().ok())
-        .or_else(|| {
-            std::env::var("PONTO_CONECTOR_TIMEOUT")
-                .ok()
-                .and_then(|value| value.parse::<u64>().ok())
-        })
-        .unwrap_or(30);
-
-    if base_url.trim().is_empty() {
-        return Err(
-            "Configure a URL base da API do Ponto Manager Conector nas configurações do conector."
-                .to_string(),
-        );
-    }
-    if api_token.trim().is_empty() {
-        return Err(
-            "Configure o token da API do Ponto Manager Conector nas configurações do conector."
-                .to_string(),
-        );
-    }
-
-    ConectorClient::new(
-        base_url.trim().trim_end_matches('/').to_string(),
-        api_token,
-        timeout_secs,
-    )
 }
 
 fn log_coleta(conn: &rusqlite::Connection, payload: &Value) -> Result<(), String> {
@@ -147,10 +176,17 @@ fn find_funcionario(
 }
 
 #[command]
-pub async fn conector_testar(state: State<'_, SharedState>) -> Result<String, String> {
+pub async fn conector_testar(
+    state: State<'_, SharedState>,
+    equipamento_id: Option<i64>,
+) -> Result<String, String> {
+    let equipamento_id = equipamento_id.ok_or_else(|| {
+        "Selecione um REP/equipamento para testar a API do Ponto Manager Conector. A URL e o token são individuais por REP.".to_string()
+    })?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
-    let client = build_client(&conn)?;
+    let config = carregar_config_conector_equipamento(&conn, equipamento_id)?;
+    let client = build_client_from_equipamento(&config)?;
     client.testar_conexao().await
 }
 
@@ -167,30 +203,15 @@ pub async fn conector_coletar_batidas(
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
 
-    let equipamento = conn
-        .query_row(
-            "SELECT id, COALESCE(usar_conector,0), COALESCE(conector_device_id,''), COALESCE(conector_ultimo_nsr,0)
-             FROM equipamentos WHERE id = ?1 LIMIT 1",
-            [equipamento_id],
-            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)),
-        )
-        .optional()
-        .map_err(|err| format!("Falha ao carregar equipamento: {err}"))?
-        .ok_or_else(|| "Equipamento não encontrado.".to_string())?;
-
-    if equipamento.1 == 0 {
-        return Err("Equipamento configurado sem uso de conector (usar_conector=0).".to_string());
-    }
-    if equipamento.2.trim().is_empty() {
-        return Err("Equipamento sem conector_device_id configurado.".to_string());
-    }
+    let equipamento = carregar_config_conector_equipamento(&conn, equipamento_id)?;
+    let client = build_client_from_equipamento(&equipamento)?;
 
     let nsr_start = if completo.unwrap_or(false) {
         None
     } else if nsr_inicio.is_some() {
         nsr_inicio
     } else {
-        Some(equipamento.3 + 1)
+        Some(equipamento.ultimo_nsr + 1)
     };
 
     let payload = json!({
@@ -201,13 +222,12 @@ pub async fn conector_coletar_batidas(
         "data_fim": data_fim,
     });
 
-    let client = build_client(&conn)?;
-    let resposta = match client.coletar_batidas(&equipamento.2, &payload).await {
+    let resposta = match client.coletar_batidas(&equipamento.device_id, &payload).await {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
                 "equipamento_id": equipamento_id,
-                "conector_device_id": equipamento.2,
+                "conector_device_id": equipamento.device_id,
                 "status": "erro",
                 "tipo": "batidas",
                 "mensagem": err,
@@ -231,7 +251,7 @@ pub async fn conector_coletar_batidas(
 
     let mut total_importadas = 0i64;
     let mut total_duplicadas = 0i64;
-    let mut max_nsr = equipamento.3;
+    let mut max_nsr = equipamento.ultimo_nsr;
 
     for item in punches.iter().filter_map(Value::as_object) {
         let funcionario_id = match find_funcionario(&conn, item)? {
@@ -309,7 +329,7 @@ pub async fn conector_coletar_batidas(
 
     let result = json!({
         "equipamento_id": equipamento_id,
-        "conector_device_id": equipamento.2,
+        "conector_device_id": equipamento.device_id,
         "status": "sucesso",
         "tipo": "batidas",
         "total_recebidas": punches.len(),
@@ -340,27 +360,14 @@ pub async fn conector_baixar_afd(
     let conn = open_connection(&db_path)?;
     let data_dir = state.data_dir()?;
 
-    let (usar_conector, device_id): (i64, String) = conn
-        .query_row(
-            "SELECT COALESCE(usar_conector,0), COALESCE(conector_device_id,'') FROM equipamentos WHERE id = ?1 LIMIT 1",
-            [equipamento_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
-        .map_err(|err| format!("Falha ao carregar equipamento para AFD via conector: {err}"))?
-        .ok_or_else(|| "Equipamento não encontrado.".to_string())?;
-
-    if usar_conector == 0 || device_id.trim().is_empty() {
-        return Err("Equipamento sem configuração de conector ativa para AFD.".to_string());
-    }
-
-    let client = build_client(&conn)?;
-    let bytes = match client.baixar_afd(&device_id, &json!({})).await {
+    let equipamento = carregar_config_conector_equipamento(&conn, equipamento_id)?;
+    let client = build_client_from_equipamento(&equipamento)?;
+    let bytes = match client.baixar_afd(&equipamento.device_id, &json!({})).await {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
                 "equipamento_id": equipamento_id,
-                "conector_device_id": device_id,
+                "conector_device_id": equipamento.device_id,
                 "tipo": "afd",
                 "status": "erro",
                 "mensagem": err,
@@ -382,7 +389,7 @@ pub async fn conector_baixar_afd(
 
     let result = json!({
         "equipamento_id": equipamento_id,
-        "conector_device_id": device_id,
+        "conector_device_id": equipamento.device_id,
         "tipo": "afd",
         "status": "sucesso",
         "arquivo_path": arquivo.to_string_lossy(),
@@ -465,29 +472,15 @@ pub async fn conector_importar_afd(
     let conn = open_connection(&db_path)?;
     let data_dir = state.data_dir()?;
 
-    let (usar_conector, device_id, ultimo_nsr): (i64, String, i64) = conn
-        .query_row(
-            "SELECT COALESCE(usar_conector,0), COALESCE(conector_device_id,''), COALESCE(conector_ultimo_nsr,0)
-             FROM equipamentos WHERE id = ?1 LIMIT 1",
-            [equipamento_id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )
-        .optional()
-        .map_err(|err| format!("Falha ao carregar equipamento para importação AFD via conector: {err}"))?
-        .ok_or_else(|| "Equipamento não encontrado.".to_string())?;
-
-    if usar_conector == 0 || device_id.trim().is_empty() {
-        return Err(
-            "Equipamento sem configuração de conector ativa para importar AFD.".to_string(),
-        );
-    }
+    let equipamento = carregar_config_conector_equipamento(&conn, equipamento_id)?;
+    validar_config_conector_equipamento(&equipamento)?;
 
     let nsr_start = if completo.unwrap_or(false) {
         None
     } else if nsr_inicio.is_some() {
         nsr_inicio
-    } else if ultimo_nsr > 0 {
-        Some(ultimo_nsr + 1)
+    } else if equipamento.ultimo_nsr > 0 {
+        Some(equipamento.ultimo_nsr + 1)
     } else {
         None
     };
@@ -500,13 +493,13 @@ pub async fn conector_importar_afd(
         "data_fim": data_fim,
     });
 
-    let client = build_client(&conn)?;
-    let bytes = match client.baixar_afd(&device_id, &request_payload).await {
+    let client = build_client_from_equipamento(&equipamento)?;
+    let bytes = match client.baixar_afd(&equipamento.device_id, &request_payload).await {
         Ok(value) => value,
         Err(err) => {
             let result = json!({
                 "equipamento_id": equipamento_id,
-                "conector_device_id": device_id,
+                "conector_device_id": equipamento.device_id,
                 "tipo": "afd_importacao",
                 "status": "erro",
                 "mensagem": err,
@@ -562,7 +555,7 @@ pub async fn conector_importar_afd(
         .flatten();
 
     if let Some(nsr) = max_nsr {
-        if nsr > ultimo_nsr {
+        if nsr > equipamento.ultimo_nsr {
             conn.execute(
                 "UPDATE equipamentos SET conector_ultimo_nsr = ?1, conector_ultima_coleta_em = ?2, updated_at = ?2 WHERE id = ?3",
                 params![nsr, Utc::now().to_rfc3339(), equipamento_id],
@@ -573,7 +566,7 @@ pub async fn conector_importar_afd(
 
     let result = json!({
         "equipamento_id": equipamento_id,
-        "conector_device_id": device_id,
+        "conector_device_id": equipamento.device_id,
         "tipo": "afd_importacao",
         "status": "sucesso",
         "arquivo_path": arquivo.to_string_lossy(),
@@ -620,7 +613,7 @@ pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String
         .unwrap_or(0);
     let total_afd: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM conector_coletas_log WHERE tipo = 'afd' AND status = 'sucesso'",
+            "SELECT COUNT(*) FROM conector_coletas_log WHERE tipo IN ('afd', 'afd_importacao') AND status = 'sucesso'",
             [],
             |row| row.get(0),
         )
@@ -646,6 +639,7 @@ pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String
         .prepare(
             "SELECT e.id, e.codigo, e.descricao, e.modelo, e.ip, e.porta,
                     COALESCE(e.usar_conector,0), COALESCE(e.conector_device_id,''),
+                    COALESCE(e.conector_base_url,''), COALESCE(e.conector_api_token,''), COALESCE(e.conector_timeout,30),
                     e.conector_ultimo_nsr, e.conector_ultima_coleta_em,
                     COALESCE(SUM(l.total_importadas),0), COALESCE(SUM(l.total_duplicadas),0),
                     MAX(l.created_at)
@@ -667,11 +661,14 @@ pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String
                 "porta": row.get::<_, Option<i64>>(5)?,
                 "usar_conector": row.get::<_, i64>(6)? == 1,
                 "conector_device_id": row.get::<_, String>(7)?,
-                "conector_ultimo_nsr": row.get::<_, Option<i64>>(8)?,
-                "conector_ultima_coleta_em": row.get::<_, Option<String>>(9)?,
-                "total_importadas": row.get::<_, i64>(10)?,
-                "total_duplicadas": row.get::<_, i64>(11)?,
-                "ultima_execucao": row.get::<_, Option<String>>(12)?,
+                "conector_base_url": row.get::<_, String>(8)?,
+                "conector_token_configurado": !row.get::<_, String>(9)?.trim().is_empty(),
+                "conector_timeout": row.get::<_, i64>(10)?,
+                "conector_ultimo_nsr": row.get::<_, Option<i64>>(11)?,
+                "conector_ultima_coleta_em": row.get::<_, Option<String>>(12)?,
+                "total_importadas": row.get::<_, i64>(13)?,
+                "total_duplicadas": row.get::<_, i64>(14)?,
+                "ultima_execucao": row.get::<_, Option<String>>(15)?,
             }))
         })
         .map_err(|err| format!("Falha ao consultar equipamentos do dashboard: {err}"))?

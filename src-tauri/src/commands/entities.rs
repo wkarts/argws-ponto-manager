@@ -143,6 +143,9 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
                 "porta",
                 "usar_conector",
                 "conector_device_id",
+                "conector_base_url",
+                "conector_api_token",
+                "conector_timeout",
                 "conector_ultimo_nsr",
                 "ativo",
             ],
@@ -230,6 +233,7 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
         | "porta"
         | "carga_horaria_minutos"
         | "tolerancia_minutos"
+        | "conector_timeout"
         | "conector_ultimo_nsr"
         | "ativo"
         | "administrador"
