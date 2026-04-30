@@ -130,9 +130,9 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: "modelo", label: "Modelo" },
       { key: "ip", label: "IP" },
       { key: "porta", label: "Porta", type: "number" },
-      { key: "usar_conector", label: "Usar Ponto Manager Conector", type: "checkbox" },
-      { key: "conector_device_id", label: "ID do dispositivo no conector" },
-      { key: "conector_ultimo_nsr", label: "Último NSR coletado", type: "number" },
+      { key: "usar_conector", label: "Este relógio usa Ponto Manager Conector", type: "checkbox" },
+      { key: "conector_device_id", label: "ID do dispositivo no conector", placeholder: "UUID ou ID registrado no Ponto Manager Conector" },
+      { key: "conector_ultimo_nsr", label: "Último NSR importado", type: "number", placeholder: "0 para iniciar com AFD completo" },
       { key: "ativo", label: "Ativo", type: "checkbox" }
     ]
   },

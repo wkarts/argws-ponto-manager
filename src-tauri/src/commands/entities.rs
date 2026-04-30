@@ -230,6 +230,7 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
         | "porta"
         | "carga_horaria_minutos"
         | "tolerancia_minutos"
+        | "conector_ultimo_nsr"
         | "ativo"
         | "administrador"
         | "impacta_banco_horas"
