@@ -1,3 +1,10 @@
+## [1.21.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.2...v1.21.3) (2026-04-30)
+
+
+### Bug Fixes
+
+* corrige importação AFD parcial e unifica interface do Ponto Conector ([9527db2](https://github.com/wkarts/argws-ponto-manager/commit/9527db21d53d74db03c43fa49f4eeb4ea97c1067))
+
 ## [1.21.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.1...v1.21.2) (2026-04-30)
 
 
