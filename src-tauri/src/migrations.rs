@@ -716,6 +716,12 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
         ("batidas", "justificativa_id", "INTEGER"),
         ("batidas", "manual_ajuste", "INTEGER NOT NULL DEFAULT 0"),
         ("batidas", "validado", "INTEGER NOT NULL DEFAULT 1"),
+        (
+            "equipamentos",
+            "usar_conector",
+            "INTEGER NOT NULL DEFAULT 0",
+        ),
+        ("equipamentos", "conector_device_id", "TEXT"),
     ] {
         add_column_if_missing(conn, table, column, definition)?;
     }

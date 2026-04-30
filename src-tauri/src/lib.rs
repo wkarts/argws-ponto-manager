@@ -3,6 +3,7 @@ mod db;
 mod migrations;
 mod models;
 mod security;
+mod services;
 mod timecalc;
 
 mod commands {
@@ -12,6 +13,7 @@ mod commands {
     pub mod auth;
     pub mod banco_horas;
     pub mod companies;
+    pub mod conector;
     pub mod employees;
     pub mod entities;
     pub mod feriados;
@@ -126,6 +128,10 @@ pub fn run() {
             commands::treatments::fechamento_gerar_relatorio,
             commands::sync::sync_queue_list,
             commands::sync::sync_queue_mark_synced,
+            commands::conector::conector_testar,
+            commands::conector::conector_batidas_por_data,
+            commands::conector::conector_batidas_por_nsr,
+            commands::conector::conector_baixar_afd,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar a aplicação Tauri");
