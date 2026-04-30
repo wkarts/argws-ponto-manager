@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import { comboList, importAfdFile, listAfdImports, type ComboOption, type GenericRecord } from "../services/crud";
+import { importarAfdConector } from "../services/conectorService";
 import { useSessionStore } from "../stores/session";
 import { showSplashError, showSplashSuccess } from "../services/splash";
 
@@ -11,7 +12,13 @@ const equipmentOptions = ref<ComboOption[]>([]);
 const selectedFile = ref<File | null>(null);
 const empresaId = ref<string>("");
 const equipamentoId = ref<string>("");
+const origem = ref<"arquivo" | "conector">("arquivo");
 const mode = ref<string>("auto");
+const tipoColeta = ref<"incremental" | "completa" | "nsr" | "data">("incremental");
+const nsrInicio = ref<string>("");
+const nsrFim = ref<string>("");
+const dataInicio = ref<string>("");
+const dataFim = ref<string>("");
 const loading = ref(false);
 const importing = ref(false);
 const error = ref("");
@@ -50,27 +57,61 @@ async function load() {
   }
 }
 
+function buildConectorPayload() {
+  const equipamento = equipamentoId.value ? Number(equipamentoId.value) : null;
+  if (!equipamento) {
+    throw new Error("Selecione o equipamento/REP para importar AFD via conector.");
+  }
+
+  const payload: Record<string, unknown> = {
+    empresa_id: empresaId.value ? Number(empresaId.value) : null,
+    equipamento_id: equipamento,
+    mode: mode.value,
+    completo: tipoColeta.value === "completa",
+  };
+
+  if (tipoColeta.value === "nsr") {
+    if (!nsrInicio.value) throw new Error("Informe o NSR inicial para coleta por NSR.");
+    payload.nsr_inicio = Number(nsrInicio.value);
+    payload.nsr_fim = nsrFim.value ? Number(nsrFim.value) : null;
+  }
+
+  if (tipoColeta.value === "data") {
+    if (!dataInicio.value || !dataFim.value) throw new Error("Informe data inicial e final para coleta por data.");
+    payload.data_inicio = dataInicio.value;
+    payload.data_fim = dataFim.value;
+  }
+
+  return payload as Parameters<typeof importarAfdConector>[0];
+}
+
 async function processImport() {
   error.value = "";
   message.value = "";
-  if (!selectedFile.value) {
-    error.value = "Selecione um arquivo AFD para importar.";
-    showSplashError(error.value);
-    return;
-  }
 
   importing.value = true;
   try {
-    const content = await fileToText(selectedFile.value);
-    const result = await importAfdFile({
-      empresaId: empresaId.value ? Number(empresaId.value) : null,
-      equipamentoId: equipamentoId.value ? Number(equipamentoId.value) : null,
-      fileName: selectedFile.value.name,
-      content,
-      mode: mode.value
-    });
+    if (origem.value === "arquivo") {
+      if (!selectedFile.value) {
+        throw new Error("Selecione um arquivo AFD para importar.");
+      }
 
-    message.value = `Importação concluída. Layout ${result.layout_portaria}, processadas ${result.total_processadas}, descartadas ${result.total_descartadas}.`;
+      const content = await fileToText(selectedFile.value);
+      const result = await importAfdFile({
+        empresaId: empresaId.value ? Number(empresaId.value) : null,
+        equipamentoId: equipamentoId.value ? Number(equipamentoId.value) : null,
+        fileName: selectedFile.value.name,
+        content,
+        mode: mode.value
+      });
+
+      message.value = `Importação concluída. Layout ${result.layout_portaria}, processadas ${result.total_processadas}, descartadas ${result.total_descartadas}.`;
+    } else {
+      const result = await importarAfdConector(buildConectorPayload());
+      const importacao = result.importacao as Record<string, unknown> | undefined;
+      message.value = `AFD importado via conector. Processadas ${importacao?.total_processadas ?? result.total_importadas ?? 0}, descartadas ${importacao?.total_descartadas ?? result.total_duplicadas ?? 0}.`;
+    }
+
     showSplashSuccess(message.value);
     await load();
   } catch (err) {
@@ -95,7 +136,7 @@ onMounted(async () => {
     <div class="toolbar">
       <div>
         <h2>Importação e tratamento de AFD</h2>
-        <div class="muted-text">Suporte ao AFD legado da Portaria 1.510/2009 e ao AFD da Portaria 671/2021.</div>
+        <div class="muted-text">Importe AFD por arquivo local ou diretamente pela API do Ponto Manager Conector.</div>
       </div>
     </div>
 
@@ -105,6 +146,13 @@ onMounted(async () => {
     <div class="card grid page-gap">
       <div class="filter-grid">
         <div class="field">
+          <label>Origem da importação</label>
+          <select v-model="origem">
+            <option value="arquivo">Arquivo AFD</option>
+            <option value="conector">API / Ponto Manager Conector</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Empresa</label>
           <select v-model="empresaId">
             <option value="">Selecione</option>
@@ -112,7 +160,7 @@ onMounted(async () => {
           </select>
         </div>
         <div class="field">
-          <label>Equipamento</label>
+          <label>Equipamento / REP</label>
           <select v-model="equipamentoId">
             <option value="">Selecione</option>
             <option v-for="item in equipmentOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
@@ -126,15 +174,49 @@ onMounted(async () => {
             <option value="671">Portaria 671/2021</option>
           </select>
         </div>
-        <div class="field">
-          <label>Arquivo AFD</label>
-          <input type="file" accept=".afd,.txt" @change="handleFile" />
+      </div>
+
+      <div v-if="origem === 'arquivo'" class="field">
+        <label>Arquivo AFD</label>
+        <input type="file" accept=".afd,.txt" @change="handleFile" />
+      </div>
+
+      <div v-else class="grid page-gap">
+        <div class="filter-grid">
+          <div class="field">
+            <label>Forma de coleta pela API</label>
+            <select v-model="tipoColeta">
+              <option value="incremental">Incremental pelo último NSR do REP</option>
+              <option value="completa">Completa desde o início</option>
+              <option value="nsr">Por faixa de NSR</option>
+              <option value="data">Por período/data</option>
+            </select>
+          </div>
+          <div v-if="tipoColeta === 'nsr'" class="field">
+            <label>NSR inicial</label>
+            <input v-model="nsrInicio" type="number" placeholder="Ex.: 1" />
+          </div>
+          <div v-if="tipoColeta === 'nsr'" class="field">
+            <label>NSR final</label>
+            <input v-model="nsrFim" type="number" placeholder="Opcional" />
+          </div>
+          <div v-if="tipoColeta === 'data'" class="field">
+            <label>Data inicial</label>
+            <input v-model="dataInicio" type="date" />
+          </div>
+          <div v-if="tipoColeta === 'data'" class="field">
+            <label>Data final</label>
+            <input v-model="dataFim" type="date" />
+          </div>
+        </div>
+        <div class="muted-text">
+          No modo incremental, se o último NSR do REP estiver zerado, o sistema solicita AFD completo. Após importar, o maior NSR encontrado é persistido no cadastro do equipamento.
         </div>
       </div>
 
       <div class="actions">
         <button class="primary" :disabled="importing" @click="processImport">
-          {{ importing ? 'Importando...' : 'Importar arquivo AFD' }}
+          {{ importing ? 'Importando...' : origem === 'arquivo' ? 'Importar arquivo AFD' : 'Importar AFD via conector' }}
         </button>
       </div>
     </div>

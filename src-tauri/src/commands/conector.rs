@@ -1,20 +1,60 @@
 use crate::{
     app_state::SharedState,
+    commands::afd::afd_import_file,
     db::{open_connection, write_audit},
+    models::AfdImportRequest,
     services::conector_client::ConectorClient,
 };
 use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{json, Map, Value};
-use std::{env, fs};
+use std::fs;
 use tauri::{command, State};
 
-fn build_client() -> Result<ConectorClient, String> {
-    let base_url = env::var("PONTO_CONECTOR_URL")
-        .map_err(|_| "Variável PONTO_CONECTOR_URL não configurada.".to_string())?;
-    let api_token = env::var("PONTO_CONECTOR_TOKEN")
-        .map_err(|_| "Variável PONTO_CONECTOR_TOKEN não configurada.".to_string())?;
-    ConectorClient::new(base_url, api_token)
+const SETTING_CONECTOR_URL: &str = "ponto_conector_url";
+const SETTING_CONECTOR_TOKEN: &str = "ponto_conector_token";
+const SETTING_CONECTOR_TIMEOUT: &str = "ponto_conector_timeout";
+
+fn setting_value(conn: &rusqlite::Connection, key: &str) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+        [key],
+        |row| row.get::<_, Option<String>>(0),
+    )
+    .optional()
+    .map(|value| value.flatten())
+    .map_err(|err| format!("Falha ao consultar configuração do conector {key}: {err}"))
+}
+
+fn save_setting(conn: &rusqlite::Connection, key: &str, value: &str) -> Result<(), String> {
+    conn.execute(
+        "INSERT INTO app_settings (chave, valor, created_at, updated_at) VALUES (?1, ?2, ?3, ?3) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, updated_at = excluded.updated_at",
+        params![key, value, Utc::now().to_rfc3339()],
+    )
+    .map_err(|err| format!("Falha ao salvar configuração do conector {key}: {err}"))?;
+    Ok(())
+}
+
+fn build_client(conn: &rusqlite::Connection) -> Result<ConectorClient, String> {
+    let base_url = setting_value(conn, SETTING_CONECTOR_URL)?
+        .or_else(|| std::env::var("PONTO_CONECTOR_URL").ok())
+        .unwrap_or_default();
+    let api_token = setting_value(conn, SETTING_CONECTOR_TOKEN)?
+        .or_else(|| std::env::var("PONTO_CONECTOR_TOKEN").ok())
+        .unwrap_or_default();
+    let timeout_secs = setting_value(conn, SETTING_CONECTOR_TIMEOUT)?
+        .and_then(|value| value.parse::<u64>().ok())
+        .or_else(|| std::env::var("PONTO_CONECTOR_TIMEOUT").ok().and_then(|value| value.parse::<u64>().ok()))
+        .unwrap_or(30);
+
+    if base_url.trim().is_empty() {
+        return Err("Configure a URL base da API do Ponto Manager Conector nas configurações do conector.".to_string());
+    }
+    if api_token.trim().is_empty() {
+        return Err("Configure o token da API do Ponto Manager Conector nas configurações do conector.".to_string());
+    }
+
+    ConectorClient::new(base_url.trim().trim_end_matches('/').to_string(), api_token, timeout_secs)
 }
 
 fn log_coleta(conn: &rusqlite::Connection, payload: &Value) -> Result<(), String> {
@@ -79,8 +119,10 @@ fn find_funcionario(
 }
 
 #[command]
-pub async fn conector_testar() -> Result<String, String> {
-    let client = build_client()?;
+pub async fn conector_testar(state: State<'_, SharedState>) -> Result<String, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let client = build_client(&conn)?;
     client.testar_conexao().await
 }
 
@@ -131,7 +173,7 @@ pub async fn conector_coletar_batidas(
         "data_fim": data_fim,
     });
 
-    let client = build_client()?;
+    let client = build_client(&conn)?;
     let resposta = match client.coletar_batidas(&equipamento.2, &payload).await {
         Ok(value) => value,
         Err(err) => {
@@ -284,7 +326,7 @@ pub async fn conector_baixar_afd(
         return Err("Equipamento sem configuração de conector ativa para AFD.".to_string());
     }
 
-    let client = build_client()?;
+    let client = build_client(&conn)?;
     let bytes = match client.baixar_afd(&device_id, &json!({})).await {
         Ok(value) => value,
         Err(err) => {
@@ -329,6 +371,181 @@ pub async fn conector_baixar_afd(
     )?;
     Ok(result)
 }
+
+#[command]
+pub fn conector_configuracao_carregar(state: State<'_, SharedState>) -> Result<Value, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    Ok(json!({
+        "base_url": setting_value(&conn, SETTING_CONECTOR_URL)?
+            .or_else(|| std::env::var("PONTO_CONECTOR_URL").ok())
+            .unwrap_or_default(),
+        "api_token_configurado": setting_value(&conn, SETTING_CONECTOR_TOKEN)?
+            .or_else(|| std::env::var("PONTO_CONECTOR_TOKEN").ok())
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+        "timeout_secs": setting_value(&conn, SETTING_CONECTOR_TIMEOUT)?
+            .and_then(|value| value.parse::<u64>().ok())
+            .unwrap_or(30),
+    }))
+}
+
+#[command]
+pub fn conector_configuracao_salvar(
+    state: State<'_, SharedState>,
+    base_url: String,
+    api_token: Option<String>,
+    timeout_secs: Option<u64>,
+) -> Result<Value, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let normalized_url = base_url.trim().trim_end_matches('/').to_string();
+    if normalized_url.is_empty() {
+        return Err("Informe a URL base da API do Ponto Manager Conector.".to_string());
+    }
+    save_setting(&conn, SETTING_CONECTOR_URL, &normalized_url)?;
+    if let Some(token) = api_token {
+        if !token.trim().is_empty() {
+            save_setting(&conn, SETTING_CONECTOR_TOKEN, token.trim())?;
+        }
+    }
+    let timeout = timeout_secs.unwrap_or(30).max(5);
+    save_setting(&conn, SETTING_CONECTOR_TIMEOUT, &timeout.to_string())?;
+    Ok(json!({
+        "base_url": normalized_url,
+        "api_token_configurado": setting_value(&conn, SETTING_CONECTOR_TOKEN)?.map(|value| !value.trim().is_empty()).unwrap_or(false),
+        "timeout_secs": timeout,
+    }))
+}
+
+
+#[command]
+pub async fn conector_importar_afd(
+    state: State<'_, SharedState>,
+    empresa_id: Option<i64>,
+    equipamento_id: i64,
+    mode: Option<String>,
+    completo: Option<bool>,
+    nsr_inicio: Option<i64>,
+    nsr_fim: Option<i64>,
+    data_inicio: Option<String>,
+    data_fim: Option<String>,
+) -> Result<Value, String> {
+    let db_path = state.db_path()?;
+    let conn = open_connection(&db_path)?;
+    let data_dir = state.data_dir()?;
+
+    let (usar_conector, device_id, ultimo_nsr): (i64, String, i64) = conn
+        .query_row(
+            "SELECT COALESCE(usar_conector,0), COALESCE(conector_device_id,''), COALESCE(conector_ultimo_nsr,0)
+             FROM equipamentos WHERE id = ?1 LIMIT 1",
+            [equipamento_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao carregar equipamento para importação AFD via conector: {err}"))?
+        .ok_or_else(|| "Equipamento não encontrado.".to_string())?;
+
+    if usar_conector == 0 || device_id.trim().is_empty() {
+        return Err("Equipamento sem configuração de conector ativa para importar AFD.".to_string());
+    }
+
+    let nsr_start = if completo.unwrap_or(false) {
+        None
+    } else if nsr_inicio.is_some() {
+        nsr_inicio
+    } else if ultimo_nsr > 0 {
+        Some(ultimo_nsr + 1)
+    } else {
+        None
+    };
+
+    let request_payload = json!({
+        "completo": completo.unwrap_or(false) || nsr_start.is_none(),
+        "nsr_inicio": nsr_start,
+        "nsr_fim": nsr_fim,
+        "data_inicio": data_inicio,
+        "data_fim": data_fim,
+    });
+
+    let client = build_client(&conn)?;
+    let bytes = match client.baixar_afd(&device_id, &request_payload).await {
+        Ok(value) => value,
+        Err(err) => {
+            let result = json!({
+                "equipamento_id": equipamento_id,
+                "conector_device_id": device_id,
+                "tipo": "afd_importacao",
+                "status": "erro",
+                "mensagem": err,
+                "nsr_inicio": nsr_start,
+                "nsr_fim": nsr_fim,
+                "payload_json": request_payload,
+            });
+            let _ = log_coleta(&conn, &result);
+            return Err(result.get("mensagem").and_then(Value::as_str).unwrap_or("Falha ao baixar AFD via conector.").to_string());
+        }
+    };
+
+    let dir = data_dir.join("afd").join(format!("equipamento_{equipamento_id}"));
+    fs::create_dir_all(&dir).map_err(|err| format!("Falha ao criar diretório de AFD: {err}"))?;
+    let file_name = format!("afd_equipamento_{}_{}.txt", equipamento_id, Utc::now().format("%Y%m%d%H%M%S"));
+    let arquivo = dir.join(&file_name);
+    fs::write(&arquivo, &bytes).map_err(|err| format!("Falha ao salvar arquivo AFD baixado do conector: {err}"))?;
+
+    let content = String::from_utf8_lossy(&bytes).to_string();
+    drop(conn);
+
+    let import_result = afd_import_file(
+        state,
+        AfdImportRequest {
+            empresa_id,
+            equipamento_id: Some(equipamento_id),
+            file_name: file_name.clone(),
+            content,
+            mode,
+        },
+    )?;
+
+    let conn = open_connection(&db_path)?;
+    let max_nsr = conn
+        .query_row(
+            "SELECT MAX(CAST(nsr AS INTEGER)) FROM afd_marcacoes WHERE importacao_id = ?1 AND nsr GLOB '[0-9]*'",
+            [import_result.importacao_id],
+            |row| row.get::<_, Option<i64>>(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar maior NSR importado do AFD: {err}"))?
+        .flatten();
+
+    if let Some(nsr) = max_nsr {
+        if nsr > ultimo_nsr {
+            conn.execute(
+                "UPDATE equipamentos SET conector_ultimo_nsr = ?1, conector_ultima_coleta_em = ?2, updated_at = ?2 WHERE id = ?3",
+                params![nsr, Utc::now().to_rfc3339(), equipamento_id],
+            )
+            .map_err(|err| format!("Falha ao atualizar último NSR após importação AFD: {err}"))?;
+        }
+    }
+
+    let result = json!({
+        "equipamento_id": equipamento_id,
+        "conector_device_id": device_id,
+        "tipo": "afd_importacao",
+        "status": "sucesso",
+        "arquivo_path": arquivo.to_string_lossy(),
+        "total_recebidas": 1,
+        "total_importadas": import_result.total_processadas,
+        "total_duplicadas": import_result.total_descartadas,
+        "nsr_inicio": nsr_start,
+        "nsr_fim": max_nsr,
+        "importacao": import_result,
+        "payload_json": request_payload,
+    });
+    log_coleta(&conn, &result)?;
+    Ok(result)
+}
+
 
 #[command]
 pub fn conector_dashboard(state: State<'_, SharedState>) -> Result<Value, String> {

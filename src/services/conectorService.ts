@@ -1,6 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "./tauri";
 
-export const testarConector = () => invoke<string>("conector_testar");
+export const testarConector = () => invokeCommand<string>("conector_testar");
 
 export const coletarBatidasConector = (payload: {
   equipamento_id: number;
@@ -9,9 +9,29 @@ export const coletarBatidasConector = (payload: {
   nsr_fim?: number;
   data_inicio?: string;
   data_fim?: string;
-}) => invoke("conector_coletar_batidas", payload);
+}) => invokeCommand("conector_coletar_batidas", payload);
 
 export const baixarAfdConector = (equipamento_id: number) =>
-  invoke("conector_baixar_afd", { equipamento_id });
+  invokeCommand("conector_baixar_afd", { equipamento_id });
 
-export const dashboardConector = () => invoke("conector_dashboard");
+export const dashboardConector = () => invokeCommand("conector_dashboard");
+
+export const carregarConfiguracaoConector = () =>
+  invokeCommand<Record<string, unknown>>("conector_configuracao_carregar");
+
+export const salvarConfiguracaoConector = (payload: {
+  base_url: string;
+  api_token?: string | null;
+  timeout_secs?: number | null;
+}) => invokeCommand<Record<string, unknown>>("conector_configuracao_salvar", payload);
+
+export const importarAfdConector = (payload: {
+  empresa_id?: number | null;
+  equipamento_id: number;
+  mode?: string | null;
+  completo?: boolean | null;
+  nsr_inicio?: number | null;
+  nsr_fim?: number | null;
+  data_inicio?: string | null;
+  data_fim?: string | null;
+}) => invokeCommand<Record<string, unknown>>("conector_importar_afd", payload);

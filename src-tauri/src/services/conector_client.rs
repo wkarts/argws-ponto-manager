@@ -10,9 +10,9 @@ pub struct ConectorClient {
 }
 
 impl ConectorClient {
-    pub fn new(base_url: String, api_token: String) -> Result<Self, String> {
+    pub fn new(base_url: String, api_token: String, timeout_secs: u64) -> Result<Self, String> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(timeout_secs.max(5)))
             .build()
             .map_err(|err| format!("Falha ao criar cliente HTTP do conector: {err}"))?;
 
