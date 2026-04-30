@@ -84,6 +84,7 @@ const relatorios = computed(() => [
   { title: "Relatório de horas", route: "/relatorios/horas" },
   { title: "Relatórios gerados", route: "/relatorios-gerados" },
   { title: "Exportação REP", route: "/rep" },
+  { title: "Dashboard de coleta", route: "/conector-dashboard" },
 ]);
 
 const documentacao = computed(() => [

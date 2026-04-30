@@ -96,7 +96,6 @@ pub struct ApuracaoResumo {
     pub total_funcionarios: usize,
     pub total_dias: usize,
     pub total_esperado_minutos: i64,
-    pub total_esperado_diario_minutos: Option<i64>,
     pub total_trabalhado_minutos: i64,
     pub total_saldo_minutos: i64,
     pub total_atraso_minutos: i64,
