@@ -10,7 +10,7 @@ use crate::{
     security::{hash_password, verify_password},
 };
 
-pub(crate) const PERMISSION_CATALOG: [(&str, &str); 33] = [
+pub(crate) const PERMISSION_CATALOG: [(&str, &str); 37] = [
     ("dashboard:view", "Visualizar dashboard"),
     ("empresas:view", "Visualizar empresas usuárias"),
     ("empresas:manage", "Gerenciar empresas usuárias"),
@@ -26,6 +26,10 @@ pub(crate) const PERMISSION_CATALOG: [(&str, &str); 33] = [
     ("feriados:manage", "Gerenciar tabela de feriados"),
     ("ferias:view", "Visualizar férias de colaboradores"),
     ("ferias:manage", "Gerenciar férias de colaboradores"),
+    ("ferias:create", "Criar lançamentos de férias"),
+    ("ferias:update", "Atualizar lançamentos de férias"),
+    ("ferias:cancel", "Cancelar lançamentos de férias"),
+    ("ferias:delete", "Excluir lançamentos de férias"),
     ("equipamentos:view", "Visualizar equipamentos"),
     ("equipamentos:manage", "Gerenciar equipamentos"),
     ("eventos:view", "Visualizar eventos"),

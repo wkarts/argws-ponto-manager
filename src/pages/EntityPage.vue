@@ -5,6 +5,7 @@ import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
 import { booleanLabel } from "../services/format";
+import { useSessionStore } from "../stores/session";
 
 const props = defineProps<{
   entityKey: string;
@@ -21,6 +22,12 @@ type FormFieldValue = string | number | boolean | undefined;
 type TextBindableValue = string | number | readonly string[] | null | undefined;
 const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
+const session = useSessionStore();
+
+const canCreate = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:create"));
+const canUpdate = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:update"));
+const canCancel = computed(() => props.entityKey === "ferias_colaboradores" && session.can("ferias:cancel"));
+const canDelete = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:delete"));
 
 function inputValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
@@ -44,6 +51,7 @@ function onTextareaInput(key: string, event: Event) {
 
 function defaultFieldValue(field: EntityField): FormFieldValue {
   if (field.type === "checkbox") return true;
+  if (props.entityKey === "ferias_colaboradores" && field.key === "status") return "ativo";
   return "";
 }
 
@@ -52,6 +60,7 @@ function closeModal() {
 }
 
 function openNewModal() {
+  if (!canCreate.value) return;
   resetForm();
   modalOpen.value = true;
 }
@@ -114,6 +123,7 @@ async function load() {
 }
 
 function editRow(row: Record<string, unknown>) {
+  if (!canEditRow(row)) return;
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
     const fallback = defaultFieldValue(field);
@@ -121,6 +131,44 @@ function editRow(row: Record<string, unknown>) {
   }
   form.id = normalizeFormValue(row.id, undefined);
   modalOpen.value = true;
+}
+
+function isFeriasRow(row: Record<string, unknown>) {
+  return props.entityKey === "ferias_colaboradores";
+}
+
+function rowStatus(row: Record<string, unknown>): string {
+  return String(row.status ?? "").toLowerCase();
+}
+
+function canEditRow(row: Record<string, unknown>): boolean {
+  if (!isFeriasRow(row)) return canUpdate.value;
+  const status = rowStatus(row);
+  if (status === "cancelado") return false;
+  if (status === "concluido") return session.can("ferias:update") && Boolean(session.user?.administrador || session.user?.master_user);
+  return canUpdate.value;
+}
+
+function canCancelRow(row: Record<string, unknown>): boolean {
+  if (!isFeriasRow(row)) return false;
+  const status = rowStatus(row);
+  if (status === "cancelado") return false;
+  if (status === "concluido") return canCancel.value && Boolean(session.user?.administrador || session.user?.master_user);
+  return canCancel.value;
+}
+
+async function cancelVacation(row: Record<string, unknown>) {
+  if (!canCancelRow(row)) return;
+  const motivo = window.prompt("Informe o motivo do cancelamento das férias:");
+  if (!motivo || !motivo.trim()) {
+    error.value = "O motivo do cancelamento é obrigatório.";
+    return;
+  }
+  const observacaoAnterior = String(row.observacao ?? "").trim();
+  const cancelamento = `[CANCELADO] ${new Date().toISOString()} - ${motivo.trim()}`;
+  const observacao = observacaoAnterior ? `${observacaoAnterior}\n${cancelamento}` : cancelamento;
+  await saveEntity(config.value.key, { ...row, status: "cancelado", ativo: 0, observacao });
+  await load();
 }
 
 async function persist() {
@@ -180,8 +228,13 @@ watch(
       <div class="actions">
         <input v-model="search" placeholder="Pesquisar..." @keyup.enter="load" />
         <button class="secondary" @click="load">Buscar</button>
-        <button class="secondary" @click="openNewModal">Novo</button>
+          <button class="secondary" @click="openNewModal" :disabled="!canCreate">Novo</button>
+        </div>
       </div>
+
+    <div v-if="config.key === 'ferias_colaboradores'" class="alert">
+      <div><strong>Atenção:</strong> o período de férias lançado será considerado automaticamente na apuração do ponto. Dias dentro desse intervalo serão exibidos como “Férias” e não serão cobrados como falta, atraso ou pendência de jornada.</div>
+      <div style="margin-top:8px;">Após salvar, alterações no período devem ser feitas apenas por usuário autorizado. Caso o lançamento esteja incorreto, utilize a ação “Cancelar férias” para preservar o histórico.</div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
@@ -205,8 +258,9 @@ watch(
               </td>
               <td>
                 <div class="actions compact-actions">
-                  <button class="secondary" @click="editRow(row)">Editar</button>
-                  <button class="danger" @click="removeRow(Number(row.id))">Excluir</button>
+                  <button class="secondary" @click="editRow(row)" :disabled="!canEditRow(row)">Visualizar/Editar</button>
+                  <button v-if="canCancelRow(row)" class="secondary" @click="cancelVacation(row)">Cancelar férias</button>
+                  <button v-if="canDelete" class="danger" @click="removeRow(Number(row.id))">Excluir</button>
                 </div>
               </td>
             </tr>
@@ -254,10 +308,14 @@ watch(
             v-model="form[field.key]"
           >
             <option value="">Selecione</option>
+            <option v-for="item in field.options || []" :key="String(item.value)" :value="item.value">
+              {{ item.label }}
+            </option>
             <option v-for="item in optionsMap[field.key] || []" :key="item.id" :value="item.id">
               {{ item.label }}
             </option>
           </select>
+          <small v-if="field.helpText" class="muted">{{ field.helpText }}</small>
 
           <input
             v-else

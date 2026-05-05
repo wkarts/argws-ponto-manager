@@ -16,7 +16,9 @@ export interface EntityField {
   type?: EntityFieldType;
   required?: boolean;
   relationEntity?: string;
+  options?: Array<{ value: string | number; label: string }>;
   placeholder?: string;
+  helpText?: string;
 }
 
 export interface EntityConfig {
@@ -180,7 +182,18 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: "funcionario_id", label: "Colaborador", type: "select", relationEntity: "funcionarios", required: true },
       { key: "data_inicial", label: "Data inicial", type: "date", required: true },
       { key: "data_final", label: "Data final", type: "date", required: true },
-      { key: "status", label: "Status", placeholder: "ativo, programado, concluido ou cancelado" },
+      {
+        key: "status",
+        label: "Status",
+        type: "select",
+        options: [
+          { value: "ativo", label: "Ativo" },
+          { value: "programado", label: "Programado" },
+          { value: "concluido", label: "Concluído" },
+          { value: "cancelado", label: "Cancelado" }
+        ],
+        helpText: "Ativo: férias confirmadas e consideradas no relatório. Programado: planejamento futuro, ainda não considerado na apuração. Concluído: férias encerradas, mantidas para histórico e relatórios antigos. Cancelado: lançamento cancelado, sem impacto na apuração."
+      },
       { key: "observacao", label: "Observação", type: "textarea" },
       { key: "ativo", label: "Ativo", type: "checkbox" }
     ]
