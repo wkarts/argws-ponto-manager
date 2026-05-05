@@ -576,8 +576,15 @@ pub fn fechamento_gerar_relatorio(
         } else {
             row.ocorrencias.join(" | ")
         };
-        let ocorrencias_lower = row.ocorrencias.iter().map(|item| item.to_lowercase()).collect::<Vec<String>>();
-        if ocorrencias_lower.iter().any(|item| item.contains("férias") || item.contains("ferias")) {
+        let ocorrencias_lower = row
+            .ocorrencias
+            .iter()
+            .map(|item| item.to_lowercase())
+            .collect::<Vec<String>>();
+        if ocorrencias_lower
+            .iter()
+            .any(|item| item.contains("férias") || item.contains("ferias"))
+        {
             dias_ferias += 1;
         }
         if row.horario_esperado_minutos > 0 && row.trabalhado_minutos == 0 && !row.abonado {
@@ -597,7 +604,13 @@ pub fn fechamento_gerar_relatorio(
             escape_html(&ocorrencias),
         ));
     }
-    let situacao = if apuracao.total_saldo_minutos > 0 { "Hora extra" } else if apuracao.total_saldo_minutos < 0 { "Saldo devedor" } else { "Normal" };
+    let situacao = if apuracao.total_saldo_minutos > 0 {
+        "Hora extra"
+    } else if apuracao.total_saldo_minutos < 0 {
+        "Saldo devedor"
+    } else {
+        "Normal"
+    };
 
     let html = format!(
         r#"<!DOCTYPE html>
@@ -684,8 +697,16 @@ pub fn fechamento_gerar_relatorio(
         linhas = linhas,
         saldo = format_minutes(apuracao.total_saldo_minutos),
         extra = format_minutes(apuracao.total_extra_minutos),
-        faltantes = format_minutes(if apuracao.total_saldo_minutos < 0 { apuracao.total_saldo_minutos.abs() } else { 0 }),
-        dias_trabalhados = apuracao.rows.iter().filter(|row| row.trabalhado_minutos > 0).count(),
+        faltantes = format_minutes(if apuracao.total_saldo_minutos < 0 {
+            apuracao.total_saldo_minutos.abs()
+        } else {
+            0
+        }),
+        dias_trabalhados = apuracao
+            .rows
+            .iter()
+            .filter(|row| row.trabalhado_minutos > 0)
+            .count(),
         dias_ferias = dias_ferias,
         dias_falta = dias_falta,
         situacao = situacao,

@@ -215,16 +215,20 @@ async function openEdit(row: FeriadoRecord, readOnly = false) {
   }
 }
 
-function toggleMulti(listKey: "empresa_ids" | "departamento_ids", value: number) {
+function toggleMulti(listKey: "empresa_ids" | "departamento_ids", value: ComboOption["id"]) {
+  const numericValue = toNullableNumber(value);
+  if (numericValue == null) return;
+
   const current = [...(form[listKey] || [])] as number[];
-  const index = current.indexOf(value);
+  const index = current.indexOf(numericValue);
   if (index >= 0) current.splice(index, 1);
-  else current.push(value);
+  else current.push(numericValue);
   form[listKey] = current;
 }
 
-function isChecked(listKey: "empresa_ids" | "departamento_ids", value: number) {
-  return (form[listKey] || []).includes(value);
+function isChecked(listKey: "empresa_ids" | "departamento_ids", value: ComboOption["id"]) {
+  const numericValue = toNullableNumber(value);
+  return numericValue != null && (form[listKey] || []).includes(numericValue);
 }
 
 async function persist() {
