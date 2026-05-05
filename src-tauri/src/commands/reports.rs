@@ -447,7 +447,7 @@ fn is_employee_on_vacation(
            FROM ferias_colaboradores
           WHERE funcionario_id = ?1
             AND ativo = 1
-            AND status <> 'cancelado'
+            AND status IN ('ativo', 'concluido')
             AND data_inicial <= ?2
             AND data_final >= ?2
           ORDER BY data_inicial DESC, id DESC
