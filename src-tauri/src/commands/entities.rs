@@ -10,6 +10,8 @@ use crate::{
     security::hash_password,
 };
 
+const FERIAS_STATUS_VALIDOS: [&str; 4] = ["ativo", "programado", "concluido", "cancelado"];
+
 struct EntityDefinition {
     table: &'static str,
     fields: &'static [&'static str],
@@ -488,6 +490,15 @@ pub fn entity_save(
         }
 
         let current_id = id.unwrap_or(0);
+        let status = payload
+            .get("status")
+            .and_then(|v| v.as_str())
+            .map(|v| v.trim().to_lowercase())
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| "ativo".to_string());
+        if !FERIAS_STATUS_VALIDOS.contains(&status.as_str()) {
+            return Err("Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado.".to_string());
+        }
         let conflito: i64 = conn
             .query_row(
                 "SELECT COUNT(*)
@@ -537,6 +548,12 @@ pub fn entity_save(
                 .map(|v| v.trim().to_lowercase())
                 .filter(|v| !v.is_empty())
                 .unwrap_or_else(|| "ativo".to_string());
+            if !FERIAS_STATUS_VALIDOS.contains(&status.as_str()) {
+                return Err(
+                    "Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado."
+                        .to_string(),
+                );
+            }
             values.push(Value::String(status));
         } else {
             values.push(normalize_value(&payload, field));
