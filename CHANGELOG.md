@@ -1,3 +1,15 @@
+# [1.22.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.3...v1.22.0) (2026-05-05)
+
+
+### Bug Fixes
+
+* evita move de strings em batida_save ([e3eee50](https://github.com/wkarts/argws-ponto-manager/commit/e3eee5040b69863c93182ff659ca304d6e5d5663))
+
+
+### Features
+
+* **ponto:** adiciona rotina de férias e preserva ajustes manuais de batidas ([8b6e6f6](https://github.com/wkarts/argws-ponto-manager/commit/8b6e6f6d78566736c85eab8b4a45e68a8eaed561))
+
 ## [1.21.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.2...v1.21.3) (2026-04-30)
 
 
