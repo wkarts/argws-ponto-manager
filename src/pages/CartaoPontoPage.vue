@@ -1182,13 +1182,13 @@ function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
 async function generateCompetenciaCardsHtml() {
   syncPeriodFilters();
   const periodo = periodoAtual();
-  const targetEmployees = employeeOptions.value.filter((item) => item.id > 0);
+  const targetEmployees = employeeOptions.value.filter((item) => Number(item.id) > 0);
   const cards: { employeeName: string; html: string }[] = [];
 
   for (const employee of targetEmployees) {
     const summary = await apurarPeriodo({
       empresaId: session.activeCompanyId ?? null,
-      funcionarioId: employee.id,
+      funcionarioId: Number(employee.id),
       competenciaAno: Number(filtros.competenciaAno),
       competenciaMes: Number(filtros.competenciaMes),
       dataInicial: null,
