@@ -442,7 +442,13 @@ pub fn entity_save(
         let raw = match value {
             Value::String(v) => v.trim().to_string(),
             Value::Number(v) => v.to_string(),
-            Value::Bool(v) => if v { "1".to_string() } else { String::new() },
+            Value::Bool(v) => {
+                if v {
+                    "1".to_string()
+                } else {
+                    String::new()
+                }
+            }
             _ => String::new(),
         };
         if raw.is_empty() {
@@ -453,7 +459,10 @@ pub fn entity_save(
     if entity == "ferias_colaboradores" {
         let funcionario_id = payload
             .get("funcionario_id")
-            .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+            .and_then(|v| {
+                v.as_i64()
+                    .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+            })
             .unwrap_or(0);
         if funcionario_id <= 0 {
             return Err("Informe um colaborador válido para o lançamento de férias.".to_string());
@@ -473,7 +482,9 @@ pub fn entity_save(
             .to_string();
 
         if data_final < data_inicial {
-            return Err("A data final das férias deve ser maior ou igual à data inicial.".to_string());
+            return Err(
+                "A data final das férias deve ser maior ou igual à data inicial.".to_string(),
+            );
         }
 
         let current_id = id.unwrap_or(0);
@@ -493,7 +504,10 @@ pub fn entity_save(
             .map_err(|err| format!("Falha ao validar conflito de férias: {err}"))?;
 
         if conflito > 0 {
-            return Err("Já existe lançamento de férias ativo para este colaborador no período informado.".to_string());
+            return Err(
+                "Já existe lançamento de férias ativo para este colaborador no período informado."
+                    .to_string(),
+            );
         }
     }
 

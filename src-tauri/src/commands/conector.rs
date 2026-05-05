@@ -64,7 +64,6 @@ fn batida_foi_ignorada_por_ajuste(
     Ok(exists > 0)
 }
 
-
 fn carregar_config_conector_equipamento(
     conn: &rusqlite::Connection,
     equipamento_id: i64,

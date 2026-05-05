@@ -111,7 +111,6 @@ fn registrar_batida_ignorada_por_ajuste(
     Ok(())
 }
 
-
 #[tauri::command]
 pub fn batidas_list(
     state: State<'_, SharedState>,
