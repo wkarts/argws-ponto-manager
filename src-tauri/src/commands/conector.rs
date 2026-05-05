@@ -40,6 +40,31 @@ struct EquipamentoConectorConfig {
     timeout_secs: u64,
 }
 
+fn batida_foi_ignorada_por_ajuste(
+    conn: &rusqlite::Connection,
+    funcionario_id: i64,
+    data_referencia: &str,
+    hora: &str,
+    nsr: Option<&str>,
+) -> Result<bool, String> {
+    let exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+               FROM batidas_ignoradas_afd
+              WHERE funcionario_id = ?1
+                AND data_referencia = ?2
+                AND hora = ?3
+                AND COALESCE(nsr, '') = COALESCE(?4, '')
+              LIMIT 1",
+            params![funcionario_id, data_referencia, hora, nsr.unwrap_or("")],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Falha ao verificar batida ignorada por ajuste manual: {err}"))?;
+
+    Ok(exists > 0)
+}
+
+
 fn carregar_config_conector_equipamento(
     conn: &rusqlite::Connection,
     equipamento_id: i64,
@@ -388,6 +413,17 @@ pub async fn conector_coletar_batidas(
         };
 
         if data_referencia.is_empty() || hora.is_empty() {
+            continue;
+        }
+
+        if batida_foi_ignorada_por_ajuste(
+            &conn,
+            funcionario_id,
+            &data_referencia,
+            &hora,
+            nsr.as_deref(),
+        )? {
+            total_duplicadas += 1;
             continue;
         }
 

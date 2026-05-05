@@ -112,6 +112,21 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
             required: &["data", "descricao"],
             label_column: "descricao",
         }),
+
+        "ferias_colaboradores" => Some(EntityDefinition {
+            table: "ferias_colaboradores",
+            fields: &[
+                "funcionario_id",
+                "data_inicial",
+                "data_final",
+                "observacao",
+                "status",
+                "ativo",
+            ],
+            searchable: &["data_inicial", "data_final", "observacao", "status"],
+            required: &["funcionario_id", "data_inicial", "data_final"],
+            label_column: "data_inicial",
+        }),
         "jornada_contextos_regras" => Some(EntityDefinition {
             table: "jornada_contextos_regras",
             fields: &[
@@ -223,6 +238,7 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
 
     match field {
         "empresa_id"
+        | "funcionario_id"
         | "departamento_id"
         | "funcao_id"
         | "centro_custo_id"
@@ -422,13 +438,62 @@ pub fn entity_save(
     });
 
     for required in definition.required {
-        let raw = payload
-            .get(*required)
-            .and_then(|v| v.as_str())
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
+        let value = payload.get(*required).cloned().unwrap_or(Value::Null);
+        let raw = match value {
+            Value::String(v) => v.trim().to_string(),
+            Value::Number(v) => v.to_string(),
+            Value::Bool(v) => if v { "1".to_string() } else { String::new() },
+            _ => String::new(),
+        };
         if raw.is_empty() {
             return Err(format!("O campo {} é obrigatório.", required));
+        }
+    }
+
+    if entity == "ferias_colaboradores" {
+        let funcionario_id = payload
+            .get("funcionario_id")
+            .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+            .unwrap_or(0);
+        if funcionario_id <= 0 {
+            return Err("Informe um colaborador válido para o lançamento de férias.".to_string());
+        }
+
+        let data_inicial = payload
+            .get("data_inicial")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        let data_final = payload
+            .get("data_final")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        if data_final < data_inicial {
+            return Err("A data final das férias deve ser maior ou igual à data inicial.".to_string());
+        }
+
+        let current_id = id.unwrap_or(0);
+        let conflito: i64 = conn
+            .query_row(
+                "SELECT COUNT(*)
+                   FROM ferias_colaboradores
+                  WHERE funcionario_id = ?1
+                    AND ativo = 1
+                    AND status <> 'cancelado'
+                    AND id <> ?2
+                    AND data_inicial <= ?3
+                    AND data_final >= ?4",
+                rusqlite::params![funcionario_id, current_id, data_final, data_inicial],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("Falha ao validar conflito de férias: {err}"))?;
+
+        if conflito > 0 {
+            return Err("Já existe lançamento de férias ativo para este colaborador no período informado.".to_string());
         }
     }
 
@@ -451,7 +516,17 @@ pub fn entity_save(
         }
 
         columns.push((*field).to_string());
-        values.push(normalize_value(&payload, field));
+        if entity == "ferias_colaboradores" && *field == "status" {
+            let status = payload
+                .get("status")
+                .and_then(|v| v.as_str())
+                .map(|v| v.trim().to_lowercase())
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| "ativo".to_string());
+            values.push(Value::String(status));
+        } else {
+            values.push(normalize_value(&payload, field));
+        }
     }
 
     let record_id = if let Some(existing_id) = id {

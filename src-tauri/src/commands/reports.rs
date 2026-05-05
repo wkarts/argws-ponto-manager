@@ -437,6 +437,29 @@ fn load_day_occurrences(
     Ok(data_occ)
 }
 
+
+fn is_employee_on_vacation(
+    conn: &rusqlite::Connection,
+    funcionario_id: i64,
+    data: &str,
+) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT COALESCE(observacao, '')
+           FROM ferias_colaboradores
+          WHERE funcionario_id = ?1
+            AND ativo = 1
+            AND status <> 'cancelado'
+            AND data_inicial <= ?2
+            AND data_final >= ?2
+          ORDER BY data_inicial DESC, id DESC
+          LIMIT 1",
+        params![funcionario_id, data],
+        |row| row.get::<_, String>(0),
+    )
+    .optional()
+    .map_err(|err| format!("Falha ao verificar férias do colaborador: {err}"))
+}
+
 fn has_manual_adjustment(
     conn: &rusqlite::Connection,
     funcionario_id: i64,
@@ -576,8 +599,31 @@ pub fn apurar_periodo_internal(
             let schedule = resolve_schedule_for_employee(conn, funcionario.id, &current_date)?;
             let mut calc = calculate_day(&schedule, &batidas);
             let mut occurrence_data = load_day_occurrences(conn, funcionario.id, &current_date)?;
+            let ferias_observacao = is_employee_on_vacation(conn, funcionario.id, &current_date)?;
+            let em_ferias = ferias_observacao.is_some();
 
-            if schedule.is_holiday {
+            if em_ferias {
+                occurrence_data.labels.push("Férias".to_string());
+                if let Some(observacao) = ferias_observacao.as_deref() {
+                    if !observacao.trim().is_empty() {
+                        occurrence_data.labels.push(format!("Observação férias: {}", observacao.trim()));
+                    }
+                }
+                calc.expected_minutes = 0;
+                calc.worked_minutes = 0;
+                calc.saldo_minutes = 0;
+                calc.atraso_minutes = 0;
+                calc.extra_minutes = 0;
+                calc.saida_antecipada_minutos = 0;
+                calc.inconsistente = false;
+                calc.mensagens.clear();
+                calc.mensagens.push("Dia tratado como férias do colaborador.".to_string());
+                if !batidas.is_empty() {
+                    calc.mensagens.push("Existem batidas registradas em dia de férias; elas não foram cobradas na apuração.".to_string());
+                }
+            }
+
+            if !em_ferias && schedule.is_holiday {
                 if let Some(label) = &schedule.holiday_label {
                     occurrence_data.labels.push(format!("Feriado: {label}"));
                     calc.mensagens
@@ -596,7 +642,7 @@ pub fn apurar_periodo_internal(
                 }
             }
 
-            if occurrence_data.abonar_dia {
+            if !em_ferias && occurrence_data.abonar_dia {
                 if calc.worked_minutes < calc.expected_minutes {
                     calc.worked_minutes = calc.expected_minutes;
                 }
@@ -608,7 +654,7 @@ pub fn apurar_periodo_internal(
                 calc.inconsistente = false;
                 calc.mensagens
                     .push("Dia abonado por justificativa/atestado.".to_string());
-            } else if occurrence_data.minutos_abonados > 0 && calc.saldo_minutes < 0 {
+            } else if !em_ferias && occurrence_data.minutos_abonados > 0 && calc.saldo_minutes < 0 {
                 let deficit = calc.saldo_minutes.abs();
                 let compensado = occurrence_data.minutos_abonados.min(deficit);
                 calc.worked_minutes += compensado;
@@ -631,12 +677,13 @@ pub fn apurar_periodo_internal(
                 || !calc.mensagens.is_empty()
                 || !occurrence_data.labels.is_empty()
                 || schedule.is_holiday
+                || em_ferias
                 || (schedule.is_day_off && !batidas.is_empty())
             {
-                if schedule.is_holiday && !batidas.is_empty() {
+                if !em_ferias && schedule.is_holiday && !batidas.is_empty() {
                     calc.mensagens
                         .push("Batidas registradas em data marcada como feriado.".to_string());
-                } else if schedule.is_day_off && !batidas.is_empty() {
+                } else if !em_ferias && schedule.is_day_off && !batidas.is_empty() {
                     calc.mensagens
                         .push("Batidas registradas em dia configurado como folga.".to_string());
                 }

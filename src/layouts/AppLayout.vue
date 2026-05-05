@@ -61,6 +61,7 @@ const cadastros = computed(() => [
   entityConfigs.horarios,
   entityConfigs.escalas,
   entityConfigs.feriados,
+  entityConfigs.ferias_colaboradores,
   entityConfigs.jornada_contextos_regras,
   entityConfigs.equipamentos,
   entityConfigs.eventos,
