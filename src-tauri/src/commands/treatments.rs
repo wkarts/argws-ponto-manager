@@ -563,6 +563,8 @@ pub fn fechamento_gerar_relatorio(
         .unwrap_or(0);
 
     let mut linhas = String::new();
+    let mut dias_ferias = 0_i64;
+    let mut dias_falta = 0_i64;
     for row in &apuracao.rows {
         let batidas = if row.batidas.is_empty() {
             "-".to_string()
@@ -574,11 +576,13 @@ pub fn fechamento_gerar_relatorio(
         } else {
             row.ocorrencias.join(" | ")
         };
-        let mensagens = if row.mensagens.is_empty() {
-            "-".to_string()
-        } else {
-            row.mensagens.join(" | ")
-        };
+        let ocorrencias_lower = row.ocorrencias.iter().map(|item| item.to_lowercase()).collect::<Vec<String>>();
+        if ocorrencias_lower.iter().any(|item| item.contains("férias") || item.contains("ferias")) {
+            dias_ferias += 1;
+        }
+        if row.horario_esperado_minutos > 0 && row.trabalhado_minutos == 0 && !row.abonado {
+            dias_falta += 1;
+        }
 
         linhas.push_str(&format!(
             r#"<tr>
@@ -586,25 +590,14 @@ pub fn fechamento_gerar_relatorio(
                 <td>{}</td>
                 <td>{}</td>
                 <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
-                <td>{}</td>
             </tr>"#,
             escape_html(&row.data),
             escape_html(&batidas),
-            escape_html(&row.jornada_nome),
-            format_minutes(row.horario_esperado_minutos),
-            format_minutes(row.trabalhado_minutos),
             format_minutes(row.saldo_minutos),
-            format_minutes(row.atraso_minutos),
-            format_minutes(row.extra_minutos),
             escape_html(&ocorrencias),
-            escape_html(&mensagens),
         ));
     }
+    let situacao = if apuracao.total_saldo_minutos > 0 { "Hora extra" } else if apuracao.total_saldo_minutos < 0 { "Saldo devedor" } else { "Normal" };
 
     let html = format!(
         r#"<!DOCTYPE html>
@@ -636,7 +629,7 @@ pub fn fechamento_gerar_relatorio(
               <text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text>
             </svg>
           </div>
-          <h1>Espelho mensal de ponto para fechamento</h1>
+          <h1>Fechamento mensal para contabilidade</h1>
           <h2>{funcionario}</h2>
           <div class="meta">
             <div class="box"><strong>Empresa:</strong> {empresa}<br /><strong>Período:</strong> {inicio} a {fim}<br /><strong>Jornada principal:</strong> {jornada}</div>
@@ -648,14 +641,8 @@ pub fn fechamento_gerar_relatorio(
               <tr>
                 <th>Data</th>
                 <th>Batidas</th>
-                <th>Jornada</th>
-                <th>Previsto</th>
-                <th>Computado</th>
-                <th>Saldo</th>
-                <th>Atraso</th>
-                <th>Extra</th>
+                <th>Saldo do dia</th>
                 <th>Ocorrências</th>
-                <th>Observações</th>
               </tr>
             </thead>
             <tbody>
@@ -664,9 +651,9 @@ pub fn fechamento_gerar_relatorio(
           </table>
 
           <div class="totais">
-            <div class="box"><strong>Total previsto:</strong> {previsto}<br /><strong>Total computado:</strong> {computado}</div>
-            <div class="box"><strong>Saldo do período:</strong> {saldo}<br /><strong>Atrasos:</strong> {atraso}<br /><strong>Extras:</strong> {extra}</div>
-            <div class="box"><strong>Banco de horas no período:</strong> {banco}<br /><strong>Dias apurados:</strong> {dias}</div>
+            <div class="box"><strong>Dias trabalhados:</strong> {dias_trabalhados}<br /><strong>Dias de férias:</strong> {dias_ferias}<br /><strong>Dias de falta:</strong> {dias_falta}</div>
+            <div class="box"><strong>Horas extras:</strong> {extra}<br /><strong>Horas faltantes:</strong> {faltantes}<br /><strong>Saldo final:</strong> {saldo}</div>
+            <div class="box"><strong>Situação:</strong> {situacao}<br /><strong>Dias apurados:</strong> {dias}<br /><strong>Período:</strong> {inicio} a {fim}</div>
           </div>
 
           <div class="assinaturas">
@@ -675,7 +662,7 @@ pub fn fechamento_gerar_relatorio(
           </div>
 
           <div class="rodape">
-            Relatório interno de fechamento mensal para conferência e assinatura. O tratamento do período considera batidas importadas/manuais, justificativas, atestados, abonos, ajustes autorizados e saldo de banco de horas processado no sistema.
+            Legenda: Hora extra = colaborador trabalhou acima da jornada esperada; Normal = colaborador cumpriu a jornada; Saldo devedor = colaborador trabalhou menos que o esperado; Férias = período não cobrado na apuração.
           </div>
         </body>
         </html>"#,
@@ -695,12 +682,13 @@ pub fn fechamento_gerar_relatorio(
         }),
         gerado = escape_html(&chrono::Local::now().format("%d/%m/%Y %H:%M").to_string()),
         linhas = linhas,
-        previsto = format_minutes(apuracao.total_esperado_minutos),
-        computado = format_minutes(apuracao.total_trabalhado_minutos),
         saldo = format_minutes(apuracao.total_saldo_minutos),
-        atraso = format_minutes(apuracao.total_atraso_minutos),
         extra = format_minutes(apuracao.total_extra_minutos),
-        banco = format_minutes(total_banco_horas),
+        faltantes = format_minutes(if apuracao.total_saldo_minutos < 0 { apuracao.total_saldo_minutos.abs() } else { 0 }),
+        dias_trabalhados = apuracao.rows.iter().filter(|row| row.trabalhado_minutos > 0).count(),
+        dias_ferias = dias_ferias,
+        dias_falta = dias_falta,
+        situacao = situacao,
         dias = apuracao.total_dias,
     );
 

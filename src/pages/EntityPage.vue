@@ -3,9 +3,9 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
+import { useSessionStore } from "../stores/session";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
 import { booleanLabel } from "../services/format";
-import { useSessionStore } from "../stores/session";
 
 const props = defineProps<{
   entityKey: string;
@@ -23,11 +23,6 @@ type TextBindableValue = string | number | readonly string[] | null | undefined;
 const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 const session = useSessionStore();
-
-const canCreate = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:create"));
-const canUpdate = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:update"));
-const canCancel = computed(() => props.entityKey === "ferias_colaboradores" && session.can("ferias:cancel"));
-const canDelete = computed(() => props.entityKey !== "ferias_colaboradores" || session.can("ferias:delete"));
 
 function inputValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
@@ -50,8 +45,8 @@ function onTextareaInput(key: string, event: Event) {
 }
 
 function defaultFieldValue(field: EntityField): FormFieldValue {
+  if (field.defaultValue !== undefined) return field.defaultValue;
   if (field.type === "checkbox") return true;
-  if (props.entityKey === "ferias_colaboradores" && field.key === "status") return "ativo";
   return "";
 }
 
@@ -60,7 +55,6 @@ function closeModal() {
 }
 
 function openNewModal() {
-  if (!canCreate.value) return;
   resetForm();
   modalOpen.value = true;
 }
@@ -83,6 +77,9 @@ async function loadOptions() {
   );
 
   const next: Record<string, ComboOption[]> = {};
+  for (const field of config.value.fields.filter((item) => item.type === "select" && item.options?.length)) {
+    next[field.key] = field.options!.map((option) => ({ id: option.value, label: option.label } as unknown as ComboOption));
+  }
   for (const entry of entries) {
     next[entry.key] = entry.items;
   }
@@ -93,6 +90,34 @@ function getOptionLabel(fieldKey: string, value: unknown): string {
   const options = optionsMap.value[fieldKey] || [];
   const matched = options.find((item) => String(item.id) === String(value));
   return matched?.label || String(value ?? "");
+}
+
+const isFeriasEntity = computed(() => props.entityKey === "ferias_colaboradores");
+
+function canCreate(): boolean {
+  if (isFeriasEntity.value) return session.can("ferias:create") || session.can("ferias:manage");
+  return true;
+}
+
+function canEditRow(row: Record<string, unknown>): boolean {
+  if (!isFeriasEntity.value) return true;
+  const status = String(row.status || "").toLowerCase();
+  if (status === "cancelado") return false;
+  if (status === "concluido") return session.can("ferias:manage");
+  return session.can("ferias:update") || session.can("ferias:manage");
+}
+
+function canCancelRow(row: Record<string, unknown>): boolean {
+  if (!isFeriasEntity.value) return false;
+  const status = String(row.status || "").toLowerCase();
+  if (status === "cancelado") return false;
+  if (status === "concluido") return session.can("ferias:manage");
+  return session.can("ferias:cancel") || session.can("ferias:manage");
+}
+
+function canDeleteRow(): boolean {
+  if (isFeriasEntity.value) return false;
+  return true;
 }
 
 function displayValue(column: string, row: Record<string, unknown>): string {
@@ -123,7 +148,6 @@ async function load() {
 }
 
 function editRow(row: Record<string, unknown>) {
-  if (!canEditRow(row)) return;
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
     const fallback = defaultFieldValue(field);
@@ -131,44 +155,6 @@ function editRow(row: Record<string, unknown>) {
   }
   form.id = normalizeFormValue(row.id, undefined);
   modalOpen.value = true;
-}
-
-function isFeriasRow(row: Record<string, unknown>) {
-  return props.entityKey === "ferias_colaboradores";
-}
-
-function rowStatus(row: Record<string, unknown>): string {
-  return String(row.status ?? "").toLowerCase();
-}
-
-function canEditRow(row: Record<string, unknown>): boolean {
-  if (!isFeriasRow(row)) return canUpdate.value;
-  const status = rowStatus(row);
-  if (status === "cancelado") return false;
-  if (status === "concluido") return session.can("ferias:update") && Boolean(session.user?.administrador || session.user?.master_user);
-  return canUpdate.value;
-}
-
-function canCancelRow(row: Record<string, unknown>): boolean {
-  if (!isFeriasRow(row)) return false;
-  const status = rowStatus(row);
-  if (status === "cancelado") return false;
-  if (status === "concluido") return canCancel.value && Boolean(session.user?.administrador || session.user?.master_user);
-  return canCancel.value;
-}
-
-async function cancelVacation(row: Record<string, unknown>) {
-  if (!canCancelRow(row)) return;
-  const motivo = window.prompt("Informe o motivo do cancelamento das férias:");
-  if (!motivo || !motivo.trim()) {
-    error.value = "O motivo do cancelamento é obrigatório.";
-    return;
-  }
-  const observacaoAnterior = String(row.observacao ?? "").trim();
-  const cancelamento = `[CANCELADO] ${new Date().toISOString()} - ${motivo.trim()}`;
-  const observacao = observacaoAnterior ? `${observacaoAnterior}\n${cancelamento}` : cancelamento;
-  await saveEntity(config.value.key, { ...row, status: "cancelado", ativo: 0, observacao });
-  await load();
 }
 
 async function persist() {
@@ -200,6 +186,32 @@ async function removeRow(id: number) {
   }
 }
 
+async function cancelFerias(row: Record<string, unknown>) {
+  const motivo = window.prompt("Informe o motivo do cancelamento das férias:");
+  if (motivo == null) return;
+  if (!motivo.trim()) {
+    error.value = "Informe o motivo do cancelamento para preservar o histórico.";
+    return;
+  }
+
+  try {
+    await saveEntity(config.value.key, {
+      ...row,
+      status: "cancelado",
+      ativo: false,
+      motivo_cancelamento: motivo.trim(),
+      observacao: `${String(row.observacao || "").trim()}${String(row.observacao || "").trim() ? "\n" : ""}Cancelamento: ${motivo.trim()}`
+    });
+    await load();
+    if (Number(form.id) === Number(row.id)) {
+      resetForm();
+      closeModal();
+    }
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : "Falha ao cancelar férias.";
+  }
+}
+
 onMounted(async () => {
   resetForm();
   await loadOptions();
@@ -222,19 +234,14 @@ watch(
     <div class="toolbar">
       <div>
         <h2 style="margin: 0;">{{ config.title }}</h2>
-        <div class="muted">Cadastro local padronizado com edição e inclusão em modal.</div>
+        <div class="muted">{{ config.description || "Cadastro local padronizado com edição e inclusão em modal." }}</div>
       </div>
 
       <div class="actions">
         <input v-model="search" placeholder="Pesquisar..." @keyup.enter="load" />
         <button class="secondary" @click="load">Buscar</button>
-          <button class="secondary" @click="openNewModal" :disabled="!canCreate">Novo</button>
-        </div>
+        <button v-if="canCreate()" class="secondary" @click="openNewModal">Novo</button>
       </div>
-
-    <div v-if="config.key === 'ferias_colaboradores'" class="alert">
-      <div><strong>Atenção:</strong> o período de férias lançado será considerado automaticamente na apuração do ponto. Dias dentro desse intervalo serão exibidos como “Férias” e não serão cobrados como falta, atraso ou pendência de jornada.</div>
-      <div style="margin-top:8px;">Após salvar, alterações no período devem ser feitas apenas por usuário autorizado. Caso o lançamento esteja incorreto, utilize a ação “Cancelar férias” para preservar o histórico.</div>
     </div>
 
     <div v-if="error" class="alert error">{{ error }}</div>
@@ -258,9 +265,9 @@ watch(
               </td>
               <td>
                 <div class="actions compact-actions">
-                  <button class="secondary" @click="editRow(row)" :disabled="!canEditRow(row)">Visualizar/Editar</button>
-                  <button v-if="canCancelRow(row)" class="secondary" @click="cancelVacation(row)">Cancelar férias</button>
-                  <button v-if="canDelete" class="danger" @click="removeRow(Number(row.id))">Excluir</button>
+                  <button v-if="canEditRow(row)" class="secondary" @click="editRow(row)">Editar</button>
+                  <button v-if="canCancelRow(row)" class="secondary" @click="cancelFerias(row)">Cancelar férias</button>
+                  <button v-if="canDeleteRow()" class="danger" @click="removeRow(Number(row.id))">Excluir</button>
                 </div>
               </td>
             </tr>
@@ -275,10 +282,14 @@ watch(
     <AppModal
       :open="modalOpen"
       :title="form.id ? `Editar ${config.title}` : `Novo registro de ${config.title}`"
-      subtitle="Fluxo ajustado para manutenção em modal, preservando a listagem principal."
+      :subtitle="isFeriasEntity ? 'Lançamento controlado de férias com preservação de histórico.' : 'Fluxo ajustado para manutenção em modal, preservando a listagem principal.'"
       width="lg"
       @close="closeModal"
     >
+      <div v-if="config.modalHelp?.length" class="alert info">
+        <div v-for="item in config.modalHelp" :key="item">{{ item }}</div>
+      </div>
+
       <form class="grid" @submit.prevent="persist">
         <div v-for="field in config.fields" :key="field.key" class="field">
           <label v-if="field.type !== 'checkbox'" :for="field.key">
@@ -308,14 +319,10 @@ watch(
             v-model="form[field.key]"
           >
             <option value="">Selecione</option>
-            <option v-for="item in field.options || []" :key="String(item.value)" :value="item.value">
-              {{ item.label }}
-            </option>
             <option v-for="item in optionsMap[field.key] || []" :key="item.id" :value="item.id">
               {{ item.label }}
             </option>
           </select>
-          <small v-if="field.helpText" class="muted">{{ field.helpText }}</small>
 
           <input
             v-else
@@ -336,6 +343,8 @@ watch(
                         ? 'password'
                         : 'text'"
           />
+
+          <small v-if="field.help" class="muted">{{ field.help }}</small>
         </div>
 
         <div class="actions">

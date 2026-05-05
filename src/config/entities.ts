@@ -10,15 +10,21 @@ export type EntityFieldType =
   | "email"
   | "tel";
 
+export interface EntityFieldOption {
+  value: string | number;
+  label: string;
+}
+
 export interface EntityField {
   key: string;
   label: string;
   type?: EntityFieldType;
   required?: boolean;
   relationEntity?: string;
-  options?: Array<{ value: string | number; label: string }>;
   placeholder?: string;
-  helpText?: string;
+  defaultValue?: string | number | boolean;
+  options?: EntityFieldOption[];
+  help?: string;
 }
 
 export interface EntityConfig {
@@ -27,6 +33,8 @@ export interface EntityConfig {
   route: string;
   columns: string[];
   fields: EntityField[];
+  description?: string;
+  modalHelp?: string[];
 }
 
 export const entityConfigs: Record<string, EntityConfig> = {
@@ -177,6 +185,12 @@ export const entityConfigs: Record<string, EntityConfig> = {
     key: "ferias_colaboradores",
     title: "Férias de colaboradores",
     route: "/ferias",
+    description: "Lance períodos de férias para que a apuração de ponto trate esses dias como Férias, sem cobrança de falta, atraso ou saldo devedor.",
+    modalHelp: [
+      "Atenção: o período de férias lançado será considerado automaticamente na apuração do ponto quando o status for Ativo ou Concluído.",
+      "Dias dentro desse intervalo serão exibidos como Férias e não serão cobrados como falta, atraso, saída antecipada ou pendência de jornada.",
+      "Após salvar, alterações no período devem ser feitas apenas por usuário autorizado. Caso o lançamento esteja incorreto, utilize a ação Cancelar férias para preservar o histórico."
+    ],
     columns: ["id", "funcionario_id", "data_inicial", "data_final", "status", "ativo"],
     fields: [
       { key: "funcionario_id", label: "Colaborador", type: "select", relationEntity: "funcionarios", required: true },
@@ -186,13 +200,15 @@ export const entityConfigs: Record<string, EntityConfig> = {
         key: "status",
         label: "Status",
         type: "select",
+        defaultValue: "ativo",
+        required: true,
         options: [
           { value: "ativo", label: "Ativo" },
           { value: "programado", label: "Programado" },
           { value: "concluido", label: "Concluído" },
           { value: "cancelado", label: "Cancelado" }
         ],
-        helpText: "Ativo: férias confirmadas e consideradas no relatório. Programado: planejamento futuro, ainda não considerado na apuração. Concluído: férias encerradas, mantidas para histórico e relatórios antigos. Cancelado: lançamento cancelado, sem impacto na apuração."
+        help: "Ativo: confirmado e considerado no relatório. Programado: planejamento futuro, não entra na apuração. Concluído: histórico válido para relatórios antigos. Cancelado: sem impacto na apuração."
       },
       { key: "observacao", label: "Observação", type: "textarea" },
       { key: "ativo", label: "Ativo", type: "checkbox" }
