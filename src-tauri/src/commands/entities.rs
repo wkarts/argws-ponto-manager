@@ -231,7 +231,7 @@ fn normalize_ferias_status(raw: Option<&str>) -> Result<String, String> {
     }
 }
 
-fn payload_string(payload: &Value, key: &str) -> Option<String> {
+fn payload_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
     payload
         .get(key)
         .and_then(|v| v.as_str())
