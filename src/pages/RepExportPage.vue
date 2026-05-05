@@ -11,6 +11,12 @@ const empresaId = ref<number | null>(null);
 const message = ref("");
 const error = ref("");
 
+function toNullableNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
 function download(fileName: string, content: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -23,8 +29,8 @@ function download(fileName: string, content: string) {
 
 async function loadCompanies() {
   const all = await comboList("empresas");
-  companies.value = session.isMaster ? all : all.filter((item) => session.user?.company_ids.includes(item.id));
-  empresaId.value = session.activeCompanyId ?? companies.value[0]?.id ?? null;
+  companies.value = session.isMaster ? all : all.filter((item) => session.user?.company_ids.includes(Number(item.id)));
+  empresaId.value = session.activeCompanyId ?? toNullableNumber(companies.value[0]?.id);
 }
 
 async function exportEmpresa() {

@@ -225,7 +225,9 @@ fn normalize_ferias_status(raw: Option<&str>) -> Result<String, String> {
 
     match status.as_str() {
         "ativo" | "programado" | "concluido" | "cancelado" => Ok(status),
-        _ => Err("Status de férias inválido. Use ativo, programado, concluido ou cancelado.".to_string()),
+        _ => Err(
+            "Status de férias inválido. Use ativo, programado, concluido ou cancelado.".to_string(),
+        ),
     }
 }
 
