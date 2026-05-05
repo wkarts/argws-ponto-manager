@@ -497,7 +497,10 @@ pub fn entity_save(
             .filter(|v| !v.is_empty())
             .unwrap_or_else(|| "ativo".to_string());
         if !FERIAS_STATUS_VALIDOS.contains(&status.as_str()) {
-            return Err("Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado.".to_string());
+            return Err(
+                "Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado."
+                    .to_string(),
+            );
         }
         let conflito: i64 = conn
             .query_row(
