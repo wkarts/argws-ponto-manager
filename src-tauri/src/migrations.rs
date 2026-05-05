@@ -325,6 +325,20 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (departamento_id) REFERENCES departamentos(id) ON DELETE CASCADE
         );
 
+
+        CREATE TABLE IF NOT EXISTS ferias_colaboradores (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            funcionario_id INTEGER NOT NULL,
+            data_inicial TEXT NOT NULL,
+            data_final TEXT NOT NULL,
+            observacao TEXT,
+            status TEXT NOT NULL DEFAULT 'ativo',
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS jornada_contextos_regras (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             descricao TEXT NOT NULL,
@@ -391,6 +405,23 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id),
             FOREIGN KEY (afd_importacao_id) REFERENCES afd_importacoes(id),
             FOREIGN KEY (justificativa_id) REFERENCES justificativas(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS batidas_ignoradas_afd (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batida_id_origem INTEGER,
+            funcionario_id INTEGER NOT NULL,
+            equipamento_id INTEGER,
+            data_referencia TEXT NOT NULL,
+            hora TEXT NOT NULL,
+            nsr TEXT,
+            origem TEXT,
+            motivo TEXT NOT NULL DEFAULT 'ajuste_manual',
+            observacao TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id),
+            FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id)
         );
 
         CREATE TABLE IF NOT EXISTS afd_marcacoes (
@@ -857,9 +888,14 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_batidas_funcionario_data ON batidas(funcionario_id, data_referencia);
         CREATE INDEX IF NOT EXISTS idx_batidas_nsr ON batidas(funcionario_id, nsr);
         CREATE INDEX IF NOT EXISTS idx_batidas_justificativa ON batidas(justificativa_id);
+        CREATE INDEX IF NOT EXISTS idx_batidas_ignoradas_funcionario_data ON batidas_ignoradas_afd(funcionario_id, data_referencia, hora);
+        CREATE INDEX IF NOT EXISTS idx_batidas_ignoradas_nsr ON batidas_ignoradas_afd(funcionario_id, nsr);
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_batidas_ignoradas_assinatura ON batidas_ignoradas_afd(funcionario_id, data_referencia, hora, COALESCE(nsr, ''));
         CREATE INDEX IF NOT EXISTS idx_afd_importacoes_empresa ON afd_importacoes(empresa_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_afd_marcacoes_importacao ON afd_marcacoes(importacao_id);
         CREATE INDEX IF NOT EXISTS idx_ocorrencias_funcionario_data ON ocorrencias_ponto(funcionario_id, data_referencia);
+        CREATE INDEX IF NOT EXISTS idx_ferias_funcionario_periodo ON ferias_colaboradores(funcionario_id, data_inicial, data_final);
+        CREATE INDEX IF NOT EXISTS idx_ferias_status ON ferias_colaboradores(status, ativo);
         CREATE INDEX IF NOT EXISTS idx_ocorrencias_justificativa ON ocorrencias_ponto(justificativa_id);
         CREATE INDEX IF NOT EXISTS idx_banco_horas_funcionario_data ON banco_horas_lancamentos(funcionario_id, data_referencia);
         CREATE INDEX IF NOT EXISTS idx_relatorios_gerados_created_at ON relatorios_gerados(created_at DESC);
@@ -1121,6 +1157,8 @@ fn access_permission_keys() -> Vec<&'static str> {
         "jornadas:manage",
         "feriados:view",
         "feriados:manage",
+        "ferias:view",
+        "ferias:manage",
         "equipamentos:view",
         "equipamentos:manage",
         "eventos:view",

@@ -170,6 +170,21 @@ export const entityConfigs: Record<string, EntityConfig> = {
       { key: "ativo", label: "Ativo", type: "checkbox" }
     ]
   },
+
+  ferias_colaboradores: {
+    key: "ferias_colaboradores",
+    title: "Férias de colaboradores",
+    route: "/ferias",
+    columns: ["id", "funcionario_id", "data_inicial", "data_final", "status", "ativo"],
+    fields: [
+      { key: "funcionario_id", label: "Colaborador", type: "select", relationEntity: "funcionarios", required: true },
+      { key: "data_inicial", label: "Data inicial", type: "date", required: true },
+      { key: "data_final", label: "Data final", type: "date", required: true },
+      { key: "status", label: "Status", placeholder: "ativo, programado, concluido ou cancelado" },
+      { key: "observacao", label: "Observação", type: "textarea" },
+      { key: "ativo", label: "Ativo", type: "checkbox" }
+    ]
+  },
   jornada_contextos_regras: {
     key: "jornada_contextos_regras",
     title: "Regras de jornada por contexto",

@@ -39,6 +39,7 @@ const permissionByEntity: Record<string, string> = {
   horarios: "horarios:view",
   escalas: "escalas:view",
   feriados: "feriados:view",
+  ferias_colaboradores: "ferias:view",
   jornada_contextos_regras: "jornadas:view",
   equipamentos: "equipamentos:view",
   eventos: "eventos:view",

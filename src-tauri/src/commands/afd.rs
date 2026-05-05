@@ -38,6 +38,31 @@ struct ParsedMark {
     linha_bruta: String,
 }
 
+fn batida_foi_ignorada_por_ajuste(
+    conn: &rusqlite::Connection,
+    funcionario_id: i64,
+    data_referencia: &str,
+    hora: &str,
+    nsr: &str,
+) -> Result<bool, String> {
+    let exists: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+               FROM batidas_ignoradas_afd
+              WHERE funcionario_id = ?1
+                AND data_referencia = ?2
+                AND hora = ?3
+                AND COALESCE(nsr, '') = COALESCE(?4, '')
+              LIMIT 1",
+            params![funcionario_id, data_referencia, hora, nsr],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Falha ao verificar batida ignorada por ajuste manual: {err}"))?;
+
+    Ok(exists > 0)
+}
+
+
 fn only_digits(value: &str) -> String {
     value.chars().filter(|ch| ch.is_ascii_digit()).collect()
 }
@@ -343,16 +368,28 @@ pub fn afd_import_file(
             .ok_or_else(|| "Falha ao converter data/hora de marcação do AFD.".to_string())?;
 
         let (status, mensagem, batida_id) = if let Some(funcionario_id) = funcionario_id {
-            let duplicate: Option<i64> = conn
+            let ignorada_por_ajuste = batida_foi_ignorada_por_ajuste(
+                &conn,
+                funcionario_id,
+                &data_referencia,
+                &hora,
+                &mark.nsr,
+            )?;
+
+            let duplicate: Option<i64> = if ignorada_por_ajuste {
+                None
+            } else {
+                conn
                 .query_row(
                     "SELECT id FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND hora = ?3 AND COALESCE(nsr, '') = COALESCE(?4, '') LIMIT 1",
                     params![funcionario_id, data_referencia, hora, mark.nsr],
                     |row| row.get(0),
                 )
                 .optional()
-                .map_err(|err| format!("Falha ao validar duplicidade da marcação AFD: {err}"))?;
+                .map_err(|err| format!("Falha ao validar duplicidade da marcação AFD: {err}"))?
+            };
 
-            let close_duplicate: Option<(i64, String)> = if duplicate.is_none() {
+            let close_duplicate: Option<(i64, String)> = if !ignorada_por_ajuste && duplicate.is_none() {
                 conn.query_row(
                     "SELECT id, data_referencia || 'T' || hora FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 ORDER BY ABS((CAST(substr(hora,1,2) AS INTEGER)*60 + CAST(substr(hora,4,2) AS INTEGER)) - (CAST(substr(?3,1,2) AS INTEGER)*60 + CAST(substr(?3,4,2) AS INTEGER))) ASC LIMIT 1",
                     params![funcionario_id, data_referencia, hora],
@@ -372,7 +409,14 @@ pub fn afd_import_file(
                 .map(|(existing, incoming)| (incoming - existing).abs() <= 1)
                 .unwrap_or(false);
 
-            if let Some(existing_id) = duplicate {
+            if ignorada_por_ajuste {
+                total_descartadas += 1;
+                (
+                    "ignorada_ajuste".to_string(),
+                    "Marcação ignorada porque foi removida/alterada manualmente em tratamento anterior.".to_string(),
+                    None,
+                )
+            } else if let Some(existing_id) = duplicate {
                 total_descartadas += 1;
                 (
                     "duplicada".to_string(),

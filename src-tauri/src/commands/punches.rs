@@ -68,6 +68,50 @@ fn parse_bool(payload: &Map<String, Value>, field: &str, default: bool) -> i64 {
     }
 }
 
+fn registrar_batida_ignorada_por_ajuste(
+    conn: &rusqlite::Connection,
+    batida_id: i64,
+    motivo: &str,
+) -> Result<(), String> {
+    let now = Utc::now().to_rfc3339();
+
+    let origem: Option<String> = conn
+        .query_row(
+            "SELECT origem FROM batidas WHERE id = ?1 LIMIT 1",
+            params![batida_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar origem da batida ajustada: {err}"))?;
+
+    let origem_normalizada = origem.clone().unwrap_or_default().to_lowercase();
+    let deve_preservar_ignorada = origem_normalizada.contains("afd")
+        || origem_normalizada.contains("conector")
+        || origem_normalizada.contains("rep");
+
+    if !deve_preservar_ignorada {
+        return Ok(());
+    }
+
+    conn.execute(
+        "INSERT OR IGNORE INTO batidas_ignoradas_afd (
+            batida_id_origem, funcionario_id, equipamento_id, data_referencia, hora, nsr,
+            origem, motivo, observacao, created_at, updated_at
+         )
+         SELECT id, funcionario_id, equipamento_id, data_referencia, hora, nsr,
+                origem, ?2,
+                'Batida removida/alterada manualmente para não ser recriada em nova importação completa do AFD.',
+                ?3, ?3
+           FROM batidas
+          WHERE id = ?1",
+        params![batida_id, motivo, now],
+    )
+    .map_err(|err| format!("Falha ao registrar batida ignorada por ajuste manual: {err}"))?;
+
+    Ok(())
+}
+
+
 #[tauri::command]
 pub fn batidas_list(
     state: State<'_, SharedState>,
@@ -200,6 +244,32 @@ pub fn batida_save(
     ];
 
     let record_id = if let Some(existing_id) = id {
+        let assinatura_alterada: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM batidas
+                  WHERE id = ?1
+                    AND (funcionario_id <> ?2
+                         OR data_referencia <> ?3
+                         OR hora <> ?4
+                         OR COALESCE(nsr, '') <> COALESCE(?5, ''))",
+                params![
+                    existing_id,
+                    funcionario_id,
+                    data_referencia,
+                    hora,
+                    payload.get("nsr").and_then(Value::as_str).unwrap_or("")
+                ],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()
+            .map_err(|err| format!("Falha ao verificar alteração da batida original: {err}"))?
+            .unwrap_or(0)
+            > 0;
+
+        if assinatura_alterada {
+            registrar_batida_ignorada_por_ajuste(&conn, existing_id, "alteracao_manual")?;
+        }
+
         let mut params = values.clone();
         params.push(rusqlite::types::Value::Text(now.clone()));
         params.push(rusqlite::types::Value::Integer(existing_id));
@@ -285,6 +355,8 @@ pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, Str
     let tx = conn
         .transaction()
         .map_err(|err| format!("Falha ao iniciar transação de exclusão de batida: {err}"))?;
+
+    registrar_batida_ignorada_por_ajuste(&tx, id, "exclusao_manual")?;
 
     tx.execute(
         "UPDATE afd_marcacoes SET batida_id = NULL WHERE batida_id = ?1",
