@@ -10,8 +10,6 @@ use crate::{
     security::hash_password,
 };
 
-const FERIAS_STATUS_VALIDOS: [&str; 4] = ["ativo", "programado", "concluido", "cancelado"];
-
 struct EntityDefinition {
     table: &'static str,
     fields: &'static [&'static str],
@@ -124,6 +122,9 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
                 "observacao",
                 "status",
                 "ativo",
+                "cancelado_em",
+                "cancelado_por",
+                "motivo_cancelamento",
             ],
             searchable: &["data_inicial", "data_final", "observacao", "status"],
             required: &["funcionario_id", "data_inicial", "data_final"],
@@ -214,6 +215,26 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
         }),
         _ => None,
     }
+}
+
+fn normalize_ferias_status(raw: Option<&str>) -> Result<String, String> {
+    let status = raw
+        .map(|v| v.trim().to_lowercase())
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| "ativo".to_string());
+
+    match status.as_str() {
+        "ativo" | "programado" | "concluido" | "cancelado" => Ok(status),
+        _ => Err("Status de férias inválido. Use ativo, programado, concluido ou cancelado.".to_string()),
+    }
+}
+
+fn payload_string(payload: &Value, key: &str) -> Option<String> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
 }
 
 fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
@@ -489,19 +510,16 @@ pub fn entity_save(
             );
         }
 
-        let current_id = id.unwrap_or(0);
-        let status = payload
-            .get("status")
-            .and_then(|v| v.as_str())
-            .map(|v| v.trim().to_lowercase())
-            .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| "ativo".to_string());
-        if !FERIAS_STATUS_VALIDOS.contains(&status.as_str()) {
-            return Err(
-                "Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado."
-                    .to_string(),
-            );
+        let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
+        if status == "cancelado" {
+            let motivo_cancelamento = payload_string(&payload, "motivo_cancelamento")
+                .or_else(|| payload_string(&payload, "observacao"));
+            if motivo_cancelamento.is_none() {
+                return Err("Informe o motivo/observação para cancelar férias.".to_string());
+            }
         }
+
+        let current_id = id.unwrap_or(0);
         let conflito: i64 = conn
             .query_row(
                 "SELECT COUNT(*)
@@ -545,19 +563,20 @@ pub fn entity_save(
 
         columns.push((*field).to_string());
         if entity == "ferias_colaboradores" && *field == "status" {
-            let status = payload
-                .get("status")
-                .and_then(|v| v.as_str())
-                .map(|v| v.trim().to_lowercase())
-                .filter(|v| !v.is_empty())
-                .unwrap_or_else(|| "ativo".to_string());
-            if !FERIAS_STATUS_VALIDOS.contains(&status.as_str()) {
-                return Err(
-                    "Status de férias inválido. Utilize: ativo, programado, concluido ou cancelado."
-                        .to_string(),
-                );
-            }
+            let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
             values.push(Value::String(status));
+        } else if entity == "ferias_colaboradores" && *field == "cancelado_em" {
+            let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
+            let cancelado_em = if status == "cancelado" {
+                payload_string(&payload, "cancelado_em").unwrap_or_else(|| now.clone())
+            } else {
+                payload_string(&payload, "cancelado_em").unwrap_or_default()
+            };
+            if cancelado_em.is_empty() {
+                values.push(Value::Null);
+            } else {
+                values.push(Value::String(cancelado_em));
+            }
         } else {
             values.push(normalize_value(&payload, field));
         }
@@ -643,6 +662,10 @@ pub fn entity_delete(
         entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
+
+    if entity == "ferias_colaboradores" {
+        return Err("Férias lançadas não podem ser excluídas fisicamente. Utilize a ação Cancelar férias para preservar o histórico.".to_string());
+    }
 
     let sql = format!("DELETE FROM {} WHERE id = ?1", definition.table);
     let affected = conn

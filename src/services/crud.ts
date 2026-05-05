@@ -1,7 +1,7 @@
 import { invokeCommand } from "./tauri";
 
 export interface ComboOption {
-  id: number;
+  id: number | string;
   label: string;
 }
 

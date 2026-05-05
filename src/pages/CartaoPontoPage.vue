@@ -884,6 +884,23 @@ function minutesToHHMM(value: number): string {
   return `${hh}:${mm}`;
 }
 
+function minutesToSignedHHMM(value: number): string {
+  const numeric = Number(value || 0);
+  const sign = numeric < 0 ? "-" : "";
+  const absolute = Math.abs(numeric);
+  const hh = Math.floor(absolute / 60).toString().padStart(2, "0");
+  const mm = Math.floor(absolute % 60).toString().padStart(2, "0");
+  return `${sign}${hh}:${mm}`;
+}
+
+function hhmmToMinutes(value: string): number {
+  const clean = String(value || "00:00").trim();
+  const sign = clean.startsWith("-") ? -1 : 1;
+  const normalized = clean.replace(/^[+-]/, "");
+  const [h, m] = normalized.split(":").map((part) => Number(part || 0));
+  return sign * ((Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0));
+}
+
 function formatDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
@@ -1052,10 +1069,10 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   const tableByModel: Record<string, string> = {
     cartao_ponto: `
-      <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
+      <thead><tr><th>Data</th><th>Dia semana</th><th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th><th>Ocorrência</th><th>Observação</th></tr></thead>
       <tbody>
-      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.ent1}</td><td>${r.sai1}</td><td>${r.ent2}</td><td>${r.sai2}</td><td>${r.ent3}</td><td>${r.sai3}</td><td>${r.normal}</td><td>${r.falta}</td><td>${r.extra}</td><td>${r.ocorrencias}</td></tr>`).join("")}
-      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.normal)}</td><td>${minutesToHHMM(totals.falta)}</td><td>${minutesToHHMM(totals.extra)}</td><td>-</td></tr>
+      ${dailyRows.map((r) => `<tr><td>${r.day}</td><td>${r.dayLabel}</td><td>${[r.ent1, r.sai1, r.ent2, r.sai2, r.ent3, r.sai3].filter((p) => p && p !== "Folga").join(" | ") || "-"}</td><td>${r.hTrabalhadas}</td><td>${r.previsto}</td><td>${minutesToSignedHHMM(hhmmToMinutes(r.extra) - hhmmToMinutes(r.falta))}</td><td>${r.ocorrencias || "Normal"}</td><td>-</td></tr>`).join("")}
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.normal + totals.falta)}</td><td>${minutesToSignedHHMM(totals.extra - totals.falta)}</td><td>-</td><td>-</td></tr>
       </tbody>
     `,
     folha_resumida: `
@@ -1093,7 +1110,7 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
       <div class="summary-box"><strong>Total atrasos</strong><div>${minutesToHHMM(totals.atraso)}</div></div>
       <div class="summary-box"><strong>Total horas noturnas</strong><div>${minutesToHHMM(totals.noturno)}</div></div>
       <div class="summary-box"><strong>Total H.E. acumuladas</strong><div>${minutesToHHMM(totals.extra)}</div></div>
-      <div class="summary-box"><strong>Total banco de horas</strong><div>${minutesToHHMM(totals.extra - totals.falta)}</div></div>
+      <div class="summary-box"><strong>Total banco de horas</strong><div>${minutesToSignedHHMM(totals.extra - totals.falta)}</div></div>
     </div>
   ` : "";
 

@@ -33,7 +33,10 @@ const filters = reactive({
   dataInicial: new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10),
   dataFinal: new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10),
   visualizacao: "sintetico" as ModoVisualizacao,
+  exibirDetalhesTecnicos: false,
 });
+
+const TOLERANCIA_SITUACAO_MINUTOS = 5;
 
 const periodoLabel = computed(() => {
   if (filters.modoPeriodo === "competencia") {
@@ -60,6 +63,7 @@ const resumoSintetico = computed(() => {
       saidasAntecipadas: number;
       faltas: number;
       folgasDescansos: number;
+      ferias: number;
       abonos: number;
       ajustesManuais: number;
     }
@@ -81,6 +85,7 @@ const resumoSintetico = computed(() => {
         saidasAntecipadas: 0,
         faltas: 0,
         folgasDescansos: 0,
+        ferias: 0,
         abonos: 0,
         ajustesManuais: 0,
       });
@@ -104,6 +109,9 @@ const resumoSintetico = computed(() => {
     }
     if (row.tipo_jornada.startsWith("folga") || row.ocorrencias.some((item) => item.toLowerCase().includes("feriado"))) {
       current.folgasDescansos += 1;
+    }
+    if (row.ocorrencias.some((item) => item.toLowerCase().includes("férias") || item.toLowerCase().includes("ferias"))) {
+      current.ferias += 1;
     }
     if (row.mensagens.some((item) => item.toLowerCase().includes("manual"))) {
       current.ajustesManuais += 1;
@@ -173,6 +181,12 @@ function safeText(value: string): string {
     .replace(/\"/g, "&quot;");
 }
 
+function obterSituacao(saldoMinutos: number): "Hora extra" | "Normal" | "Saldo devedor" {
+  if (Math.abs(saldoMinutos) <= TOLERANCIA_SITUACAO_MINUTOS) return "Normal";
+  if (saldoMinutos > 0) return "Hora extra";
+  return "Saldo devedor";
+}
+
 function buildReportHtml(): string {
   if (!result.value) return "";
   const generatedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "medium" }).format(new Date());
@@ -191,7 +205,7 @@ function buildReportHtml(): string {
       <div class="kpi"><strong>Dias apurados</strong><span>${result.value.total_dias}</span></div>
       <div class="kpi"><strong>Previsto</strong><span>${formatMinutes(result.value.total_esperado_minutos)}</span></div>
       <div class="kpi"><strong>Trabalhado</strong><span>${formatMinutes(result.value.total_trabalhado_minutos)}</span></div>
-      <div class="kpi"><strong>Saldo</strong><span>${formatMinutes(result.value.total_saldo_minutos)}</span></div>
+      <div class="kpi"><strong>Saldo final</strong><span>${formatMinutes(result.value.total_saldo_minutos)}</span></div>
       <div class="kpi"><strong>Extras</strong><span>${formatMinutes(result.value.total_extra_minutos)}</span></div>
     </section>`;
 
@@ -204,15 +218,13 @@ function buildReportHtml(): string {
         <td>${safeText(row.funcionarioNome)}</td>
         <td>${formatMinutes(row.previsto)}</td>
         <td>${formatMinutes(row.trabalhado)}</td>
-        <td>${formatMinutes(row.saldo)}</td>
         <td>${formatMinutes(row.extras)}</td>
         <td>${formatMinutes(row.faltantes)}</td>
-        <td>${formatMinutes(row.bancoCredor)}</td>
-        <td>${formatMinutes(row.bancoDevedor)}</td>
-        <td>${formatMinutes(row.atrasos)}</td>
-        <td>${formatMinutes(row.saidasAntecipadas)}</td>
+        <td>${formatMinutes(row.saldo)}</td>
+        <td>${obterSituacao(row.saldo)}</td>
         <td>${row.faltas}</td>
-        <td>${row.folgasDescansos}</td>
+        <td>${row.ferias}</td>
+        ${filters.exibirDetalhesTecnicos ? `<td>${formatMinutes(row.atrasos)}</td><td>${formatMinutes(row.saidasAntecipadas)}</td><td>${formatMinutes(row.abonos)}</td><td>${row.ajustesManuais}</td>` : ""}
       </tr>`,
       )
       .join("");
@@ -221,9 +233,9 @@ function buildReportHtml(): string {
       <table>
         <thead>
           <tr>
-            <th>Colaborador</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Extras</th>
-            <th>Faltantes</th><th>Banco credor</th><th>Banco devedor</th><th>Atrasos</th>
-            <th>Saídas ant.</th><th>Faltas</th><th>Folgas</th>
+            <th>Colaborador</th><th>Total esperado</th><th>Total trabalhado</th><th>Horas extras</th><th>Horas faltantes</th>
+            <th>Saldo final</th><th>Situação</th><th>Dias de falta</th><th>Dias de férias</th>
+            ${filters.exibirDetalhesTecnicos ? `<th>Atrasos</th><th>Saídas antecipadas</th><th>Abonos</th><th>Ajustes manuais</th>` : ""}
           </tr>
         </thead>
         <tbody>${body}</tbody>
@@ -287,6 +299,7 @@ function buildReportHtml(): string {
     ${header}
     ${kpis}
     ${content}
+    <p><strong>Legenda:</strong> Hora extra = trabalhou acima da jornada esperada; Normal = cumpriu a jornada dentro da tolerância; Saldo devedor = trabalhou abaixo da jornada esperada; Férias = período não cobrado na apuração.</p>
   </body>
   </html>`;
 }
@@ -459,6 +472,9 @@ onMounted(loadEmployees);
             <option value="analitico">Analítico</option>
           </select>
         </div>
+        <div class="field">
+          <label><input v-model="filters.exibirDetalhesTecnicos" type="checkbox" /> Exibir detalhes técnicos</label>
+        </div>
         <div class="actions align-end">
           <button class="primary" @click="gerarRelatorio" :disabled="loading">{{ loading ? "Apurando..." : "Gerar relatório" }}</button>
         </div>
@@ -471,7 +487,7 @@ onMounted(loadEmployees);
         <div class="kpi"><strong>Dias apurados</strong><span>{{ result.total_dias }}</span></div>
         <div class="kpi"><strong>Previsto</strong><span>{{ formatMinutes(result.total_esperado_minutos) }}</span></div>
         <div class="kpi"><strong>Trabalhado</strong><span>{{ formatMinutes(result.total_trabalhado_minutos) }}</span></div>
-        <div class="kpi"><strong>Saldo</strong><span>{{ formatMinutes(result.total_saldo_minutos) }}</span></div>
+        <div class="kpi"><strong>Saldo final</strong><span>{{ formatMinutes(result.total_saldo_minutos) }}</span></div>
         <div class="kpi"><strong>Horas extras</strong><span>{{ formatMinutes(result.total_extra_minutos) }}</span></div>
       </div>
 
@@ -482,19 +498,18 @@ onMounted(loadEmployees);
             <thead>
               <tr>
                 <th>Colaborador</th>
-                <th>Previsto</th>
-                <th>Trabalhado</th>
-                <th>Saldo</th>
-                <th>Extras</th>
-                <th>Faltantes</th>
-                <th>Banco credor</th>
-                <th>Banco devedor</th>
-                <th>Atrasos</th>
-                <th>Saídas antecipadas</th>
-                <th>Faltas</th>
-                <th>Folgas/descansos</th>
-                <th>Abonos</th>
-                <th>Ajustes manuais</th>
+                <th>Total esperado</th>
+                <th>Total trabalhado</th>
+                <th>Horas extras</th>
+                <th>Horas faltantes</th>
+                <th>Saldo final</th>
+                <th>Situação</th>
+                <th>Dias de falta</th>
+                <th>Dias de férias</th>
+                <th v-if="filters.exibirDetalhesTecnicos">Atrasos</th>
+                <th v-if="filters.exibirDetalhesTecnicos">Saídas antecipadas</th>
+                <th v-if="filters.exibirDetalhesTecnicos">Abonos</th>
+                <th v-if="filters.exibirDetalhesTecnicos">Ajustes manuais</th>
               </tr>
             </thead>
             <tbody>
@@ -502,21 +517,24 @@ onMounted(loadEmployees);
                 <td>{{ row.funcionarioNome }}</td>
                 <td>{{ formatMinutes(row.previsto) }}</td>
                 <td>{{ formatMinutes(row.trabalhado) }}</td>
-                <td>{{ formatMinutes(row.saldo) }}</td>
                 <td>{{ formatMinutes(row.extras) }}</td>
                 <td>{{ formatMinutes(row.faltantes) }}</td>
-                <td>{{ formatMinutes(row.bancoCredor) }}</td>
-                <td>{{ formatMinutes(row.bancoDevedor) }}</td>
-                <td>{{ formatMinutes(row.atrasos) }}</td>
-                <td>{{ formatMinutes(row.saidasAntecipadas) }}</td>
+                <td>{{ formatMinutes(row.saldo) }}</td>
+                <td>{{ obterSituacao(row.saldo) }}</td>
                 <td>{{ row.faltas }}</td>
-                <td>{{ row.folgasDescansos }}</td>
-                <td>{{ formatMinutes(row.abonos) }}</td>
-                <td>{{ row.ajustesManuais }}</td>
+                <td>{{ row.ferias }}</td>
+                <td v-if="filters.exibirDetalhesTecnicos">{{ formatMinutes(row.atrasos) }}</td>
+                <td v-if="filters.exibirDetalhesTecnicos">{{ formatMinutes(row.saidasAntecipadas) }}</td>
+                <td v-if="filters.exibirDetalhesTecnicos">{{ formatMinutes(row.abonos) }}</td>
+                <td v-if="filters.exibirDetalhesTecnicos">{{ row.ajustesManuais }}</td>
               </tr>
-              <tr v-if="!resumoSintetico.length"><td colspan="14" class="muted">Nenhum dado para o período selecionado.</td></tr>
+              <tr v-if="!resumoSintetico.length"><td :colspan="filters.exibirDetalhesTecnicos ? 13 : 9" class="muted">Nenhum dado para o período selecionado.</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="muted">
+          Legenda: <strong>Hora extra</strong> = trabalhou acima da jornada esperada; <strong>Normal</strong> = dentro da tolerância;
+          <strong>Saldo devedor</strong> = trabalhou abaixo da jornada esperada; <strong>Férias</strong> = período não cobrado na apuração.
         </div>
       </div>
 
