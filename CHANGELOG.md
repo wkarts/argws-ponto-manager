@@ -1,3 +1,15 @@
+# [1.23.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.22.0...v1.23.0) (2026-05-05)
+
+
+### Bug Fixes
+
+* **build:** corrige tipos e ajustes de páginas para estabilizar a compilação ([170e0b8](https://github.com/wkarts/argws-ponto-manager/commit/170e0b825a57c43642a7e67232dd1e2753a89f05))
+
+
+### Features
+
+* **ponto:** adiciona férias seguras, relatórios contábeis e preserva ajustes de AFD ([32727b8](https://github.com/wkarts/argws-ponto-manager/commit/32727b88b1cc22078fafc75386caca9298e84e4d))
+
 # [1.22.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.21.3...v1.22.0) (2026-05-05)
 
 
