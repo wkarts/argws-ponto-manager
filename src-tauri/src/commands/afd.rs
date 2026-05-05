@@ -62,7 +62,6 @@ fn batida_foi_ignorada_por_ajuste(
     Ok(exists > 0)
 }
 
-
 fn only_digits(value: &str) -> String {
     value.chars().filter(|ch| ch.is_ascii_digit()).collect()
 }
@@ -389,7 +388,9 @@ pub fn afd_import_file(
                 .map_err(|err| format!("Falha ao validar duplicidade da marcação AFD: {err}"))?
             };
 
-            let close_duplicate: Option<(i64, String)> = if !ignorada_por_ajuste && duplicate.is_none() {
+            let close_duplicate: Option<(i64, String)> = if !ignorada_por_ajuste
+                && duplicate.is_none()
+            {
                 conn.query_row(
                     "SELECT id, data_referencia || 'T' || hora FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 ORDER BY ABS((CAST(substr(hora,1,2) AS INTEGER)*60 + CAST(substr(hora,4,2) AS INTEGER)) - (CAST(substr(?3,1,2) AS INTEGER)*60 + CAST(substr(?3,4,2) AS INTEGER))) ASC LIMIT 1",
                     params![funcionario_id, data_referencia, hora],

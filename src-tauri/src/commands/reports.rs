@@ -437,7 +437,6 @@ fn load_day_occurrences(
     Ok(data_occ)
 }
 
-
 fn is_employee_on_vacation(
     conn: &rusqlite::Connection,
     funcionario_id: i64,
@@ -606,7 +605,9 @@ pub fn apurar_periodo_internal(
                 occurrence_data.labels.push("Férias".to_string());
                 if let Some(observacao) = ferias_observacao.as_deref() {
                     if !observacao.trim().is_empty() {
-                        occurrence_data.labels.push(format!("Observação férias: {}", observacao.trim()));
+                        occurrence_data
+                            .labels
+                            .push(format!("Observação férias: {}", observacao.trim()));
                     }
                 }
                 calc.expected_minutes = 0;
@@ -617,7 +618,8 @@ pub fn apurar_periodo_internal(
                 calc.saida_antecipada_minutos = 0;
                 calc.inconsistente = false;
                 calc.mensagens.clear();
-                calc.mensagens.push("Dia tratado como férias do colaborador.".to_string());
+                calc.mensagens
+                    .push("Dia tratado como férias do colaborador.".to_string());
                 if !batidas.is_empty() {
                     calc.mensagens.push("Existem batidas registradas em dia de férias; elas não foram cobradas na apuração.".to_string());
                 }

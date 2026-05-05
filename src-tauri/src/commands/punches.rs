@@ -111,7 +111,6 @@ fn registrar_batida_ignorada_por_ajuste(
     Ok(())
 }
 
-
 #[tauri::command]
 pub fn batidas_list(
     state: State<'_, SharedState>,
@@ -231,8 +230,8 @@ pub fn batida_save(
         },
         rusqlite::types::Value::Integer(manual_ajuste),
         rusqlite::types::Value::Integer(validado),
-        rusqlite::types::Value::Text(data_referencia),
-        rusqlite::types::Value::Text(hora),
+        rusqlite::types::Value::Text(data_referencia.clone()),
+        rusqlite::types::Value::Text(hora.clone()),
         json_to_sql_value(payload.get("nsr").unwrap_or(&Value::Null)),
         json_to_sql_value(&origem_value),
         json_to_sql_value(payload.get("observacao").unwrap_or(&Value::Null)),
