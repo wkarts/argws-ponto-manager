@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs, path::PathBuf};
 use super::auth::require_session_by_token;
 
 use serde_json::{json, Map, Value};
-use tauri::State;
+use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
     app_state::SharedState,
@@ -23,6 +23,49 @@ fn build_hash() -> String {
 
 fn export_dir_for(data_dir: &std::path::Path) -> PathBuf {
     data_dir.join("exports")
+}
+
+fn sanitize_print_file_name(value: &str) -> String {
+    let mut output = String::new();
+    for ch in value.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.') {
+            output.push(ch);
+        } else if ch.is_whitespace() {
+            output.push('_');
+        }
+    }
+    let trimmed = output.trim_matches('_').trim_matches('.');
+    if trimmed.is_empty() {
+        "relatorio".to_string()
+    } else {
+        trimmed.chars().take(80).collect()
+    }
+}
+
+fn html_with_external_print_script(html: &str) -> String {
+    let script = r#"<script>
+(function () {
+  function requestPrint() {
+    setTimeout(function () { window.focus(); window.print(); }, 350);
+  }
+  if (document.readyState === 'complete') requestPrint();
+  else window.addEventListener('load', requestPrint, { once: true });
+})();
+</script>"#;
+
+    if html.to_lowercase().contains("window.print") {
+        return html.to_string();
+    }
+
+    if let Some(index) = html.to_lowercase().rfind("</body>") {
+        let mut result = String::with_capacity(html.len() + script.len());
+        result.push_str(&html[..index]);
+        result.push_str(script);
+        result.push_str(&html[index..]);
+        result
+    } else {
+        format!("{html}{script}")
+    }
 }
 
 #[tauri::command]
@@ -196,6 +239,61 @@ pub fn system_set_data_dir(
     SharedState::save_bootstrap_config(&cfg)?;
     state.reconfigure_data_dir(target_dir)?;
     system_info(state)
+}
+
+#[tauri::command]
+pub async fn app_print_html(
+    app: AppHandle,
+    state: State<'_, SharedState>,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    let html = payload
+        .get("html")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if html.is_empty() {
+        return Err("Não há conteúdo HTML para impressão.".to_string());
+    }
+
+    let data_dir = state.data_dir()?;
+    let print_dir = data_dir.join("print-jobs");
+    fs::create_dir_all(&print_dir)
+        .map_err(|err| format!("Falha ao preparar diretório de impressão: {err}"))?;
+
+    let requested_name = payload
+        .get("file_name")
+        .or_else(|| payload.get("fileName"))
+        .and_then(Value::as_str)
+        .unwrap_or("relatorio.html");
+    let mut file_name = sanitize_print_file_name(requested_name);
+    if !file_name.to_lowercase().ends_with(".html") {
+        file_name.push_str(".html");
+    }
+    let stamp = chrono::Local::now().format("%Y%m%d%H%M%S%3f");
+    let target = print_dir.join(format!("{stamp}_{file_name}"));
+
+    fs::write(&target, html_with_external_print_script(html))
+        .map_err(|err| format!("Falha ao gravar arquivo temporário de impressão: {err}"))?;
+
+    let print_url = tauri::Url::from_file_path(&target)
+        .map_err(|_| "Falha ao montar URL local para impressão.".to_string())?;
+    let window_label = format!("print_{}", stamp);
+    WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::CustomProtocol(print_url))
+        .title("Impressão")
+        .inner_size(1280.0, 900.0)
+        .min_inner_size(900.0, 650.0)
+        .center()
+        .build()
+        .map_err(|err| format!("Falha ao abrir janela de impressão do Tauri: {err}"))?;
+
+    let mut result = Map::new();
+    result.insert("label".to_string(), Value::String(window_label));
+    result.insert(
+        "path".to_string(),
+        Value::String(target.to_string_lossy().to_string()),
+    );
+    Ok(result)
 }
 
 #[tauri::command]
