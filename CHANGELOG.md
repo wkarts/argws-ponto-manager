@@ -1,3 +1,10 @@
+## [1.23.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.2...v1.23.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* remover import agrupado de Command ([ce090bb](https://github.com/wkarts/argws-ponto-manager/commit/ce090bbeb529b39e5a31aa904f8b8ef359a9d079))
+
 ## [1.23.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.1...v1.23.2) (2026-05-06)
 
 
