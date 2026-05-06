@@ -1,3 +1,11 @@
+## [1.23.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.0...v1.23.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* consolidar saldo líquido no relatório de horas ([1316cfe](https://github.com/wkarts/argws-ponto-manager/commit/1316cfe2643bcc2a008cd968c4c34f7216e24cf1))
+* consolidar saldo no cartão de ponto ([5511a14](https://github.com/wkarts/argws-ponto-manager/commit/5511a149c0ec4a2db8c7cb331c837f820f0492f8))
+
 # [1.23.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.22.0...v1.23.0) (2026-05-05)
 
 
