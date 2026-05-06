@@ -2,7 +2,7 @@
 name = "pontos_desktop_tauri"
 version = "1.23.2"
 description = "Pontos Desktop em Rust + Tauri"
-authors = ["OpenAI"]
+authors = ["Wallace Kleiton <wkarts@gmail.com>"]
 edition = "2021"
 
 [lib]

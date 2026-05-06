@@ -1,9 +1,11 @@
-use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 
 use super::auth::require_session_by_token;
 
 use serde_json::{json, Map, Value};
-use tauri::State;
+use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
     app_state::SharedState,
@@ -66,34 +68,6 @@ fn html_with_external_print_script(html: &str) -> String {
     } else {
         format!("{html}{script}")
     }
-}
-
-fn open_path_with_os(path: &std::path::Path) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    let mut command = {
-        let mut cmd = Command::new("cmd");
-        cmd.arg("/C").arg("start").arg("").arg(path);
-        cmd
-    };
-
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut cmd = Command::new("open");
-        cmd.arg(path);
-        cmd
-    };
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let mut command = {
-        let mut cmd = Command::new("xdg-open");
-        cmd.arg(path);
-        cmd
-    };
-
-    command
-        .spawn()
-        .map_err(|err| format!("Falha ao abrir impressão no sistema operacional: {err}"))?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -270,7 +244,8 @@ pub fn system_set_data_dir(
 }
 
 #[tauri::command]
-pub fn app_print_html(
+pub async fn app_print_html(
+    app: AppHandle,
     state: State<'_, SharedState>,
     payload: Map<String, Value>,
 ) -> Result<Map<String, Value>, String> {
@@ -302,9 +277,20 @@ pub fn app_print_html(
 
     fs::write(&target, html_with_external_print_script(html))
         .map_err(|err| format!("Falha ao gravar arquivo temporário de impressão: {err}"))?;
-    open_path_with_os(&target)?;
+
+    let print_url = tauri::Url::from_file_path(&target)
+        .map_err(|_| "Falha ao montar URL local para impressão.".to_string())?;
+    let window_label = format!("print_{}", stamp);
+    WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::CustomProtocol(print_url))
+        .title("Impressão")
+        .inner_size(1280.0, 900.0)
+        .min_inner_size(900.0, 650.0)
+        .center()
+        .build()
+        .map_err(|err| format!("Falha ao abrir janela de impressão: {err}"))?;
 
     let mut result = Map::new();
+    result.insert("label".to_string(), Value::String(window_label));
     result.insert(
         "path".to_string(),
         Value::String(target.to_string_lossy().to_string()),

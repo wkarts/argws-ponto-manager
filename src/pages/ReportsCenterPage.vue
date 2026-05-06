@@ -109,7 +109,7 @@ async function printCurrent() {
   if (!previewHtml.value) return;
   const base = reportType.value === "apuracao" ? `apuracao_${dataInicial.value}_${dataFinal.value}` : `fechamento_${ano.value}_${mes.value}`;
   await printHtmlExternally(previewHtml.value, { fileName: `${base}.html` });
-  message.value = "Relatório enviado para impressão externa do sistema operacional.";
+  message.value = "Relatório.";
   showSplashInfo(message.value);
 }
 
