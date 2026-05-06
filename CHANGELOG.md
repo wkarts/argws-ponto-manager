@@ -1,3 +1,10 @@
+## [1.23.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.3...v1.23.4) (2026-05-06)
+
+
+### Bug Fixes
+
+* ajustar impressão A4 e cabeçalhos ([2587b35](https://github.com/wkarts/argws-ponto-manager/commit/2587b35eb68d99dcc85691d4ea9ea4916088919d))
+
 ## [1.23.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.2...v1.23.3) (2026-05-06)
 
 
