@@ -11,6 +11,7 @@ import {
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
+import { printHtmlExternally } from "../services/print";
 
 type ModoColaborador = "todos" | "ativos" | "inativos" | "selecionados";
 type ModoPeriodo = "competencia" | "intervalo";
@@ -43,6 +44,22 @@ const periodoLabel = computed(() => {
     return `${String(filters.competenciaMes).padStart(2, "0")}/${filters.competenciaAno}`;
   }
   return `${filters.dataInicial} até ${filters.dataFinal}`;
+});
+
+function saldoCredorConsolidado(saldoMinutos: number): number {
+  return saldoMinutos > TOLERANCIA_SITUACAO_MINUTOS ? saldoMinutos : 0;
+}
+
+function saldoDevedorConsolidado(saldoMinutos: number): number {
+  return saldoMinutos < -TOLERANCIA_SITUACAO_MINUTOS ? Math.abs(saldoMinutos) : 0;
+}
+
+const totaisConsolidados = computed(() => {
+  const saldo = result.value?.total_saldo_minutos ?? 0;
+  return {
+    extras: saldoCredorConsolidado(saldo),
+    faltantes: saldoDevedorConsolidado(saldo),
+  };
 });
 
 const resumoSintetico = computed(() => {
@@ -99,7 +116,6 @@ const resumoSintetico = computed(() => {
     current.saidasAntecipadas += row.saida_antecipada_minutos;
     current.abonos += row.minutos_abonados;
     if (row.saldo_minutos < 0) {
-      current.faltantes += Math.abs(row.saldo_minutos);
       current.bancoDevedor += Math.abs(row.saldo_minutos);
     } else {
       current.bancoCredor += row.saldo_minutos;
@@ -118,7 +134,13 @@ const resumoSintetico = computed(() => {
     }
   }
 
-  return Array.from(grouped.values()).sort((a, b) => a.funcionarioNome.localeCompare(b.funcionarioNome));
+  return Array.from(grouped.values())
+    .map((row) => ({
+      ...row,
+      extras: saldoCredorConsolidado(row.saldo),
+      faltantes: saldoDevedorConsolidado(row.saldo),
+    }))
+    .sort((a, b) => a.funcionarioNome.localeCompare(b.funcionarioNome));
 });
 
 const analiticoPorFuncionario = computed(() => {
@@ -206,7 +228,7 @@ function buildReportHtml(): string {
       <div class="kpi"><strong>Previsto</strong><span>${formatMinutes(result.value.total_esperado_minutos)}</span></div>
       <div class="kpi"><strong>Trabalhado</strong><span>${formatMinutes(result.value.total_trabalhado_minutos)}</span></div>
       <div class="kpi"><strong>Saldo final</strong><span>${formatMinutes(result.value.total_saldo_minutos)}</span></div>
-      <div class="kpi"><strong>Extras</strong><span>${formatMinutes(result.value.total_extra_minutos)}</span></div>
+      <div class="kpi"><strong>Extras</strong><span>${formatMinutes(totaisConsolidados.value.extras)}</span></div>
     </section>`;
 
   let content = "";
@@ -299,7 +321,7 @@ function buildReportHtml(): string {
     ${header}
     ${kpis}
     ${content}
-    <p><strong>Legenda:</strong> Hora extra = trabalhou acima da jornada esperada; Normal = cumpriu a jornada dentro da tolerância; Saldo devedor = trabalhou abaixo da jornada esperada; Férias = período não cobrado na apuração.</p>
+    <p><strong>Legenda:</strong> Horas extras e horas faltantes são demonstradas pelo saldo final consolidado do período, sem exibir crédito e débito simultaneamente para o mesmo colaborador; Normal = saldo dentro da tolerância; Férias = período não cobrado na apuração.</p>
   </body>
   </html>`;
 }
@@ -331,31 +353,10 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-function printOnlyReport(reportHtml: string) {
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    return;
-  }
-
-  doc.open();
-  doc.write(reportHtml);
-  doc.close();
-
-  setTimeout(() => {
-    frame.contentWindow?.focus();
-    frame.contentWindow?.print();
-    setTimeout(() => frame.remove(), 800);
-  }, 250);
+async function printOnlyReport(reportHtml: string) {
+  await printHtmlExternally(reportHtml, {
+    fileName: `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.html`,
+  });
 }
 
 async function registrarGeracaoSeguro(payload: Parameters<typeof registerGeneratedReport>[0]) {
@@ -393,15 +394,15 @@ async function exportarExcel() {
 async function exportarPdf() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
-  printOnlyReport(reportHtml);
-  message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora desejada ou 'Salvar como PDF'.";
+  await printOnlyReport(reportHtml);
+  message.value = "Relatório enviado para impressão externa do sistema operacional. Selecione a impressora desejada ou 'Salvar como PDF'.";
   showSplashInfo(message.value);
 }
 
-function imprimirRelatorio() {
+async function imprimirRelatorio() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
-  printOnlyReport(reportHtml);
+  await printOnlyReport(reportHtml);
 }
 
 watch(() => session.activeCompanyId, loadEmployees);
@@ -488,7 +489,7 @@ onMounted(loadEmployees);
         <div class="kpi"><strong>Previsto</strong><span>{{ formatMinutes(result.total_esperado_minutos) }}</span></div>
         <div class="kpi"><strong>Trabalhado</strong><span>{{ formatMinutes(result.total_trabalhado_minutos) }}</span></div>
         <div class="kpi"><strong>Saldo final</strong><span>{{ formatMinutes(result.total_saldo_minutos) }}</span></div>
-        <div class="kpi"><strong>Horas extras</strong><span>{{ formatMinutes(result.total_extra_minutos) }}</span></div>
+        <div class="kpi"><strong>Horas extras</strong><span>{{ formatMinutes(totaisConsolidados.extras) }}</span></div>
       </div>
 
       <div v-if="filters.visualizacao === 'sintetico'" class="card">
@@ -533,8 +534,9 @@ onMounted(loadEmployees);
           </table>
         </div>
         <div class="muted">
-          Legenda: <strong>Hora extra</strong> = trabalhou acima da jornada esperada; <strong>Normal</strong> = dentro da tolerância;
-          <strong>Saldo devedor</strong> = trabalhou abaixo da jornada esperada; <strong>Férias</strong> = período não cobrado na apuração.
+          Legenda: <strong>Horas extras</strong> e <strong>horas faltantes</strong> são demonstradas pelo saldo final consolidado do período,
+          sem exibir crédito e débito simultaneamente para o mesmo colaborador; <strong>Normal</strong> = saldo dentro da tolerância;
+          <strong>Férias</strong> = período não cobrado na apuração.
         </div>
       </div>
 
