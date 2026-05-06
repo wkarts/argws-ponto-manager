@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
 
 use super::auth::require_session_by_token;
 
@@ -285,7 +285,7 @@ pub async fn app_print_html(
         .min_inner_size(900.0, 650.0)
         .center()
         .build()
-        .map_err(|err| format!("Falha ao abrir janela de impressão do Tauri: {err}"))?;
+        .map_err(|err| format!("Falha ao abrir janela de impressão: {err}"))?;
 
     let mut result = Map::new();
     result.insert("label".to_string(), Value::String(window_label));
