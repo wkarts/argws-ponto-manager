@@ -395,7 +395,7 @@ async function exportarPdf() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
   await printOnlyReport(reportHtml);
-  message.value = "Relatório aberto em uma janela Tauri separada para impressão. Selecione a impressora desejada ou 'Salvar como PDF'.";
+  message.value = "Selecione a impressora desejada ou 'Salvar como PDF'.";
   showSplashInfo(message.value);
 }
 

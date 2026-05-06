@@ -1171,6 +1171,8 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
     </div>
   ` : "";
 
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
+
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
     <style>${cartaoPrintCss(filtros.modeloRelatorio)}</style></head>
     <body>
@@ -1214,6 +1216,7 @@ function extractPrintableBody(html: string): string {
 }
 
 function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
   const content = cards
     .map((card) => `<section class="card-page" data-employee="${card.employeeName}">${extractPrintableBody(card.html)}</section>`)
     .join("");

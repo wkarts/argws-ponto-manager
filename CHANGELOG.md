@@ -1,3 +1,25 @@
+## [1.23.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.2...v1.23.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* remover import agrupado de Command ([ce090bb](https://github.com/wkarts/argws-ponto-manager/commit/ce090bbeb529b39e5a31aa904f8b8ef359a9d079))
+
+## [1.23.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.1...v1.23.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* abrir impressão fora do webview tauri ([1cd7d5e](https://github.com/wkarts/argws-ponto-manager/commit/1cd7d5ea8834ac987af3d508e9b08a1a3f158f2f))
+
+## [1.23.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.0...v1.23.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* consolidar saldo líquido no relatório de horas ([1316cfe](https://github.com/wkarts/argws-ponto-manager/commit/1316cfe2643bcc2a008cd968c4c34f7216e24cf1))
+* consolidar saldo no cartão de ponto ([5511a14](https://github.com/wkarts/argws-ponto-manager/commit/5511a149c0ec4a2db8c7cb331c837f820f0492f8))
+
 # [1.23.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.22.0...v1.23.0) (2026-05-05)
 
 
