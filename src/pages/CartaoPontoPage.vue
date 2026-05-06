@@ -1079,33 +1079,38 @@ function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Da
 }
 
 
-function cartaoPrintCss(isLandscape: boolean): string {
-  const margin = isLandscape ? "6mm" : "10mm";
+function isCartaoModeloPaisagem(modelo = filtros.modeloRelatorio): boolean {
+  return ["folha_interjornada", "folha_com_he", "folha_completa"].includes(modelo);
+}
+
+function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
+  const isLandscape = isCartaoModeloPaisagem(modelo);
+  const margin = "6mm";
   const orientation = isLandscape ? "landscape" : "portrait";
-  const bodyFontSize = isLandscape ? "9px" : "12px";
-  const tableFontSize = isLandscape ? "8px" : "12px";
-  const cellPadding = isLandscape ? "2px 3px" : "4px 6px";
-  const titleSize = isLandscape ? "16px" : "24px";
-  const signatureMargin = isLandscape ? "14px" : "32px";
+  const bodyFontSize = isLandscape ? "8.5px" : "9px";
+  const tableFontSize = isLandscape ? "7.4px" : "8.2px";
+  const cellPadding = isLandscape ? "1.6px 2.4px" : "2px 3px";
+  const titleSize = isLandscape ? "14px" : "15px";
+  const signatureMargin = isLandscape ? "10px" : "12px";
 
   return `
       @page{size:A4 ${orientation};margin:${margin}}
       html,body{width:100%;background:#fff}
       body{font-family:Consolas,monospace;margin:0;color:#111;font-size:${bodyFontSize}}
-      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:2px solid #333;padding-bottom:4px}
-      h1{margin:0;font-size:${titleSize}}
-      .meta{font-size:${isLandscape ? "9px" : "12px"}}
-      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:6px;table-layout:fixed}
-      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word}
+      .head{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;border-bottom:1px solid #333;padding-bottom:3px}
+      h1{margin:0;font-size:${titleSize};line-height:1.1}
+      .meta{font-size:${isLandscape ? "8px" : "8.5px"};line-height:1.15}
+      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:4px;table-layout:fixed}
+      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word;line-height:1.12}
       thead th{background:#ececec}
       tr{break-inside:avoid;page-break-inside:avoid}
       .tot{font-weight:700;background:#f5f5f5}
-      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
-      .line{border-top:1px solid #333;padding-top:4px}
-      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
-      .summary-box{border:1px solid #666;padding:4px;text-align:center}
-      .legend{font-size:${isLandscape ? "8px" : "11px"};margin-top:6px}
-      svg{max-width:${isLandscape ? "130px" : "180px"};height:auto}
+      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:center}
+      .line{border-top:1px solid #333;padding-top:3px}
+      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px}
+      .summary-box{border:1px solid #666;padding:3px;text-align:center}
+      .legend{font-size:${isLandscape ? "7px" : "7.5px"};margin-top:4px}
+      svg{max-width:${isLandscape ? "112px" : "120px"};height:auto}
     `;
 }
 
@@ -1169,7 +1174,7 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
   const isLandscape = filtros.modeloRelatorio === "folha_completa";
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
-    <style>${cartaoPrintCss(isLandscape)}</style></head>
+    <style>${cartaoPrintCss(filtros.modeloRelatorio)}</style></head>
     <body>
       <div class="head">
         <div>
@@ -1218,7 +1223,7 @@ function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
     <style>
-      ${cartaoPrintCss(isLandscape)}
+      ${cartaoPrintCss(filtros.modeloRelatorio)}
       .card-page{page-break-after:always;break-after:page}
       .card-page:last-child{page-break-after:auto;break-after:auto}
     </style></head><body>${content}</body></html>`;
