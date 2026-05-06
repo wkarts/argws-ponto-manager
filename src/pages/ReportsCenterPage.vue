@@ -4,6 +4,7 @@ import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, 
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
+import { printHtmlExternally } from "../services/print";
 
 const session = useSessionStore();
 const employees = ref<{ id: number; nome: string }[]>([]);
@@ -50,7 +51,7 @@ function buildApuracaoHtml(result: ApuracaoResumo) {
       <td>${formatMinutes(row.saldo_minutos)}</td>
       <td>${(row.mensagens || []).join(' | ') || '-'}</td>
     </tr>`).join('');
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Apuração</title><style>body{font-family:Arial,sans-serif;margin:18px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:6px 8px}th{background:#f3f4f6}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:10px}.assinaturas{margin-top:34px;display:grid;grid-template-columns:repeat(2,1fr);gap:20px}.linha{margin-top:40px;border-top:1px solid #111827;padding-top:8px;text-align:center}</style></head><body><div>${logoSvg}</div><h1>Apuração do período</h1><div class="kpis"><div class="box"><strong>Funcionários</strong><br>${result.total_funcionarios}</div><div class="box"><strong>Dias</strong><br>${result.total_dias}</div><div class="box"><strong>Saldo</strong><br>${formatMinutes(result.total_saldo_minutos)}</div><div class="box"><strong>Extras</strong><br>${formatMinutes(result.total_extra_minutos)}</div></div><table><thead><tr><th>Funcionário</th><th>Data</th><th>Jornada</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Mensagens</th></tr></thead><tbody>${rows}</tbody></table><div class="assinaturas"><div class="linha">Colaborador</div><div class="linha">${empresaResponsavel.value}</div></div></body></html>`;
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Apuração</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;margin:0}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #d1d5db;padding:6px 8px}th{background:#f3f4f6}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.box{border:1px solid #d1d5db;border-radius:8px;padding:10px}.assinaturas{margin-top:34px;display:grid;grid-template-columns:repeat(2,1fr);gap:20px}.linha{margin-top:40px;border-top:1px solid #111827;padding-top:8px;text-align:center}</style></head><body><div>${logoSvg}</div><h1>Apuração do período</h1><div class="kpis"><div class="box"><strong>Funcionários</strong><br>${result.total_funcionarios}</div><div class="box"><strong>Dias</strong><br>${result.total_dias}</div><div class="box"><strong>Saldo</strong><br>${formatMinutes(result.total_saldo_minutos)}</div><div class="box"><strong>Extras</strong><br>${formatMinutes(result.total_extra_minutos)}</div></div><table><thead><tr><th>Funcionário</th><th>Data</th><th>Jornada</th><th>Batidas</th><th>Previsto</th><th>Trabalhado</th><th>Saldo</th><th>Mensagens</th></tr></thead><tbody>${rows}</tbody></table><div class="assinaturas"><div class="linha">Colaborador</div><div class="linha">${empresaResponsavel.value}</div></div></body></html>`;
 }
 
 async function saveWithDialog(content: string, suggestedName: string, mimeType: string) {
@@ -78,7 +79,7 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
 async function downloadCurrent() {
   if (!previewHtml.value) return;
   if (exportFormat.value === "pdf") {
-    printCurrent();
+    await printCurrent();
     return;
   }
   const base = reportType.value === "apuracao" ? `apuracao_${dataInicial.value}_${dataFinal.value}` : `fechamento_${ano.value}_${mes.value}`;
@@ -104,33 +105,12 @@ async function downloadCurrent() {
   showSplashSuccess(message.value);
 }
 
-function printCurrent() {
+async function printCurrent() {
   if (!previewHtml.value) return;
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    return;
-  }
-  doc.open();
-  doc.write(previewHtml.value);
-  doc.close();
-  frame.contentWindow.focus();
-  setTimeout(() => {
-    try {
-      frame.contentWindow?.print();
-    } finally {
-      setTimeout(() => frame.remove(), 1000);
-    }
-  }, 250);
+  const base = reportType.value === "apuracao" ? `apuracao_${dataInicial.value}_${dataFinal.value}` : `fechamento_${ano.value}_${mes.value}`;
+  await printHtmlExternally(previewHtml.value, { fileName: `${base}.html` });
+  message.value = "Relatório aberto em uma janela Tauri separada para impressão.";
+  showSplashInfo(message.value);
 }
 
 async function generate() {
