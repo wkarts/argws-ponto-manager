@@ -39,6 +39,9 @@ pub fn run() {
             state.init().map_err(|err| -> Box<dyn std::error::Error> {
                 Box::new(std::io::Error::other(err))
             })?;
+            if let Some(main_window) = app.get_webview_window("main") {
+                let _ = main_window.maximize();
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -46,6 +49,7 @@ pub fn run() {
             commands::app::app_meta,
             commands::app::system_info,
             commands::app::system_set_data_dir,
+            commands::app::app_print_html,
             commands::app::app_log_write,
             commands::app::app_log_list,
             commands::app::app_log_clear,

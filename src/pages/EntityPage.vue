@@ -24,6 +24,59 @@ const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
 const session = useSessionStore();
 
+const fallbackColumnLabels: Record<string, string> = {
+  id: "ID",
+  codigo: "Código",
+  descricao: "Descrição",
+  documento: "Documento",
+  cidade: "Cidade",
+  estado: "Estado",
+  ativo: "Ativo",
+  acoes: "Ações",
+  nome: "Nome",
+  login: "Login",
+  administrador: "Administrador",
+  numero: "Número",
+  carga_horaria_minutos: "Carga diária",
+  horario_id: "Horário",
+  dias_ativos: "Dias ativos",
+  tolerancia_minutos: "Tolerância",
+  modelo: "Modelo",
+  ip: "IP",
+  porta: "Porta",
+  usar_conector: "Usa conector",
+  conector_device_id: "Dispositivo conector",
+  conector_base_url: "URL do conector",
+  conector_ultimo_nsr: "Último NSR",
+  tipo: "Tipo",
+  data: "Data",
+  contexto_tipo: "Contexto",
+  empresa_id: "Empresa",
+  departamento_id: "Departamento",
+  funcao_id: "Função",
+  centro_custo_id: "Centro de custo",
+  regra_compensacao: "Compensação",
+  funcionario_id: "Colaborador",
+  data_inicial: "Data inicial",
+  data_final: "Data final",
+  status: "Status",
+  jornada_id: "Jornada",
+  matricula: "Matrícula",
+  abono: "Abono",
+};
+
+function humanizeColumnKey(column: string): string {
+  return column
+    .replace(/_id$/i, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function columnLabel(column: string): string {
+  const field = config.value.fields.find((item) => item.key === column);
+  return field?.label || fallbackColumnLabels[column] || humanizeColumnKey(column);
+}
+
 function inputValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
   if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
@@ -254,8 +307,8 @@ watch(
         <table>
           <thead>
             <tr>
-              <th v-for="column in config.columns" :key="column">{{ column }}</th>
-              <th>ações</th>
+              <th v-for="column in config.columns" :key="column">{{ columnLabel(column) }}</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>

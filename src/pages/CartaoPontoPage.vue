@@ -20,6 +20,7 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
+import { printHtmlExternally } from "../services/print";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 import { useSessionStore } from "../stores/session";
 
@@ -77,6 +78,16 @@ interface DuplicatePunchCandidate {
 
 const smartSuggestions = ref<SmartSuggestionItem[]>([]);
 const duplicateCandidates = ref<DuplicatePunchCandidate[]>([]);
+const TOLERANCIA_SALDO_CONSOLIDADO_MINUTOS = 5;
+
+function saldoCredorConsolidado(saldoMinutos: number): number {
+  return saldoMinutos > TOLERANCIA_SALDO_CONSOLIDADO_MINUTOS ? saldoMinutos : 0;
+}
+
+function saldoDevedorConsolidado(saldoMinutos: number): number {
+  return saldoMinutos < -TOLERANCIA_SALDO_CONSOLIDADO_MINUTOS ? Math.abs(saldoMinutos) : 0;
+}
+
 const gridEditor = reactive<Record<string, string>>({});
 const gridSaving = reactive<Record<string, boolean>>({});
 const gridCellRefs = ref<Record<string, HTMLInputElement | null>>({});
@@ -990,6 +1001,9 @@ function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Da
     extra: 0,
     noturno: 0,
     atraso: 0,
+    trabalhado: 0,
+    esperado: 0,
+    saldo: 0,
   };
   for (let cursor = new Date(initial); cursor <= final; cursor.setDate(cursor.getDate() + 1)) {
     const day = formatDate(cursor);
@@ -1024,6 +1038,9 @@ function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Da
     totals.extra += extra;
     totals.noturno += noturno;
     totals.atraso += atraso;
+    totals.trabalhado += trabalhado;
+    totals.esperado += esperado;
+    totals.saldo += saldo;
 
     const currentLastPunch = parseTimeToMinutes(punches[punches.length - 1] || "");
     rows.push({
@@ -1055,7 +1072,46 @@ function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Da
     previousLastPunch = currentLastPunch;
   }
 
+  totals.extra = saldoCredorConsolidado(totals.saldo);
+  totals.falta = saldoDevedorConsolidado(totals.saldo);
+
   return { rows, totals };
+}
+
+
+function isCartaoModeloPaisagem(modelo = filtros.modeloRelatorio): boolean {
+  return ["folha_interjornada", "folha_com_he", "folha_completa"].includes(modelo);
+}
+
+function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
+  const isLandscape = isCartaoModeloPaisagem(modelo);
+  const margin = "6mm";
+  const orientation = isLandscape ? "landscape" : "portrait";
+  const bodyFontSize = isLandscape ? "8.5px" : "9px";
+  const tableFontSize = isLandscape ? "7.4px" : "8.2px";
+  const cellPadding = isLandscape ? "1.6px 2.4px" : "2px 3px";
+  const titleSize = isLandscape ? "14px" : "15px";
+  const signatureMargin = isLandscape ? "10px" : "12px";
+
+  return `
+      @page{size:A4 ${orientation};margin:${margin}}
+      html,body{width:100%;background:#fff}
+      body{font-family:Consolas,monospace;margin:0;color:#111;font-size:${bodyFontSize}}
+      .head{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;border-bottom:1px solid #333;padding-bottom:3px}
+      h1{margin:0;font-size:${titleSize};line-height:1.1}
+      .meta{font-size:${isLandscape ? "8px" : "8.5px"};line-height:1.15}
+      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:4px;table-layout:fixed}
+      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word;line-height:1.12}
+      thead th{background:#ececec}
+      tr{break-inside:avoid;page-break-inside:avoid}
+      .tot{font-weight:700;background:#f5f5f5}
+      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:center}
+      .line{border-top:1px solid #333;padding-top:3px}
+      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px}
+      .summary-box{border:1px solid #666;padding:3px;text-align:center}
+      .legend{font-size:${isLandscape ? "7px" : "7.5px"};margin-top:4px}
+      svg{max-width:${isLandscape ? "112px" : "120px"};height:auto}
+    `;
 }
 
 function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName: string, dataInicial: string, dataFinal: string): string {
@@ -1072,35 +1128,35 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
       <thead><tr><th>Data</th><th>Dia semana</th><th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th><th>Ocorrência</th><th>Observação</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day}</td><td>${r.dayLabel}</td><td>${[r.ent1, r.sai1, r.ent2, r.sai2, r.ent3, r.sai3].filter((p) => p && p !== "Folga").join(" | ") || "-"}</td><td>${r.hTrabalhadas}</td><td>${r.previsto}</td><td>${minutesToSignedHHMM(hhmmToMinutes(r.extra) - hhmmToMinutes(r.falta))}</td><td>${r.ocorrencias || "Normal"}</td><td>-</td></tr>`).join("")}
-      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.normal + totals.falta)}</td><td>${minutesToSignedHHMM(totals.extra - totals.falta)}</td><td>-</td><td>-</td></tr>
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.esperado)}</td><td>${minutesToSignedHHMM(totals.saldo)}</td><td>-</td><td>-</td></tr>
       </tbody>
     `,
     folha_resumida: `
       <thead><tr><th>Data</th><th>Previsto</th><th>Realizado</th><th>H. trab.</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.realizado}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
-      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td></tr>
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>
       </tbody>
     `,
     folha_interjornada: `
       <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. trab.</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
-      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td></tr>
+      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>
       </tbody>
     `,
     folha_com_he: `
       <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
-      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
       </tbody>
     `,
     folha_completa: `
       <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
       <tbody>
       ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
-      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.normal + totals.extra)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
       </tbody>
     `,
   };
@@ -1110,25 +1166,13 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
       <div class="summary-box"><strong>Total atrasos</strong><div>${minutesToHHMM(totals.atraso)}</div></div>
       <div class="summary-box"><strong>Total horas noturnas</strong><div>${minutesToHHMM(totals.noturno)}</div></div>
       <div class="summary-box"><strong>Total H.E. acumuladas</strong><div>${minutesToHHMM(totals.extra)}</div></div>
-      <div class="summary-box"><strong>Total banco de horas</strong><div>${minutesToSignedHHMM(totals.extra - totals.falta)}</div></div>
+      <div class="summary-box"><strong>Total horas faltantes</strong><div>${minutesToHHMM(totals.falta)}</div></div>
+      <div class="summary-box"><strong>Total banco de horas</strong><div>${minutesToSignedHHMM(totals.saldo)}</div></div>
     </div>
   ` : "";
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
-    <style>
-      body{font-family:Consolas,monospace;margin:14px;color:#111}
-      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:2px solid #333;padding-bottom:6px}
-      h1{margin:0;font-size:24px}
-      .meta{font-size:12px}
-      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
-      th,td{border:1px solid #808080;padding:4px 6px;text-align:left}
-      thead th{background:#ececec}
-      .tot{font-weight:700;background:#f5f5f5}
-      .sign{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
-      .line{border-top:1px solid #333;padding-top:4px}
-      .summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}
-      .summary-box{border:1px solid #666;padding:6px;text-align:center}
-    </style></head>
+    <style>${cartaoPrintCss(filtros.modeloRelatorio)}</style></head>
     <body>
       <div class="head">
         <div>
@@ -1145,6 +1189,7 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
         ${tableByModel[filtros.modeloRelatorio] || tableByModel.folha_resumida}
       </table>
       ${summaryByModel}
+      <p class="legend"><strong>Legenda:</strong> Total H.E. acumuladas e total horas faltantes são demonstrados pelo saldo líquido consolidado do período, sem exibir crédito e débito simultaneamente para o mesmo colaborador.</p>
       <div class="sign"><div class="line">${employeeName}</div><div class="line">${empresaResponsavel.value}</div></div>
     </body></html>`;
 }
@@ -1163,19 +1208,21 @@ function sanitizeFilePart(value: string) {
     .replace(/^_|_$/g, "") || "relatorio";
 }
 
+function extractPrintableBody(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  return bodyMatch?.[1] || html;
+}
+
 function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
   const content = cards
-    .map((card, index) => {
-      const pageBreak = index < cards.length - 1 ? '<div style="page-break-after: always;"></div>' : "";
-      return `<section data-employee="${card.employeeName}">${card.html}</section>${pageBreak}`;
-    })
+    .map((card) => `<section class="card-page" data-employee="${card.employeeName}">${extractPrintableBody(card.html)}</section>`)
     .join("");
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
     <style>
-      body{margin:0;background:#fff}
-      section{padding:0}
-      @page{size:A4 portrait;margin:10mm}
+      ${cartaoPrintCss(filtros.modeloRelatorio)}
+      .card-page{page-break-after:always;break-after:page}
+      .card-page:last-child{page-break-after:auto;break-after:auto}
     </style></head><body>${content}</body></html>`;
 }
 
@@ -1204,34 +1251,9 @@ async function generateCompetenciaCardsHtml() {
 }
 
 async function openPrintFrame(html: string) {
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    throw new Error("Não foi possível inicializar o modo de impressão.");
-  }
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-  frame.contentWindow.focus();
-  await new Promise<void>((resolve) => {
-    setTimeout(() => {
-      try {
-        frame.contentWindow?.print();
-      } finally {
-        setTimeout(() => frame.remove(), 1000);
-        resolve();
-      }
-    }, 250);
+  const periodo = periodoAtual();
+  await printHtmlExternally(html, {
+    fileName: `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value || "competencia")}_${periodo.dataInicial}_${periodo.dataFinal}.html`,
   });
 }
 
