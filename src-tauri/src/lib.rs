@@ -46,6 +46,7 @@ pub fn run() {
             commands::app::app_meta,
             commands::app::system_info,
             commands::app::system_set_data_dir,
+            commands::app::app_print_html,
             commands::app::app_log_write,
             commands::app::app_log_list,
             commands::app::app_log_clear,

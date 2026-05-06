@@ -20,6 +20,7 @@ import {
   type GenericRecord
 } from "../services/crud";
 import { logAppError, logAppInfo } from "../services/logger";
+import { printHtmlExternally } from "../services/print";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 import { useSessionStore } from "../stores/session";
 
@@ -1077,6 +1078,37 @@ function buildDailyRows(summary: ApuracaoResumo | null, initial: Date, final: Da
   return { rows, totals };
 }
 
+
+function cartaoPrintCss(isLandscape: boolean): string {
+  const margin = isLandscape ? "6mm" : "10mm";
+  const orientation = isLandscape ? "landscape" : "portrait";
+  const bodyFontSize = isLandscape ? "9px" : "12px";
+  const tableFontSize = isLandscape ? "8px" : "12px";
+  const cellPadding = isLandscape ? "2px 3px" : "4px 6px";
+  const titleSize = isLandscape ? "16px" : "24px";
+  const signatureMargin = isLandscape ? "14px" : "32px";
+
+  return `
+      @page{size:A4 ${orientation};margin:${margin}}
+      html,body{width:100%;background:#fff}
+      body{font-family:Consolas,monospace;margin:0;color:#111;font-size:${bodyFontSize}}
+      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:2px solid #333;padding-bottom:4px}
+      h1{margin:0;font-size:${titleSize}}
+      .meta{font-size:${isLandscape ? "9px" : "12px"}}
+      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:6px;table-layout:fixed}
+      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word}
+      thead th{background:#ececec}
+      tr{break-inside:avoid;page-break-inside:avoid}
+      .tot{font-weight:700;background:#f5f5f5}
+      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
+      .line{border-top:1px solid #333;padding-top:4px}
+      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:8px}
+      .summary-box{border:1px solid #666;padding:4px;text-align:center}
+      .legend{font-size:${isLandscape ? "8px" : "11px"};margin-top:6px}
+      svg{max-width:${isLandscape ? "130px" : "180px"};height:auto}
+    `;
+}
+
 function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName: string, dataInicial: string, dataFinal: string): string {
   if (!dataInicial || !dataFinal) return "";
   const initial = new Date(`${dataInicial}T00:00:00`);
@@ -1134,22 +1166,10 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
     </div>
   ` : "";
 
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
+
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
-    <style>
-      body{font-family:Consolas,monospace;margin:14px;color:#111}
-      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:2px solid #333;padding-bottom:6px}
-      h1{margin:0;font-size:24px}
-      .meta{font-size:12px}
-      table{width:100%;border-collapse:collapse;font-size:12px;margin-top:10px}
-      th,td{border:1px solid #808080;padding:4px 6px;text-align:left}
-      thead th{background:#ececec}
-      .tot{font-weight:700;background:#f5f5f5}
-      .sign{margin-top:32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;text-align:center}
-      .line{border-top:1px solid #333;padding-top:4px}
-      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:12px}
-      .summary-box{border:1px solid #666;padding:6px;text-align:center}
-      .legend{font-size:11px;margin-top:10px}
-    </style></head>
+    <style>${cartaoPrintCss(isLandscape)}</style></head>
     <body>
       <div class="head">
         <div>
@@ -1185,19 +1205,22 @@ function sanitizeFilePart(value: string) {
     .replace(/^_|_$/g, "") || "relatorio";
 }
 
+function extractPrintableBody(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  return bodyMatch?.[1] || html;
+}
+
 function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
   const content = cards
-    .map((card, index) => {
-      const pageBreak = index < cards.length - 1 ? '<div style="page-break-after: always;"></div>' : "";
-      return `<section data-employee="${card.employeeName}">${card.html}</section>${pageBreak}`;
-    })
+    .map((card) => `<section class="card-page" data-employee="${card.employeeName}">${extractPrintableBody(card.html)}</section>`)
     .join("");
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
     <style>
-      body{margin:0;background:#fff}
-      section{padding:0}
-      @page{size:A4 portrait;margin:10mm}
+      ${cartaoPrintCss(isLandscape)}
+      .card-page{page-break-after:always;break-after:page}
+      .card-page:last-child{page-break-after:auto;break-after:auto}
     </style></head><body>${content}</body></html>`;
 }
 
@@ -1226,34 +1249,9 @@ async function generateCompetenciaCardsHtml() {
 }
 
 async function openPrintFrame(html: string) {
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    throw new Error("Não foi possível inicializar o modo de impressão.");
-  }
-
-  doc.open();
-  doc.write(html);
-  doc.close();
-  frame.contentWindow.focus();
-  await new Promise<void>((resolve) => {
-    setTimeout(() => {
-      try {
-        frame.contentWindow?.print();
-      } finally {
-        setTimeout(() => frame.remove(), 1000);
-        resolve();
-      }
-    }, 250);
+  const periodo = periodoAtual();
+  await printHtmlExternally(html, {
+    fileName: `cartao_ponto_${sanitizeFilePart(funcionarioNomeSelecionado.value || "competencia")}_${periodo.dataInicial}_${periodo.dataFinal}.html`,
   });
 }
 

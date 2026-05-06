@@ -11,6 +11,7 @@ import {
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
+import { printHtmlExternally } from "../services/print";
 
 type ModoColaborador = "todos" | "ativos" | "inativos" | "selecionados";
 type ModoPeriodo = "competencia" | "intervalo";
@@ -352,31 +353,10 @@ async function saveWithDialog(content: string, suggestedName: string, mimeType: 
   setTimeout(() => URL.revokeObjectURL(url), 500);
 }
 
-function printOnlyReport(reportHtml: string) {
-  const frame = document.createElement("iframe");
-  frame.style.position = "fixed";
-  frame.style.right = "0";
-  frame.style.bottom = "0";
-  frame.style.width = "0";
-  frame.style.height = "0";
-  frame.style.border = "0";
-  document.body.appendChild(frame);
-
-  const doc = frame.contentWindow?.document;
-  if (!doc || !frame.contentWindow) {
-    frame.remove();
-    return;
-  }
-
-  doc.open();
-  doc.write(reportHtml);
-  doc.close();
-
-  setTimeout(() => {
-    frame.contentWindow?.focus();
-    frame.contentWindow?.print();
-    setTimeout(() => frame.remove(), 800);
-  }, 250);
+async function printOnlyReport(reportHtml: string) {
+  await printHtmlExternally(reportHtml, {
+    fileName: `relatorio_horas_${filters.visualizacao}_${new Date().toISOString().slice(0, 10)}.html`,
+  });
 }
 
 async function registrarGeracaoSeguro(payload: Parameters<typeof registerGeneratedReport>[0]) {
@@ -414,15 +394,15 @@ async function exportarExcel() {
 async function exportarPdf() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
-  printOnlyReport(reportHtml);
-  message.value = "Diálogo de impressão do relatório aberto. Selecione a impressora desejada ou 'Salvar como PDF'.";
+  await printOnlyReport(reportHtml);
+  message.value = "Relatório enviado para impressão externa do sistema operacional. Selecione a impressora desejada ou 'Salvar como PDF'.";
   showSplashInfo(message.value);
 }
 
-function imprimirRelatorio() {
+async function imprimirRelatorio() {
   if (!result.value) return;
   const reportHtml = buildReportHtml();
-  printOnlyReport(reportHtml);
+  await printOnlyReport(reportHtml);
 }
 
 watch(() => session.activeCompanyId, loadEmployees);
