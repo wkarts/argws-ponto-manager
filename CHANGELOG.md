@@ -1,3 +1,10 @@
+## [1.23.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.1...v1.23.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* abrir impressão fora do webview tauri ([1cd7d5e](https://github.com/wkarts/argws-ponto-manager/commit/1cd7d5ea8834ac987af3d508e9b08a1a3f158f2f))
+
 ## [1.23.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.0...v1.23.1) (2026-05-05)
 
 
