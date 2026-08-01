@@ -25,28 +25,49 @@ mod service;
 pub mod cli;
 
 mod commands {
+    #[cfg(feature = "desktop")]
     pub mod access;
+    #[cfg(feature = "desktop")]
     pub mod afd;
+    #[cfg(feature = "desktop")]
     pub mod app;
     pub mod auth;
+    #[cfg(feature = "desktop")]
     pub mod banco_horas;
+    #[cfg(feature = "desktop")]
     pub mod companies;
+    #[cfg(feature = "desktop")]
     pub mod conector;
+    #[cfg(feature = "desktop")]
     pub mod employees;
     pub mod entities;
+    #[cfg(feature = "desktop")]
     pub mod feriados;
+    #[cfg(feature = "desktop")]
     pub mod holiday_sources;
+    #[cfg(feature = "desktop")]
     pub mod integrations;
+    #[cfg(feature = "desktop")]
     pub mod jornadas;
+    #[cfg(feature = "desktop")]
     pub mod licensing;
+    #[cfg(feature = "desktop")]
     pub mod punches;
+    #[cfg(feature = "desktop")]
     pub mod rep;
+    #[cfg(feature = "desktop")]
     pub mod reports;
+    #[cfg(feature = "desktop")]
     pub mod runtime;
+    #[cfg(feature = "desktop")]
     pub mod support;
+    #[cfg(feature = "desktop")]
     pub mod sync;
+    #[cfg(feature = "desktop")]
     pub mod treatments;
+    #[cfg(feature = "desktop")]
     pub mod webhook;
+    #[cfg(feature = "desktop")]
     pub mod websocket;
 }
 
