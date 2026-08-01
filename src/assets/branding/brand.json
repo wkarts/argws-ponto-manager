@@ -1,0 +1,13 @@
+{
+  "brand": "argws-ponto-manager",
+  "appName": "Ponto Manager",
+  "productName": "Ponto Manager",
+  "identifier": "br.com.argws.pontomanager",
+  "publisher": "ARGWS",
+  "theme": "brand-primary",
+  "primaryColor": "#2563EB",
+  "secondaryColor": "#14B8A6",
+  "transparentAssets": true,
+  "version": "1.23.4",
+  "provisional": false
+}
