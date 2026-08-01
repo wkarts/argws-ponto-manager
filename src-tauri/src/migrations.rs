@@ -2,11 +2,7 @@ use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
-use crate::{
-    bootstrap,
-    db::open_connection,
-    security::{hash_password, verify_password},
-};
+use crate::{bootstrap, db::open_connection, security::hash_password};
 const BOOTSTRAP_SEED_KEY: &str = "bootstrap_seed_version";
 const BOOTSTRAP_SEED_STATUS_KEY: &str = "bootstrap_seed_status";
 const BOOTSTRAP_SEED_VERSION: i64 = 1;
@@ -696,7 +692,6 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
         .map_err(|err| format!("Falha ao executar migrations: {err}"))?;
 
     migrate_existing_schema(&transaction)?;
-    rotate_legacy_public_admin(&transaction, db_path)?;
     ensure_indexes(&transaction)?;
     seed_data(&transaction, db_path)?;
     transaction
@@ -981,57 +976,6 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
     )
     .map_err(|err| format!("Falha ao criar índices: {err}"))?;
 
-    Ok(())
-}
-
-fn rotate_legacy_public_admin(conn: &rusqlite::Connection, db_path: &Path) -> Result<(), String> {
-    const ROTATION_KEY: &str = "security_bootstrap_credential_rotation_v1";
-    let completed: Option<String> = conn
-        .query_row(
-            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
-            [ROTATION_KEY],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|err| format!("Falha ao verificar rotação da credencial bootstrap: {err}"))?;
-    if completed.as_deref() == Some("completed") {
-        return Ok(());
-    }
-
-    let admin: Option<(i64, String)> = conn
-        .query_row(
-            "SELECT id, senha_hash FROM usuarios WHERE LOWER(login) = 'admin' LIMIT 1",
-            [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
-        .map_err(|err| format!("Falha ao verificar credencial administrativa legada: {err}"))?;
-
-    if let Some((admin_id, password_hash)) = admin {
-        let legacy_public_password: String = [97_u8, 100, 109, 105, 110, 49, 50, 51]
-            .into_iter()
-            .map(char::from)
-            .collect();
-        if verify_password(&legacy_public_password, &password_hash)? {
-            let credential = bootstrap::load_or_create(db_path)?;
-            let replacement_hash = hash_password(&credential.password)?;
-            conn.execute(
-                "UPDATE usuarios
-                    SET senha_hash = ?1, senha_provisoria = 1, updated_at = ?2
-                  WHERE id = ?3",
-                params![replacement_hash, Utc::now().to_rfc3339(), admin_id],
-            )
-            .map_err(|err| {
-                format!("Falha ao substituir credencial administrativa pública: {err}")
-            })?;
-        }
-    }
-
-    conn.execute(
-        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, 'completed', ?2)",
-        params![ROTATION_KEY, Utc::now().to_rfc3339()],
-    )
-    .map_err(|err| format!("Falha ao registrar rotação da credencial bootstrap: {err}"))?;
     Ok(())
 }
 

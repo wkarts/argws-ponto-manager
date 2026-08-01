@@ -1,6 +1,6 @@
 use chrono::Utc;
-use rusqlite::{Connection, OpenFlags};
-use serde::Serialize;
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File, OpenOptions},
@@ -9,6 +9,8 @@ use std::{
 };
 
 const MIGRATION_MARKER: &str = "legacy-database-migration-v1.json";
+const LEGACY_ROTATION_KEY: &str = "security_bootstrap_credential_rotation_v1";
+const LEGACY_CREDENTIAL_REPAIR_KEY: &str = "legacy_credentials_preserved_v1";
 
 #[derive(Debug, Clone)]
 pub struct DatabaseRecovery {
@@ -19,7 +21,7 @@ pub struct DatabaseRecovery {
     source_checksum: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MigrationMarker {
     schema_version: u32,
     application_version: String,
@@ -30,14 +32,28 @@ struct MigrationMarker {
     completed_at: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct LegacyBootstrapConfig {
+    data_dir_override: Option<String>,
+}
+
+#[derive(Debug)]
+struct LegacyCredentialRepair {
+    target_user_id: i64,
+    source_password_hash: String,
+    source_temporary_password: i64,
+}
+
 pub fn prepare(data_dir: &Path, target_db: &Path) -> Result<Option<DatabaseRecovery>, String> {
     fs::create_dir_all(data_dir)
         .map_err(|err| format!("Falha ao preparar diretório de dados: {err}"))?;
 
     if target_db.is_file() {
         validate_integrity(target_db)?;
+        let credential_repair_pending =
+            pending_rotated_legacy_credential(data_dir, target_db)?.is_some();
         let marker = data_dir.join(format!("schema-backup-{}.ok", env!("CARGO_PKG_VERSION")));
-        if marker.is_file() {
+        if marker.is_file() && !credential_repair_pending {
             return Ok(None);
         }
         return backup_database(data_dir, target_db, true, false).map(Some);
@@ -59,6 +75,51 @@ pub fn prepare(data_dir: &Path, target_db: &Path) -> Result<Option<DatabaseRecov
     fs::rename(&temporary, target_db)
         .map_err(|err| format!("Falha ao ativar cópia migrada do banco legado: {err}"))?;
     Ok(Some(recovery))
+}
+
+pub fn restore_rotated_legacy_credential(
+    data_dir: &Path,
+    target_db: &Path,
+) -> Result<bool, String> {
+    let Some(repair) = pending_rotated_legacy_credential(data_dir, target_db)? else {
+        return Ok(false);
+    };
+
+    let mut conn = Connection::open(target_db)
+        .map_err(|err| format!("Falha ao abrir banco para preservar credencial legada: {err}"))?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .map_err(|err| format!("Falha ao ativar foreign_keys na preservação legada: {err}"))?;
+    let transaction = conn
+        .transaction()
+        .map_err(|err| format!("Falha ao iniciar preservação da credencial legada: {err}"))?;
+    let now = Utc::now().to_rfc3339();
+
+    transaction
+        .execute(
+            "UPDATE usuarios
+                SET senha_hash = ?1, senha_provisoria = ?2, updated_at = ?3
+              WHERE id = ?4",
+            params![
+                repair.source_password_hash,
+                repair.source_temporary_password,
+                now,
+                repair.target_user_id
+            ],
+        )
+        .map_err(|err| format!("Falha ao restaurar hash da credencial legada: {err}"))?;
+
+    transaction
+        .execute(
+            "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at)
+             VALUES (?1, 'completed', ?2)",
+            params![LEGACY_CREDENTIAL_REPAIR_KEY, now],
+        )
+        .map_err(|err| format!("Falha ao registrar preservação da credencial legada: {err}"))?;
+
+    transaction
+        .commit()
+        .map_err(|err| format!("Falha ao confirmar preservação da credencial legada: {err}"))?;
+    Ok(true)
 }
 
 pub fn finalize(
@@ -119,13 +180,191 @@ fn resolve_legacy_database() -> Result<Option<PathBuf>, String> {
             candidates.push(PathBuf::from(trimmed));
         }
     }
-    if let Some(base) = dirs::data_local_dir() {
-        let underscore_slug = ["pontos", "desktop", "tauri"].join("_");
-        let hyphen_slug = ["pontos", "desktop", "tauri"].join("-");
-        candidates.push(base.join(underscore_slug).join("pontos.db"));
-        candidates.push(base.join(hyphen_slug).join("pontos.db"));
+    if let Some(config_base) = dirs::config_local_dir() {
+        for slug in ["pontos_desktop_tauri", "pontos-desktop-tauri"] {
+            append_configured_legacy_database(
+                &mut candidates,
+                &config_base.join(slug).join("bootstrap.json"),
+            )?;
+        }
     }
-    Ok(candidates.into_iter().find(|path| path.is_file()))
+    if let Some(base) = dirs::data_local_dir() {
+        candidates.push(base.join("pontos_desktop_tauri").join("pontos.db"));
+        candidates.push(base.join("pontos-desktop-tauri").join("pontos.db"));
+    }
+    let mut unique = Vec::new();
+    for candidate in candidates {
+        if !unique.contains(&candidate) {
+            unique.push(candidate);
+        }
+    }
+    Ok(unique.into_iter().find(|path| path.is_file()))
+}
+
+fn append_configured_legacy_database(
+    candidates: &mut Vec<PathBuf>,
+    config_path: &Path,
+) -> Result<(), String> {
+    if !config_path.is_file() {
+        return Ok(());
+    }
+    let raw = fs::read_to_string(config_path).map_err(|err| {
+        format!(
+            "Falha ao ler configuração legada {}: {err}",
+            config_path.display()
+        )
+    })?;
+    let config = serde_json::from_str::<LegacyBootstrapConfig>(&raw).map_err(|err| {
+        format!(
+            "Falha ao interpretar configuração legada {}: {err}",
+            config_path.display()
+        )
+    })?;
+    let Some(configured) = config
+        .data_dir_override
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    let configured_path = PathBuf::from(configured);
+    if configured_path.is_file() {
+        candidates.push(configured_path);
+    } else {
+        candidates.push(configured_path.join("pontos.db"));
+    }
+    Ok(())
+}
+
+fn pending_rotated_legacy_credential(
+    data_dir: &Path,
+    target_db: &Path,
+) -> Result<Option<LegacyCredentialRepair>, String> {
+    let Some(marker) = read_migration_marker(data_dir)? else {
+        return Ok(None);
+    };
+    let source_path = PathBuf::from(marker.source_path);
+    if !source_path.is_file() || !target_db.is_file() {
+        return Ok(None);
+    }
+    validate_integrity(&source_path)?;
+
+    let target = Connection::open_with_flags(target_db, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|err| format!("Falha ao abrir banco migrado para validar credencial: {err}"))?;
+    if !table_exists(&target, "app_settings")? || !table_exists(&target, "usuarios")? {
+        return Ok(None);
+    }
+
+    let repair_status: Option<String> = target
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [LEGACY_CREDENTIAL_REPAIR_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar reparo de credencial legada: {err}"))?;
+    if repair_status.as_deref() == Some("completed") {
+        return Ok(None);
+    }
+
+    let rotation_status: Option<String> = target
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [LEGACY_ROTATION_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar rotação de credencial legada: {err}"))?;
+    if rotation_status.as_deref() != Some("completed") {
+        return Ok(None);
+    }
+
+    let target_admin: Option<(i64, String, i64, Option<String>)> = target
+        .query_row(
+            "SELECT id, senha_hash, senha_provisoria, ultimo_login_em
+               FROM usuarios
+              WHERE LOWER(login) = 'admin'
+              LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao consultar administrador migrado: {err}"))?;
+    let Some((target_user_id, target_hash, temporary_password, last_login)) = target_admin else {
+        return Ok(None);
+    };
+    if temporary_password != 1
+        || last_login
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty())
+    {
+        return Ok(None);
+    }
+
+    let source = Connection::open_with_flags(&source_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|err| format!("Falha ao abrir banco legado para preservar credencial: {err}"))?;
+    if !table_exists(&source, "usuarios")? {
+        return Ok(None);
+    }
+    let has_temporary_password = table_has_column(&source, "usuarios", "senha_provisoria")?;
+    let source_sql = if has_temporary_password {
+        "SELECT senha_hash, senha_provisoria FROM usuarios WHERE LOWER(login) = 'admin' LIMIT 1"
+    } else {
+        "SELECT senha_hash, 0 FROM usuarios WHERE LOWER(login) = 'admin' LIMIT 1"
+    };
+    let source_admin: Option<(String, i64)> = source
+        .query_row(source_sql, [], |row| Ok((row.get(0)?, row.get(1)?)))
+        .optional()
+        .map_err(|err| format!("Falha ao consultar credencial no banco legado: {err}"))?;
+    let Some((source_password_hash, source_temporary_password)) = source_admin else {
+        return Ok(None);
+    };
+    if source_password_hash.trim().is_empty() || source_password_hash == target_hash {
+        return Ok(None);
+    }
+
+    Ok(Some(LegacyCredentialRepair {
+        target_user_id,
+        source_password_hash,
+        source_temporary_password,
+    }))
+}
+
+fn read_migration_marker(data_dir: &Path) -> Result<Option<MigrationMarker>, String> {
+    let path = data_dir.join(MIGRATION_MARKER);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let raw = fs::read(&path).map_err(|err| {
+        format!(
+            "Falha ao ler marcador de migração {}: {err}",
+            path.display()
+        )
+    })?;
+    serde_json::from_slice::<MigrationMarker>(&raw)
+        .map(Some)
+        .map_err(|err| {
+            format!(
+                "Falha ao interpretar marcador de migração {}: {err}",
+                path.display()
+            )
+        })
+}
+
+fn table_has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
+    let pragma = format!("PRAGMA table_info({table})");
+    let mut stmt = conn
+        .prepare(&pragma)
+        .map_err(|err| format!("Falha ao inspecionar colunas de {table}: {err}"))?;
+    let columns = stmt
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|err| format!("Falha ao consultar colunas de {table}: {err}"))?;
+    for item in columns {
+        if item.map_err(|err| format!("Falha ao mapear coluna de {table}: {err}"))? == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn backup_database(

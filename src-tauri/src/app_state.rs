@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{legacy_data, migrations};
+use crate::{bootstrap, legacy_data, migrations};
 
 #[derive(Debug, Clone)]
 pub struct AppContext {
@@ -41,7 +41,12 @@ impl SharedState {
 
         let db_path = data_dir.join("ponto-manager.db");
         let recovery = legacy_data::prepare(&data_dir, &db_path)?;
-        if let Err(error) = migrations::migrate(&db_path)
+        let mut legacy_credential_restored = false;
+        if let Err(error) = legacy_data::restore_rotated_legacy_credential(&data_dir, &db_path)
+            .and_then(|restored| {
+                legacy_credential_restored = restored;
+                migrations::migrate(&db_path)
+            })
             .and_then(|_| legacy_data::finalize(&data_dir, &db_path, recovery.as_ref()))
         {
             let rollback_error = legacy_data::rollback(&db_path, recovery.as_ref()).err();
@@ -53,6 +58,13 @@ impl SharedState {
                     "Falha ao preparar o banco do Ponto Manager: {error}. O estado anterior foi restaurado."
                 ),
             });
+        }
+        if legacy_credential_restored {
+            if let Err(error) = bootstrap::remove_after_password_change(&db_path) {
+                eprintln!(
+                    "Aviso: a credencial legada foi preservada, mas o arquivo bootstrap obsoleto não pôde ser removido: {error}"
+                );
+            }
         }
 
         let mut guard = self
