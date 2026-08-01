@@ -8,7 +8,7 @@ src-tauri/dist/
 src-tauri/target/
 target/
 artifacts/
-release/
+/release/
 release-assets/
 certificate/
 Dockerfile.cloudpanel-builder
