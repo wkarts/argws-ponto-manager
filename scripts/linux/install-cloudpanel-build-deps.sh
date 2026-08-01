@@ -65,26 +65,21 @@ COMMON_PACKAGES=(
   file
   pkg-config
   libssl-dev
-  libgtk-3-dev
-  libayatana-appindicator3-dev
-  librsvg2-dev
-  libwebkit2gtk-4.1-dev
-  libxdo-dev
-  gcc-multilib
-  g++-multilib
-  libc6-dev-i386
 )
+
+if [[ "$TARGET" == "x86" || "$TARGET" == "all" ]]; then
+  COMMON_PACKAGES+=(
+    gcc-multilib
+    g++-multilib
+    libc6-dev-i386
+  )
+fi
 
 $SUDO apt-get install -y --no-install-recommends "${COMMON_PACKAGES[@]}"
 
 if [[ "$TARGET" == "x86" || "$TARGET" == "all" ]]; then
   I386_PACKAGES=(
     libssl-dev:i386
-    libgtk-3-dev:i386
-    libayatana-appindicator3-dev:i386
-    librsvg2-dev:i386
-    libwebkit2gtk-4.1-dev:i386
-    libxdo-dev:i386
   )
 
   echo "Instalando bibliotecas multiarch i386 para build linux-x86..."
@@ -92,12 +87,12 @@ if [[ "$TARGET" == "x86" || "$TARGET" == "all" ]]; then
     cat <<'WARN'
 
 [AVISO] Não foi possível instalar todas as dependências i386.
-O build x64 continuará funcionando, mas o build x86 depende das bibliotecas
-multiarch i386 do Debian/Ubuntu, principalmente libwebkit2gtk-4.1-dev:i386.
+O build x64 continuará funcionando, mas o build x86 headless depende das
+bibliotecas multiarch i386 do Debian/Ubuntu, principalmente libssl-dev:i386.
 
 Alternativas:
   1. Usar Debian 12 ou Ubuntu 22.04/24.04 com repositórios i386 habilitados.
-  2. Compilar x64 normalmente e gerar x86 em um ambiente i386 dedicado.
+  2. Compilar x64 normalmente e gerar x86 em um runner i386 dedicado.
 WARN
     exit 1
   fi

@@ -130,31 +130,37 @@ jobs:
         include:
           - label: Windows x64
             runner: windows-2025
+            arch: x64
             target: x86_64-pc-windows-msvc
             bundles: nsis,msi
             artifact: desktop-windows-x64
           - label: Windows x86
             runner: windows-2025
+            arch: x86
             target: i686-pc-windows-msvc
             bundles: nsis,msi
             artifact: desktop-windows-x86
           - label: Linux x64
             runner: ubuntu-24.04
+            arch: x64
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
             artifact: desktop-linux-x64
           - label: Linux ARM64
             runner: ubuntu-24.04-arm
+            arch: arm64
             target: aarch64-unknown-linux-gnu
             bundles: deb,appimage
             artifact: desktop-linux-arm64
           - label: macOS Apple Silicon
             runner: macos-15
+            arch: arm64
             target: aarch64-apple-darwin
             bundles: app,dmg
             artifact: desktop-macos-arm64
           - label: macOS Intel
             runner: macos-15-intel
+            arch: x64
             target: x86_64-apple-darwin
             bundles: app,dmg
             artifact: desktop-macos-x64
@@ -236,9 +242,11 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Require the immutable Cargo lockfile
+      - name: Validate the immutable Cargo lockfile
         shell: bash
-        run: test -f src-tauri/Cargo.lock
+        run: >-
+          cargo metadata --manifest-path src-tauri/Cargo.toml
+          --locked --format-version 1 > /dev/null
 
       - name: Build Tauri bundles
         id: tauri
@@ -272,6 +280,31 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Record desktop build status
+        if: always()
+        shell: bash
+        env:
+          BUILD_STATUS: ${{ job.status }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          node ./scripts/release/write-build-status.mjs
+          --output release-status/${{ matrix.artifact }}.status.json
+          --id ${{ matrix.artifact }}
+          --label '${{ matrix.label }}'
+          --platform desktop
+          --arch '${{ matrix.arch }}'
+          --target '${{ matrix.target }}'
+          --artifact release-${{ matrix.artifact }}
+
+      - name: Store desktop build status
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-status-${{ matrix.artifact }}
+          path: release-status/${{ matrix.artifact }}.status.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Remove temporary Windows certificate
         if: always() && runner.os == 'Windows'
@@ -333,6 +366,30 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+      - name: Record Web/PWA build status
+        if: always()
+        env:
+          BUILD_STATUS: ${{ job.status }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          node ./scripts/release/write-build-status.mjs
+          --output release-status/web-pwa.status.json
+          --id web-pwa
+          --label Web/PWA
+          --platform web
+          --arch universal
+          --target web
+          --artifact release-web-pwa
+
+      - name: Store Web/PWA build status
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-status-web-pwa
+          path: release-status/web-pwa.status.json
+          if-no-files-found: error
+          retention-days: 14
+
   cloudpanel:
     name: CloudPanel Linux ${{ matrix.arch }}
     needs: prepare-release
@@ -375,8 +432,10 @@ jobs:
       - name: Install CloudPanel build dependencies
         run: bash ./scripts/linux/install-cloudpanel-build-deps.sh --${{ matrix.arch }}
 
-      - name: Require the immutable Cargo lockfile
-        run: test -f src-tauri/Cargo.lock
+      - name: Validate the immutable Cargo lockfile
+        run: >-
+          cargo metadata --manifest-path src-tauri/Cargo.toml
+          --locked --format-version 1 > /dev/null
 
       - name: Build CloudPanel package
         run: bash ./scripts/linux/build-cloudpanel-release.sh --${{ matrix.arch }}
@@ -392,6 +451,30 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+      - name: Record CloudPanel build status
+        if: always()
+        env:
+          BUILD_STATUS: ${{ job.status }}
+          RELEASE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          node ./scripts/release/write-build-status.mjs
+          --output release-status/cloudpanel-linux-${{ matrix.arch }}.status.json
+          --id cloudpanel-linux-${{ matrix.arch }}
+          --label 'CloudPanel Linux ${{ matrix.arch }}'
+          --platform cloudpanel-linux
+          --arch ${{ matrix.arch }}
+          --target ${{ matrix.target }}
+          --artifact release-cloudpanel-linux-${{ matrix.arch }}
+
+      - name: Store CloudPanel build status
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-status-cloudpanel-linux-${{ matrix.arch }}
+          path: release-status/cloudpanel-linux-${{ matrix.arch }}.status.json
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     name: Publish coordinated GitHub Release
     needs:
@@ -399,7 +482,10 @@ jobs:
       - desktop
       - web-pwa
       - cloudpanel
-    if: needs.prepare-release.outputs.published == 'true'
+    if: >-
+      always() &&
+      needs.prepare-release.result == 'success' &&
+      needs.prepare-release.outputs.published == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -433,6 +519,8 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "${RELEASE_NOTES_B64}" | base64 --decode > release-notes.md
+          printf '\n' >> release-notes.md
+          cat release-assets/RELEASE-STATUS.md >> release-notes.md
 
       - name: Create or reuse one draft release
         shell: bash
@@ -479,4 +567,6 @@ jobs:
             echo "Artefatos publicados:"
             echo
             sed 's/^/- `/' release-assets/SHA256SUMS.txt | sed 's/$/`/'
+            echo
+            cat release-assets/RELEASE-STATUS.md
           } >> "${GITHUB_STEP_SUMMARY}"
