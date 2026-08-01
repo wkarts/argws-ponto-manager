@@ -75,7 +75,7 @@ dependencies = [
 
 [[package]]
 name = "argws_ponto_manager"
-version = "1.23.4"
+version = "1.24.0"
 dependencies = [
  "argon2",
  "axum",
