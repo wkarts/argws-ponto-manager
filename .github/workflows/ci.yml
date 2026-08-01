@@ -160,13 +160,29 @@ jobs:
       - name: Build Web/PWA
         run: npm run build:web
 
+      - name: Store Web/PWA for Rust checks
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-web-dist
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
   rust:
     name: Rust and Tauri
+    needs: frontend
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Restore Web/PWA for Tauri context
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-web-dist
+          path: dist
 
       - name: Install Tauri dependencies
         run: |
@@ -227,6 +243,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Restore Web/PWA for Tauri context
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-web-dist
+          path: dist
 
       - name: Install Tauri dependencies
         run: |
