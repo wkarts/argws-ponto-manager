@@ -126,16 +126,16 @@ for item in "${TARGETS[@]}"; do
   fi
 
   headless_packages="$(
-    env "${cargo_env[@]}" cargo tree \\
-      --manifest-path "$ROOT_DIR/src-tauri/Cargo.toml" \\
-      --target "$triple" \\
-      --locked \\
-      --no-default-features \\
-      --features "$FEATURES" \\
-      --edges normal \\
-      --prefix none \\
-      --format '{p}' \\
-      | awk '{print $1}' \\
+    env "${cargo_env[@]}" cargo tree \
+      --manifest-path "$ROOT_DIR/src-tauri/Cargo.toml" \
+      --target "$triple" \
+      --locked \
+      --no-default-features \
+      --features "$FEATURES" \
+      --edges normal \
+      --prefix none \
+      --format '{p}' \
+      | awk '{print $1}' \
       | sort -u
   )"
 
@@ -164,7 +164,7 @@ for item in "${TARGETS[@]}"; do
 
   if [[ ${#unexpected_headless_crates[@]} -gt 0 ]]; then
     echo "O grafo CloudPanel headless contém crates gráficas/Tauri indevidas:" >&2
-    printf '  - %s\\n' "${unexpected_headless_crates[@]}" >&2
+    printf '  - %s\n' "${unexpected_headless_crates[@]}" >&2
     echo "Mantenha tauri opcional e habilitado somente pela feature desktop." >&2
     exit 1
   fi
