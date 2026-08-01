@@ -58,9 +58,7 @@ async function submit() {
       </div>
       <div class="badge">{{ appBranding.appName }}</div>
       <h1>Acesso ao sistema</h1>
-      <p class="muted">
-        Entre com seu login e senha. Informações de usuário padrão ficam apenas na documentação técnica, não na interface.
-      </p>
+      <p class="muted">Informe suas credenciais para acessar o sistema.</p>
 
       <form class="grid" @submit.prevent="submit">
         <div class="field">
