@@ -1,157 +1,480 @@
 name: Release
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag existente para retomar uma release incompleta (ex.: v1.2.0)"
+        required: false
+        type: string
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: "24"
+
 jobs:
-  validate-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: lts/*
-      - name: Instalar dependências frontend
-        run: npm install
-      - name: Validar sincronismo de versão
-        run: npm run ci:version
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Build web
-        run: npm run build:web
-
-  validate-rust:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Dependências Linux para Tauri
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: './src-tauri -> target'
-      - name: cargo fmt
-        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all --check
-      - name: cargo clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
-      - name: cargo test
-        run: cargo test --manifest-path src-tauri/Cargo.toml --all-targets --all-features
-
   prepare-release:
-    needs: [validate-frontend, validate-rust]
-    runs-on: ubuntu-latest
+    name: Resolve version and immutable tag
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     outputs:
-      published: ${{ steps.semantic.outputs.published }}
-      version: ${{ steps.semantic.outputs.version }}
-      tag: ${{ steps.semantic.outputs.tag }}
-      name: ${{ steps.semantic.outputs.name }}
+      published: ${{ steps.resolve.outputs.published }}
+      version: ${{ steps.resolve.outputs.version }}
+      tag: ${{ steps.resolve.outputs.tag }}
+      name: ${{ steps.resolve.outputs.name }}
+      notes_b64: ${{ steps.resolve.outputs.notes_b64 }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout approved commit
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: true
+          ref: ${{ inputs.release_tag || github.event.workflow_run.head_sha || github.sha }}
+
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: lts/*
-      - name: Instalar dependências frontend
-        run: npm install
-      - name: Semantic release
-        id: semantic
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install release dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Setup Rust for the reproducible lockfile
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Require immutable Cargo lockfile
+        run: >-
+          cargo metadata --manifest-path src-tauri/Cargo.toml
+          --locked --format-version 1 > /dev/null
+
+      - name: Resolve semantic release or resume tag
+        id: resolve
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: node ./scripts/release/run-semantic-release.mjs
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
 
-  publish-tauri:
+          if [[ -z "${REQUESTED_TAG}" ]]; then
+            node ./scripts/release/run-semantic-release.mjs
+            exit 0
+          fi
+
+          if [[ ! "${REQUESTED_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag inválida: ${REQUESTED_TAG}" >&2
+            exit 1
+          fi
+
+          git fetch --force --tags origin "${REQUESTED_TAG}"
+          node ./scripts/ci/check-version-sync.mjs --tag "${REQUESTED_TAG}"
+
+          if release_json="$(gh release view "${REQUESTED_TAG}" --json isDraft 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<<"${release_json}")" != "true" ]]; then
+              echo "A release ${REQUESTED_TAG} já está publicada e não será reaberta." >&2
+              exit 1
+            fi
+          fi
+
+          version="$(tr -d '\r\n' < VERSION)"
+          product_name="$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).productName")"
+          notes="Retomada idempotente da release ${REQUESTED_TAG}."
+
+          echo "published=true" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${REQUESTED_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "name=${product_name} v${version}" >> "${GITHUB_OUTPUT}"
+          echo "notes_b64=$(printf '%s' "${notes}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+          if [[ "${version}" == *-* ]]; then
+            echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  desktop:
+    name: ${{ matrix.label }}
     needs: prepare-release
     if: needs.prepare-release.outputs.published == 'true'
-    permissions:
-      contents: write
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
-            args: --target aarch64-apple-darwin
-            rust_target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust_target: x86_64-apple-darwin
-          - platform: ubuntu-22.04
-            args: ''
-            rust_target: ''
-          - platform: windows-latest
-            args: ''
-            rust_target: ''
-          - platform: windows-latest
-            args: --target i686-pc-windows-msvc
-            rust_target: i686-pc-windows-msvc
-    runs-on: ${{ matrix.platform }}
+          - label: Windows x64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            bundles: nsis,msi
+            artifact: desktop-windows-x64
+          - label: Windows x86
+            runner: windows-2025
+            target: i686-pc-windows-msvc
+            bundles: nsis,msi
+            artifact: desktop-windows-x86
+          - label: Linux x64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+            artifact: desktop-linux-x64
+          - label: Linux ARM64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: deb,appimage
+            artifact: desktop-linux-arm64
+          - label: macOS Apple Silicon
+            runner: macos-15
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+            artifact: desktop-macos-arm64
+          - label: macOS Intel
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+            artifact: desktop-macos-x64
     env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact release tag
+        uses: actions/checkout@v7
         with:
+          fetch-depth: 0
+          persist-credentials: false
           ref: ${{ needs.prepare-release.outputs.tag }}
-      - name: Validar versão x tag de release
-        run: node ./scripts/ci/check-version-sync.mjs --tag ${{ needs.prepare-release.outputs.tag }}
-      - name: Dependências Linux para Tauri
+
+      - name: Install Linux Tauri dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: Importar certificado Windows
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            curl \
+            file \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Validate tag and project version
+        run: node ./scripts/ci/check-version-sync.mjs --tag "${{ needs.prepare-release.outputs.tag }}"
+
+      - name: Setup Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Configure short Cargo target on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "tauri-target"
+          New-Item -ItemType Directory -Path $target -Force | Out-Null
+          "CARGO_TARGET_DIR=$target" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "CARGO_TARGET_DIR=$target"
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: release-${{ matrix.target }}
+          cache-on-failure: true
+
+      - name: Import optional Windows signing certificate
         if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path certificate | Out-Null
-          Set-Content -Path certificate\tempCert.txt -Value $env:WINDOWS_CERTIFICATE
-          certutil -decode certificate\tempCert.txt certificate\certificate.pfx
-          Remove-Item certificate\tempCert.txt
-          $secure = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
-          Import-PfxCertificate -FilePath certificate\certificate.pfx -CertStoreLocation Cert:\CurrentUser\My -Password $secure
+          New-Item -ItemType Directory -Path certificate -Force | Out-Null
+          Set-Content -Path certificate\certificate.txt -Value $env:WINDOWS_CERTIFICATE
+          certutil -decode certificate\certificate.txt certificate\certificate.pfx
+          Remove-Item certificate\certificate.txt
+          $securePassword = ConvertTo-SecureString `
+            -String $env:WINDOWS_CERTIFICATE_PASSWORD `
+            -Force `
+            -AsPlainText
+          $certificate = Import-PfxCertificate `
+            -FilePath certificate\certificate.pfx `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password $securePassword
+          "WINDOWS_CERT_THUMBPRINT=$($certificate.Thumbprint)" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Install frontend dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Require the immutable Cargo lockfile
+        shell: bash
+        run: test -f src-tauri/Cargo.lock
+
+      - name: Build Tauri bundles
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
+        with:
+          tauriScript: npm run tauri
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Package macOS application bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
+          app_path="$(find "${bundle_dir}" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [[ -z "${app_path}" ]]; then
+            echo "Pacote .app não encontrado em ${bundle_dir}." >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${app_path}" \
+            "${app_path}.zip"
+
+      - name: Store desktop bundles
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-${{ matrix.artifact }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**
+            ${{ runner.temp }}/tauri-target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Remove temporary Windows certificate
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERT_THUMBPRINT)) {
+            $certificatePath = "Cert:\CurrentUser\My\$($env:WINDOWS_CERT_THUMBPRINT)"
+            if (Test-Path $certificatePath) {
+              Remove-Item $certificatePath -Force
+            }
+          }
+          if (Test-Path certificate) {
+            Remove-Item certificate -Recurse -Force
+          }
+
+  web-pwa:
+    name: Web/PWA
+    needs: prepare-release
+    if: needs.prepare-release.outputs.published == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: lts/*
-      - name: Rust stable (default)
-        if: matrix.rust_target == ''
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Validate version
+        run: npm run ci:version
+
+      - name: Build Web/PWA
+        run: npm run build:web
+
+      - name: Package Web/PWA
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_name="$(node -p "require('./package.json').name")"
+          version="$(tr -d '\r\n' < VERSION)"
+          mkdir -p release/web
+          tar -C dist -czf "release/web/${package_name}-v${version}-web-pwa.tar.gz" .
+
+      - name: Store Web/PWA package
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-web-pwa
+          path: release/web/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  cloudpanel:
+    name: CloudPanel Linux ${{ matrix.arch }}
+    needs: prepare-release
+    if: needs.prepare-release.outputs.published == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-unknown-linux-gnu
+          - arch: x86
+            target: i686-unknown-linux-gnu
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare-release.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup Rust target
         uses: dtolnay/rust-toolchain@stable
-      - name: Rust stable (target adicional)
-        if: matrix.rust_target != ''
-        uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
-      - name: Cache Rust
-        uses: swatinem/rust-cache@v2
+          targets: ${{ matrix.target }}
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
-      - name: Instalar dependências frontend
-        run: npm install
-      - name: Publicar binários Tauri
-        uses: tauri-apps/tauri-action@v0
+          workspaces: "./src-tauri -> target"
+          key: cloudpanel-${{ matrix.target }}
+          cache-on-failure: true
+
+      - name: Install CloudPanel build dependencies
+        run: bash ./scripts/linux/install-cloudpanel-build-deps.sh --${{ matrix.arch }}
+
+      - name: Require the immutable Cargo lockfile
+        run: test -f src-tauri/Cargo.lock
+
+      - name: Build CloudPanel package
+        run: bash ./scripts/linux/build-cloudpanel-release.sh --${{ matrix.arch }}
+
+      - name: Store CloudPanel package
+        uses: actions/upload-artifact@v7
         with:
-          tagName: ${{ needs.prepare-release.outputs.tag }}
-          releaseName: Pontos Desktop v${{ needs.prepare-release.outputs.version }}
-          releaseBody: Confira o CHANGELOG.md e os assets desta versão.
-          releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: false
-          args: ${{ matrix.args }}
+          name: release-cloudpanel-linux-${{ matrix.arch }}
+          path: |
+            release/cloudpanel/*.tar.gz
+            release/cloudpanel/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  publish:
+    name: Publish coordinated GitHub Release
+    needs:
+      - prepare-release
+      - desktop
+      - web-pwa
+      - cloudpanel
+    if: needs.prepare-release.outputs.published == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.tag }}
+      RELEASE_NAME: ${{ needs.prepare-release.outputs.name }}
+      RELEASE_NOTES_B64: ${{ needs.prepare-release.outputs.notes_b64 }}
+      RELEASE_PRERELEASE: ${{ needs.prepare-release.outputs.prerelease }}
+    steps:
+      - name: Checkout exact release tag
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Download current-run artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: artifacts
+
+      - name: Collect, rename and checksum assets
+        run: >-
+          node ./scripts/release/collect-release-assets.mjs
+          --input artifacts
+          --output release-assets
+          --version "${{ needs.prepare-release.outputs.version }}"
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${RELEASE_NOTES_B64}" | base64 --decode > release-notes.md
+
+      - name: Create or reuse one draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if release_json="$(gh release view "${RELEASE_TAG}" --json isDraft 2>/dev/null)"; then
+            if [[ "$(jq -r '.isDraft' <<<"${release_json}")" != "true" ]]; then
+              echo "A release ${RELEASE_TAG} já está publicada e não será reaberta." >&2
+              exit 1
+            fi
+            gh release edit "${RELEASE_TAG}" \
+              --title "${RELEASE_NAME}" \
+              --notes-file release-notes.md
+          else
+            create_args=(
+              "${RELEASE_TAG}"
+              --draft
+              --verify-tag
+              --title "${RELEASE_NAME}"
+              --notes-file release-notes.md
+            )
+            if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+              create_args+=(--prerelease)
+            fi
+            gh release create "${create_args[@]}"
+          fi
+
+      - name: Upload assets idempotently
+        run: >-
+          node ./scripts/release/upload-release-assets.mjs
+          --tag "${RELEASE_TAG}"
+          --directory release-assets
+
+      - name: Publish draft
+        run: gh release edit "${RELEASE_TAG}" --draft=false
+
+      - name: Release summary
+        shell: bash
+        run: |
+          {
+            echo "## Release ${RELEASE_TAG}"
+            echo
+            echo "Artefatos publicados:"
+            echo
+            sed 's/^/- `/' release-assets/SHA256SUMS.txt | sed 's/$/`/'
+          } >> "${GITHUB_STEP_SUMMARY}"
