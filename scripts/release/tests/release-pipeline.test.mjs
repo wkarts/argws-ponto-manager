@@ -149,7 +149,7 @@ test('gravador de status preserva falha e URL da execução', () => {
   assert.match(status.error, /actions\/runs\/2/);
 });
 
-test('CloudPanel usa build headless e não exige pacotes desktop i386', () => {
+test('CloudPanel isola Tauri/GTK e compila x64 e x86 no CI', () => {
   const buildScript = fs.readFileSync(
     path.join(repositoryRoot, 'scripts', 'linux', 'build-cloudpanel-release.sh'),
     'utf8',
@@ -158,10 +158,43 @@ test('CloudPanel usa build headless e não exige pacotes desktop i386', () => {
     path.join(repositoryRoot, 'scripts', 'linux', 'install-cloudpanel-build-deps.sh'),
     'utf8',
   );
+  const cargoManifest = fs.readFileSync(
+    path.join(repositoryRoot, 'src-tauri', 'Cargo.toml'),
+    'utf8',
+  );
+  const librarySource = fs.readFileSync(
+    path.join(repositoryRoot, 'src-tauri', 'src', 'lib.rs'),
+    'utf8',
+  );
+  const authCommands = fs.readFileSync(
+    path.join(repositoryRoot, 'src-tauri', 'src', 'commands', 'auth.rs'),
+    'utf8',
+  );
+  const entityCommands = fs.readFileSync(
+    path.join(repositoryRoot, 'src-tauri', 'src', 'commands', 'entities.rs'),
+    'utf8',
+  );
+  const ciWorkflow = fs.readFileSync(
+    path.join(repositoryRoot, '.github', 'workflows', 'ci.yml'),
+    'utf8',
+  );
 
+  assert.match(cargoManifest, /desktop = \\["dep:tauri"/);
+  assert.match(cargoManifest, /tauri = \\{[^}]*optional = true[^}]*\\}/);
   assert.match(buildScript, /--no-default-features/);
+  assert.match(buildScript, /cargo tree/);
+  assert.match(buildScript, /forbidden_headless_crates/);
+  assert.match(buildScript, /tauri-runtime-wry/);
   assert.match(buildScript, /pkg-config --exists openssl/);
+  assert.match(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod access;/);
+  assert.doesNotMatch(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod auth;/);
+  assert.doesNotMatch(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod entities;/);
+  assert.match(authCommands, /#\\[cfg\\(feature = "desktop"\\)\\]\\n#\\[tauri::command\\]\\npub fn auth_login/);
+  assert.match(entityCommands, /#\\[cfg\\(feature = "desktop"\\)\\]\\n#\\[tauri::command\\]\\npub fn entity_list/);
+  assert.match(ciWorkflow, /cloudpanel-headless:/);
+  assert.match(ciWorkflow, /Build and package CloudPanel headless/);
+  assert.match(ciWorkflow, /BUILD_WEB: "false"/);
   assert.doesNotMatch(dependencyScript, /libayatana-appindicator3-dev:i386/);
   assert.doesNotMatch(dependencyScript, /libxdo-dev:i386/);
-  assert.doesNotMatch(dependencyScript, /libwebkit2gtk-4\.1-dev:i386/);
+  assert.doesNotMatch(dependencyScript, /libwebkit2gtk-4\\.1-dev:i386/);
 });
