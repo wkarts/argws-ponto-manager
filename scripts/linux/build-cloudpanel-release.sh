@@ -108,8 +108,9 @@ for item in "${TARGETS[@]}"; do
 
   cargo_env=()
   if [[ "$triple" == "i686-unknown-linux-gnu" ]]; then
-    # Cross-build x86 em host x64 Debian/Ubuntu.
-    # Requer multiarch i386 instalado pelo script install-cloudpanel-build-deps.sh.
+    # Cross-build headless x86 em host x64 Debian/Ubuntu.
+    # Não habilita a feature desktop e, portanto, não depende de GTK/WebKit.
+    # Requer toolchain multilib e OpenSSL i386 instalados pelo script de dependências.
     cargo_env+=("PKG_CONFIG_ALLOW_CROSS=1")
     cargo_env+=("PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig")
     cargo_env+=("PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig:/usr/share/pkgconfig")
@@ -117,8 +118,8 @@ for item in "${TARGETS[@]}"; do
     cargo_env+=("CFLAGS_i686_unknown_linux_gnu=-m32")
     cargo_env+=("CXXFLAGS_i686_unknown_linux_gnu=-m32")
 
-    if ! env "${cargo_env[@]}" pkg-config --exists webkit2gtk-4.1; then
-      echo "Dependências i386 do WebKitGTK 4.1 não encontradas para build x86."
+    if ! env "${cargo_env[@]}" pkg-config --exists openssl; then
+      echo "Dependências i386 do OpenSSL não encontradas para build x86 headless."
       echo "Execute: bash scripts/linux/install-cloudpanel-build-deps.sh --x86"
       exit 1
     fi
@@ -128,6 +129,7 @@ for item in "${TARGETS[@]}"; do
     --manifest-path "$ROOT_DIR/src-tauri/Cargo.toml" \
     --target "$triple" \
     --locked \
+    --no-default-features \
     --release \
     --features "$FEATURES"
 
