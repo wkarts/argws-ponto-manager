@@ -1,3 +1,13 @@
+## [1.24.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.0...v1.24.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* **cloudpanel:** compila pacote sem features desktop ([e8bf4dc](https://github.com/wkarts/argws-ponto-manager/commit/e8bf4dc350763a49f929faca59a6b5686af15b14))
+* **cloudpanel:** remove dependências gráficas i386 ([bb385be](https://github.com/wkarts/argws-ponto-manager/commit/bb385be9d2c2cf1b22e2cb74e9ca713369b6d0f1))
+* **release:** corrige versão workspace no Cargo.lock ([75b8565](https://github.com/wkarts/argws-ponto-manager/commit/75b85656910fe0270518379393b30f411050a8a9))
+* **release:** sincroniza Cargo.lock antes da tag ([b666aa4](https://github.com/wkarts/argws-ponto-manager/commit/b666aa4d8d3e2e3b7c221a37c610b4ac7a96515c))
+
 # [1.24.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.23.4...v1.24.0) (2026-08-01)
 
 
