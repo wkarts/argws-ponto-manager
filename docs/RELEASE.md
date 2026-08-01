@@ -16,9 +16,9 @@ Os jobs da matriz continuam independentes e `fail-fast` permanece desligado. Se 
 - o diagnóstico e o link da execução são registrados nas notas, no manifesto e no resumo do workflow;
 - uma nova execução pode completar os alvos ausentes sem sobrescrever assets divergentes.
 
-O pacote CloudPanel é headless e deve ser compilado com `--no-default-features`. A dependência `tauri` é opcional e ativada exclusivamente pela feature `desktop`; isso é obrigatório porque o próprio Tauri inclui GTK como dependência de plataforma no Linux mesmo sem Wry. GTK, GDK, WebKitGTK, AppIndicator, tray e Wry não podem aparecer no grafo normal do CloudPanel x86/x64.
+O pacote CloudPanel é headless e deve ser compilado com `--no-default-features`. As dependências `tauri` e `tauri-build` são opcionais e ativadas exclusivamente pela feature `desktop`; isso é obrigatório porque o próprio Tauri inclui GTK como dependência de plataforma no Linux mesmo sem Wry, e o build script Tauri também não pode executar no headless. GTK, GDK, WebKitGTK, AppIndicator, tray, Wry, `tauri` e `tauri-build` não podem aparecer no grafo normal/build do CloudPanel x86/x64.
 
-Antes de compilar, `build-cloudpanel-release.sh` executa `cargo tree` para rejeitar qualquer crate gráfica/Tauri no grafo headless. O CI de Pull Request também gera e armazena por um dia os pacotes CloudPanel x64 e x86, impedindo que a validação fique restrita a uma inspeção textual do script.
+Antes de compilar, `build-cloudpanel-release.sh` executa `cargo tree --edges normal,build` para rejeitar qualquer crate gráfica ou Tauri no grafo headless, incluindo build-dependencies. O CI de Pull Request também gera e armazena por um dia os pacotes CloudPanel x64 e x86, impedindo que a validação fique restrita a uma inspeção textual do script.
 
 A retomada recusa tag movida, release publicada ou asset divergente. Assets idênticos podem ser reutilizados. A PR de migração não publica release oficial.
 
