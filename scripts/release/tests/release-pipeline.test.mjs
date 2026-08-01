@@ -162,6 +162,10 @@ test('CloudPanel isola Tauri/GTK e compila x64 e x86 no CI', () => {
     path.join(repositoryRoot, 'src-tauri', 'Cargo.toml'),
     'utf8',
   );
+  const buildSource = fs.readFileSync(
+    path.join(repositoryRoot, 'src-tauri', 'build.rs'),
+    'utf8',
+  );
   const librarySource = fs.readFileSync(
     path.join(repositoryRoot, 'src-tauri', 'src', 'lib.rs'),
     'utf8',
@@ -179,11 +183,15 @@ test('CloudPanel isola Tauri/GTK e compila x64 e x86 no CI', () => {
     'utf8',
   );
 
-  assert.match(cargoManifest, /desktop = \["dep:tauri"/);
+  assert.match(cargoManifest, /desktop = \["dep:tauri", "dep:tauri-build"/);
   assert.match(cargoManifest, /tauri = \{[^}]*optional = true[^}]*\}/);
+  assert.match(cargoManifest, /tauri-build = \{[^}]*optional = true[^}]*\}/);
+  assert.match(buildSource, /#\[cfg\(feature = "desktop"\)\]\n    tauri_build::build\(\);/);
   assert.match(buildScript, /--no-default-features/);
   assert.match(buildScript, /cargo tree/);
+  assert.match(buildScript, /--edges normal,build/);
   assert.match(buildScript, /forbidden_headless_crates/);
+  assert.match(buildScript, /tauri-build/);
   assert.match(buildScript, /tauri-runtime-wry/);
   assert.match(buildScript, /pkg-config --exists openssl/);
   assert.match(librarySource, /#\[cfg\(feature = "desktop"\)\]\n    pub mod access;/);
