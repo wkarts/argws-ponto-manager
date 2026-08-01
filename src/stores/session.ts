@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { invokeCommand } from "../services/tauri";
 import { logAppError, logAppInfo, logAppWarning } from "../services/logger";
+import { storageKey } from "../config/appBranding";
 
 export interface AuthUser {
   id: number;
@@ -16,6 +17,7 @@ export interface AuthUser {
   profile_names: string[];
   company_ids: number[];
   company_names: string[];
+  photo_url?: string | null;
 }
 
 interface LoginResponse {
@@ -25,8 +27,8 @@ interface LoginResponse {
   user?: AuthUser;
 }
 
-const STORAGE_KEY = "pontos-desktop-session";
-const ACTIVE_COMPANY_KEY = "pontos-desktop-active-company";
+const STORAGE_KEY = storageKey("session");
+const ACTIVE_COMPANY_KEY = storageKey("active-company");
 
 function sessionStore() {
   if (typeof window === "undefined") return null;
@@ -194,6 +196,48 @@ export const useSessionStore = defineStore("session", {
       } finally {
         this.initialized = true;
         this.restoring = false;
+      }
+    },
+    async validateCurrentSession() {
+      if (!this.sessionToken) return false;
+      try {
+        const response = await invokeCommand<LoginResponse>("auth_restore", {
+          session_token: this.sessionToken,
+        });
+        if (!response.success || !response.user || !response.session_token) {
+          logAppWarning("session", "Sessão expirada ou derrubada por novo login.");
+          this.clearAuthState();
+          return false;
+        }
+        this.user = response.user;
+        this.sessionToken = response.session_token;
+        writeStorage(response.session_token);
+        this.ensureActiveCompany();
+        return true;
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : "Sessão inválida ou expirada.";
+        logAppWarning("session", "Sessão invalidada durante monitoramento ativo.", { error: this.lastError });
+        this.clearAuthState();
+        return false;
+      }
+    },
+    async changePassword(currentPassword: string, newPassword: string) {
+      if (!this.sessionToken) throw new Error("Sessão não encontrada.");
+      this.loading = true;
+      this.lastError = "";
+      try {
+        await invokeCommand<boolean>("auth_change_password", {
+          session_token: this.sessionToken,
+          current_password: currentPassword,
+          new_password: newPassword,
+        });
+        if (this.user) this.user.senha_provisoria = false;
+        logAppInfo("auth", "Senha inicial alterada e acesso definitivo liberado.");
+      } catch (error) {
+        this.lastError = error instanceof Error ? error.message : "Falha ao alterar senha.";
+        throw error;
+      } finally {
+        this.loading = false;
       }
     },
     async logout({ silent = false }: { silent?: boolean } = {}) {

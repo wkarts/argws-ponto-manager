@@ -1,39 +1,10 @@
 import { invokeCommand } from "./tauri";
 
+export type GenericRecord = Record<string, unknown>;
+
 export interface ComboOption {
-  id: number | string;
+  id: number;
   label: string;
-}
-
-export interface ApuracaoDia {
-  funcionario_id: number;
-  funcionario_nome: string;
-  data: string;
-  jornada_nome: string;
-  tipo_jornada: string;
-  horario_esperado_minutos: number;
-  trabalhado_minutos: number;
-  saldo_minutos: number;
-  atraso_minutos: number;
-  extra_minutos: number;
-  saida_antecipada_minutos: number;
-  mensagens: string[];
-  batidas: string[];
-  ocorrencias: string[];
-  minutos_abonados: number;
-  abonado: boolean;
-  inconsistente: boolean;
-}
-
-export interface ApuracaoResumo {
-  total_funcionarios: number;
-  total_dias: number;
-  total_esperado_minutos: number;
-  total_trabalhado_minutos: number;
-  total_saldo_minutos: number;
-  total_atraso_minutos: number;
-  total_extra_minutos: number;
-  rows: ApuracaoDia[];
 }
 
 export interface SyncQueueItem {
@@ -74,6 +45,37 @@ export interface EmployeeFilters {
   onlyActive?: boolean;
 }
 
+export interface ApuracaoDia {
+  funcionario_id: number;
+  funcionario_nome: string;
+  data: string;
+  jornada_nome: string;
+  tipo_jornada: string;
+  horario_esperado_minutos: number;
+  trabalhado_minutos: number;
+  saldo_minutos: number;
+  atraso_minutos: number;
+  extra_minutos: number;
+  saida_antecipada_minutos: number;
+  mensagens: string[];
+  batidas: string[];
+  ocorrencias: string[];
+  minutos_abonados: number;
+  abonado: boolean;
+  inconsistente: boolean;
+}
+
+export interface ApuracaoResumo {
+  total_funcionarios: number;
+  total_dias: number;
+  total_esperado_minutos: number;
+  total_trabalhado_minutos: number;
+  total_saldo_minutos: number;
+  total_atraso_minutos: number;
+  total_extra_minutos: number;
+  rows: ApuracaoDia[];
+}
+
 export interface AfdImportResponse {
   importacao_id: number;
   layout_portaria: string;
@@ -90,8 +92,6 @@ export interface BancoHorasProcessResponse {
   total_debitos_minutos: number;
   saldo_liquido_minutos: number;
 }
-
-export type GenericRecord = Record<string, unknown>;
 
 export interface HolidaySourceSettings extends GenericRecord {
   mode?: string;
@@ -114,6 +114,7 @@ export interface FeriadoRecord extends GenericRecord {
   empresa_ids?: number[];
   departamento_ids?: number[];
 }
+
 
 export async function listEntity(entity: string, search = ""): Promise<GenericRecord[]> {
   return invokeCommand<GenericRecord[]>("entity_list", { entity, search });
@@ -158,6 +159,7 @@ export async function getEmployee(id: number): Promise<GenericRecord> {
 export async function saveEmployee(payload: GenericRecord): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("employee_save", { payload });
 }
+
 export async function cloneEmployee(id: number): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("employee_clone", { id });
 }
@@ -170,13 +172,8 @@ export async function importEmployeesCsv(payload: Record<string, unknown>): Prom
   return invokeCommand<GenericRecord>("employee_import_csv", { payload });
 }
 
-
 export async function deleteEmployee(id: number): Promise<boolean> {
   return invokeCommand<boolean>("employee_delete", { id });
-}
-
-export async function getBootstrap(): Promise<Record<string, unknown>> {
-  return invokeCommand<Record<string, unknown>>("app_bootstrap");
 }
 
 export async function listBatidas(filters: Record<string, unknown>): Promise<GenericRecord[]> {
@@ -199,14 +196,6 @@ export async function apurarPeriodo(payload: Record<string, unknown>): Promise<A
   return invokeCommand<ApuracaoResumo>("apurar_periodo", { payload });
 }
 
-export async function listSyncQueue(): Promise<SyncQueueItem[]> {
-  return invokeCommand<SyncQueueItem[]>("sync_queue_list");
-}
-
-export async function markSyncQueueSynced(id: number): Promise<boolean> {
-  return invokeCommand<boolean>("sync_queue_mark_synced", { id });
-}
-
 export async function listJornadas(): Promise<GenericRecord[]> {
   return invokeCommand<GenericRecord[]>("jornada_list");
 }
@@ -218,6 +207,7 @@ export async function getJornada(id: number): Promise<GenericRecord> {
 export async function saveJornada(payload: GenericRecord): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("jornada_save", { payload });
 }
+
 export async function cloneJornada(id: number): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("jornada_clone", { id });
 }
@@ -225,7 +215,6 @@ export async function cloneJornada(id: number): Promise<GenericRecord> {
 export async function jornadaPresetList(): Promise<GenericRecord[]> {
   return invokeCommand<GenericRecord[]>("jornada_preset_list");
 }
-
 
 export async function deleteJornada(id: number): Promise<boolean> {
   return invokeCommand<boolean>("jornada_delete", { id });
@@ -295,6 +284,50 @@ export async function listGeneratedReports(filters: Record<string, unknown> = {}
 
 export async function downloadGeneratedReport(id: number): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
   return invokeCommand<{ file_name: string; mime_type: string; content_base64: string }>("report_generated_download", { id });
+}
+
+export async function exportRepEmpresaTxt(brand: string, empresaId: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("rep_export_empresa_txt", { brand, empresa_id: empresaId });
+}
+
+export async function exportRepFuncionariosTxt(brand: string, empresaId: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("rep_export_funcionarios_txt", { brand, empresa_id: empresaId });
+}
+
+export async function listFeriados(search = ""): Promise<FeriadoRecord[]> {
+  return invokeCommand<FeriadoRecord[]>("feriado_list", { search });
+}
+
+export async function getFeriado(id: number): Promise<FeriadoRecord> {
+  return invokeCommand<FeriadoRecord>("feriado_get", { id });
+}
+
+export async function saveFeriado(payload: FeriadoRecord): Promise<FeriadoRecord> {
+  return invokeCommand<FeriadoRecord>("feriado_save", { payload });
+}
+
+export async function deleteFeriado(id: number): Promise<boolean> {
+  return invokeCommand<boolean>("feriado_delete", { id });
+}
+
+export async function loadHolidaySourceSettings(): Promise<HolidaySourceSettings> {
+  return invokeCommand<HolidaySourceSettings>("holiday_source_load_settings");
+}
+
+export async function saveHolidaySourceSettings(payload: HolidaySourceSettings): Promise<HolidaySourceSettings> {
+  return invokeCommand<HolidaySourceSettings>("holiday_source_save_settings", { payload });
+}
+
+export async function importCompanyDefaultHolidays(empresaId: number, year?: number | null): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("holiday_source_import_company_year", { empresa_id: empresaId, year: year ?? null });
+}
+
+export async function listSyncQueue(): Promise<SyncQueueItem[]> {
+  return invokeCommand<SyncQueueItem[]>("sync_queue_list");
+}
+
+export async function markSyncQueueSynced(id: number): Promise<boolean> {
+  return invokeCommand<boolean>("sync_queue_mark_synced", { id });
 }
 
 export async function listProfiles(sessionToken: string, filters: Record<string, unknown> = {}): Promise<GenericRecord[]> {
@@ -416,30 +449,6 @@ export async function unlockSupportGuard(sessionToken: string, currentPassword: 
   });
 }
 
-export async function exportRepEmpresaTxt(brand: string, empresaId: number): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("rep_export_empresa_txt", { brand, empresa_id: empresaId });
-}
-
-export async function exportRepFuncionariosTxt(brand: string, empresaId: number): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("rep_export_funcionarios_txt", { brand, empresa_id: empresaId });
-}
-
-export async function listFeriados(search = ""): Promise<FeriadoRecord[]> {
-  return invokeCommand<FeriadoRecord[]>("feriado_list", { search });
-}
-
-export async function getFeriado(id: number): Promise<FeriadoRecord> {
-  return invokeCommand<FeriadoRecord>("feriado_get", { id });
-}
-
-export async function saveFeriado(payload: FeriadoRecord): Promise<FeriadoRecord> {
-  return invokeCommand<FeriadoRecord>("feriado_save", { payload });
-}
-
-export async function deleteFeriado(id: number): Promise<boolean> {
-  return invokeCommand<boolean>("feriado_delete", { id });
-}
-
 export async function lookupCompanyCnpj(documento: string, uf?: string | null): Promise<GenericRecord> {
   return invokeCommand<GenericRecord>("company_lookup_cnpj", { documento, uf: uf ?? null });
 }
@@ -448,14 +457,137 @@ export async function lookupCompanyIe(documento: string, uf?: string | null): Pr
   return invokeCommand<GenericRecord>("company_lookup_ie", { documento, uf: uf ?? null });
 }
 
-export async function loadHolidaySourceSettings(): Promise<HolidaySourceSettings> {
-  return invokeCommand<HolidaySourceSettings>("holiday_source_load_settings");
+export async function getBootstrap(): Promise<Record<string, unknown>> {
+  return invokeCommand<Record<string, unknown>>("app_bootstrap");
 }
 
-export async function saveHolidaySourceSettings(payload: HolidaySourceSettings): Promise<HolidaySourceSettings> {
-  return invokeCommand<HolidaySourceSettings>("holiday_source_save_settings", { payload });
+export async function getInternalApiStatus(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_status");
 }
 
-export async function importCompanyDefaultHolidays(empresaId: number, year?: number | null): Promise<GenericRecord> {
-  return invokeCommand<GenericRecord>("holiday_source_import_company_year", { empresa_id: empresaId, year: year ?? null });
+export async function startInternalApi(host?: string, port?: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_start", { host, port });
+}
+
+export async function stopInternalApi(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_stop");
+}
+
+export async function restartInternalApi(host?: string, port?: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_restart", { host, port });
+}
+
+export async function testInternalApiPort(host: string, port: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_test_port", { host, port });
+}
+
+export async function testInternalApi(baseUrl: string, timeoutMs?: number): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("internal_api_test", { base_url: baseUrl, timeout_ms: timeoutMs });
+}
+
+export async function getAppServiceStatus(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("app_service_status");
+}
+
+export async function startAppService(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("app_service_start");
+}
+
+export async function stopAppService(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("app_service_stop");
+}
+
+export async function restartAppService(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("app_service_restart");
+}
+
+export interface RuntimeSettings {
+  internal_api_host: string;
+  internal_api_port: number;
+  internal_api_base_url: string;
+  internal_api_docs_url: string;
+  internal_api_auto_start: boolean;
+  internal_api_restart_on_config_change: boolean;
+  internal_api_require_token: boolean;
+  app_service_name: string;
+  internal_api_token_header: string;
+  internal_api_cors_enabled: boolean;
+  internal_api_allow_public_network: boolean;
+  internal_api_token: string;
+  internal_api_docs_public_local: boolean;
+  internal_api_open_scalar_after_start: boolean;
+  internal_api_timeout_ms: number;
+  internal_api_log_mode: string;
+  internal_api_docs_enabled: boolean;
+  internal_api_docs_path: string;
+  local_web_enabled: boolean;
+  local_web_auto_start: boolean;
+  local_web_host: string;
+  local_web_port: number;
+  auxiliary_host: string;
+  auxiliary_port: number;
+  bridge_core_host: string;
+  bridge_core_port: number;
+  webhook_enabled: boolean;
+  webhook_auto_start: boolean;
+  webhook_host: string;
+  webhook_port: number;
+  webhook_base_path: string;
+  webhook_token_required: boolean;
+  webhook_token_header: string;
+  webhook_token: string;
+  webhook_allow_lan: boolean;
+  webhook_allow_external: boolean;
+  websocket_enabled: boolean;
+  websocket_auto_start: boolean;
+  websocket_host: string;
+  websocket_port: number;
+  websocket_path: string;
+  websocket_token_required: boolean;
+  websocket_token_query: string;
+  websocket_token_header: string;
+  websocket_token: string;
+  websocket_allow_lan: boolean;
+  websocket_allow_external: boolean;
+  websocket_heartbeat_seconds: number;
+  tray_enabled: boolean;
+  minimize_to_tray: boolean;
+  close_to_tray: boolean;
+  start_with_windows: boolean;
+  services_auto_start: boolean;
+}
+
+export interface RuntimeSettingsPayload extends GenericRecord {
+  env_path: string;
+  settings: RuntimeSettings;
+  ports: Array<Record<string, unknown>>;
+  warnings: string[];
+}
+
+export async function loadRuntimeSettings(): Promise<RuntimeSettingsPayload> {
+  return invokeCommand<RuntimeSettingsPayload>("runtime_settings_load");
+}
+
+export async function saveRuntimeSettings(settings: RuntimeSettings): Promise<RuntimeSettingsPayload> {
+  return invokeCommand<RuntimeSettingsPayload>("runtime_settings_save", { settings });
+}
+
+export async function setStartupWithWindows(enabled: boolean): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("startup_with_windows_set", { enabled });
+}
+
+export async function getWebProxyStatus(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("web_proxy_status");
+}
+
+export async function startWebProxy(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("web_proxy_start");
+}
+
+export async function stopWebProxy(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("web_proxy_stop");
+}
+
+export async function restartWebProxy(): Promise<GenericRecord> {
+  return invokeCommand<GenericRecord>("web_proxy_restart");
 }

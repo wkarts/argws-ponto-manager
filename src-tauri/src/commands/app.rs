@@ -1,11 +1,11 @@
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 use super::auth::require_session_by_token;
 
 use serde_json::{json, Map, Value};
-use tauri::{AppHandle, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::State;
+#[cfg(feature = "desktop")]
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 
 use crate::{
     app_state::SharedState,
@@ -23,10 +23,27 @@ fn build_hash() -> String {
         .unwrap_or_else(|| "dev".to_string())
 }
 
+fn runtime_app_name() -> String {
+    std::env::var("ARGWS_PONTO_MANAGER_NAME")
+        .or_else(|_| std::env::var("APP_NAME"))
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "Ponto Manager".to_string())
+}
+
+fn runtime_app_identifier() -> String {
+    std::env::var("ARGWS_PONTO_MANAGER_IDENTIFIER")
+        .or_else(|_| std::env::var("APP_IDENTIFIER"))
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "br.com.argws.pontomanager".to_string())
+}
+
 fn export_dir_for(data_dir: &std::path::Path) -> PathBuf {
     data_dir.join("exports")
 }
 
+#[cfg(feature = "desktop")]
 fn sanitize_print_file_name(value: &str) -> String {
     let mut output = String::new();
     for ch in value.chars() {
@@ -44,6 +61,7 @@ fn sanitize_print_file_name(value: &str) -> String {
     }
 }
 
+#[cfg(feature = "desktop")]
 fn html_with_external_print_script(html: &str) -> String {
     let script = r#"<script>
 (function () {
@@ -58,7 +76,6 @@ fn html_with_external_print_script(html: &str) -> String {
     if html.to_lowercase().contains("window.print") {
         return html.to_string();
     }
-
     if let Some(index) = html.to_lowercase().rfind("</body>") {
         let mut result = String::with_capacity(html.len() + script.len());
         result.push_str(&html[..index]);
@@ -97,34 +114,18 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
         "usuarios".to_string(),
         Value::from(count_table(&conn, "usuarios")?),
     );
-    payload.insert(
-        "funcionarios".to_string(),
-        Value::from(count_table(&conn, "funcionarios")?),
-    );
-    payload.insert(
-        "equipamentos".to_string(),
-        Value::from(count_table(&conn, "equipamentos")?),
-    );
-    payload.insert(
-        "horarios".to_string(),
-        Value::from(count_table(&conn, "horarios")?),
-    );
-    payload.insert(
-        "batidas".to_string(),
-        Value::from(count_table(&conn, "batidas")?),
-    );
-    payload.insert(
-        "jornadas".to_string(),
-        Value::from(count_table(&conn, "jornadas_trabalho")?),
-    );
-    payload.insert(
-        "afd_importacoes".to_string(),
-        Value::from(count_table(&conn, "afd_importacoes")?),
-    );
-    payload.insert(
-        "banco_horas".to_string(),
-        Value::from(count_table(&conn, "banco_horas_lancamentos")?),
-    );
+    for (key, table) in [
+        ("perfis", "perfis_acesso"),
+        ("funcionarios", "funcionarios"),
+        ("equipamentos", "equipamentos"),
+        ("horarios", "horarios"),
+        ("batidas", "batidas"),
+        ("jornadas", "jornadas_trabalho"),
+        ("afd_importacoes", "afd_importacoes"),
+        ("banco_horas", "banco_horas_lancamentos"),
+    ] {
+        payload.insert(key.to_string(), Value::from(count_table(&conn, table)?));
+    }
     payload.insert(
         "sync_pendente".to_string(),
         Value::from(
@@ -136,11 +137,52 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
             .map_err(|err| format!("Falha ao contar fila de sincronização: {err}"))?,
         ),
     );
+
+    payload.insert(
+        "logs_error_today".to_string(),
+        Value::from(
+            conn.query_row(
+                "SELECT COUNT(*) FROM app_logs WHERE level IN ('error','critical') AND substr(created_at, 1, 10) = date('now')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0),
+        ),
+    );
+    payload.insert(
+        "integrations_total".to_string(),
+        Value::from(
+            conn.query_row("SELECT COUNT(*) FROM integration_configs", [], |row| {
+                row.get::<_, i64>(0)
+            })
+            .unwrap_or(0),
+        ),
+    );
+    payload.insert(
+        "integrations_active".to_string(),
+        Value::from(
+            conn.query_row(
+                "SELECT COUNT(*) FROM integration_configs WHERE ativo=1 AND status='active'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0),
+        ),
+    );
+    payload.insert(
+        "database_status".to_string(),
+        Value::String("ok".to_string()),
+    );
+    payload.insert(
+        "internal_api_status".to_string(),
+        Value::String("headless-capable".to_string()),
+    );
     payload.insert(
         "carga_padrao_minutos".to_string(),
         Value::from(
             conn.query_row(
-                "SELECT COALESCE(valor, '480') FROM configuracoes WHERE nome = 'carga_padrao_minutos' LIMIT 1",
+                "SELECT COALESCE(valor, '480') FROM configuracoes \
+                 WHERE nome = 'carga_padrao_minutos' LIMIT 1",
                 [],
                 |row| row.get::<_, String>(0),
             )
@@ -162,7 +204,11 @@ pub fn app_meta() -> Result<BTreeMap<String, Value>, String> {
     payload.insert("build_hash".to_string(), Value::String(build_hash()));
     payload.insert(
         "product_name".to_string(),
-        Value::String("Ponto Manager".to_string()),
+        Value::String(runtime_app_name()),
+    );
+    payload.insert(
+        "identifier".to_string(),
+        Value::String(runtime_app_identifier()),
     );
     Ok(payload)
 }
@@ -210,7 +256,7 @@ pub fn system_set_data_dir(
 
     let current_db = state.db_path()?;
     let current_data_dir = state.data_dir()?;
-    let new_db = target_dir.join("pontos.db");
+    let new_db = target_dir.join("ponto-manager.db");
 
     if current_db.exists() && current_db != new_db {
         if let Some(parent) = new_db.parent() {
@@ -244,6 +290,7 @@ pub fn system_set_data_dir(
 }
 
 #[tauri::command]
+#[cfg(feature = "desktop")]
 pub async fn app_print_html(
     app: AppHandle,
     state: State<'_, SharedState>,
@@ -262,7 +309,6 @@ pub async fn app_print_html(
     let print_dir = data_dir.join("print-jobs");
     fs::create_dir_all(&print_dir)
         .map_err(|err| format!("Falha ao preparar diretório de impressão: {err}"))?;
-
     let requested_name = payload
         .get("file_name")
         .or_else(|| payload.get("fileName"))
@@ -274,13 +320,12 @@ pub async fn app_print_html(
     }
     let stamp = chrono::Local::now().format("%Y%m%d%H%M%S%3f");
     let target = print_dir.join(format!("{stamp}_{file_name}"));
-
     fs::write(&target, html_with_external_print_script(html))
         .map_err(|err| format!("Falha ao gravar arquivo temporário de impressão: {err}"))?;
 
     let print_url = tauri::Url::from_file_path(&target)
         .map_err(|_| "Falha ao montar URL local para impressão.".to_string())?;
-    let window_label = format!("print_{}", stamp);
+    let window_label = format!("print_{stamp}");
     WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::CustomProtocol(print_url))
         .title("Impressão")
         .inner_size(1280.0, 900.0)

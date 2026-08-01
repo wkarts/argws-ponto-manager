@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
-use std::fs;
 use std::path::PathBuf;
 
 use crate::models::LicenseCheckInput;
@@ -169,39 +168,37 @@ fn detect_install_mode() -> String {
 fn os_version() -> String {
     #[cfg(target_os = "windows")]
     {
-        return env::var("OS").unwrap_or_default();
+        env::var("OS").unwrap_or_default()
     }
     #[cfg(target_os = "linux")]
     {
-        let release = fs::read_to_string("/etc/os-release").unwrap_or_default();
-        let pretty = release
+        let release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+        release
             .lines()
             .find(|l| l.starts_with("PRETTY_NAME="))
             .map(|l| l.replace("PRETTY_NAME=", "").trim_matches('"').to_string())
-            .unwrap_or_default();
-        if !pretty.is_empty() {
-            return pretty;
-        }
-        return String::new();
+            .unwrap_or_default()
     }
     #[cfg(target_os = "macos")]
     {
-        return String::new();
+        String::new()
     }
-    #[allow(unreachable_code)]
-    String::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 fn machine_guid() -> String {
     #[cfg(target_os = "windows")]
     {
-        return String::new();
+        String::new()
     }
     #[cfg(target_os = "linux")]
     {
         let candidates = ["/etc/machine-id", "/var/lib/dbus/machine-id"];
         for path in candidates {
-            let content = fs::read_to_string(path)
+            let content = std::fs::read_to_string(path)
                 .unwrap_or_default()
                 .trim()
                 .to_string();
@@ -209,69 +206,91 @@ fn machine_guid() -> String {
                 return content;
             }
         }
+        String::new()
     }
     #[cfg(target_os = "macos")]
     {
-        return String::new();
+        String::new()
     }
-    String::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 fn bios_serial() -> String {
     #[cfg(target_os = "windows")]
     {
-        return String::new();
+        String::new()
     }
     #[cfg(target_os = "linux")]
     {
-        let val = fs::read_to_string("/sys/class/dmi/id/bios_version").unwrap_or_default();
-        if !val.trim().is_empty() {
-            return val.trim().to_string();
+        let val = std::fs::read_to_string("/sys/class/dmi/id/bios_version").unwrap_or_default();
+        let val = val.trim();
+        if val.is_empty() {
+            String::new()
+        } else {
+            val.to_string()
         }
     }
     #[cfg(target_os = "macos")]
     {
-        return String::new();
+        String::new()
     }
-    String::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 fn motherboard_serial() -> String {
     #[cfg(target_os = "windows")]
     {
-        return String::new();
+        String::new()
     }
     #[cfg(target_os = "linux")]
     {
-        let val = fs::read_to_string("/sys/class/dmi/id/board_serial").unwrap_or_default();
-        if !val.trim().is_empty() {
-            return val.trim().to_string();
+        let val = std::fs::read_to_string("/sys/class/dmi/id/board_serial").unwrap_or_default();
+        let val = val.trim();
+        if val.is_empty() {
+            String::new()
+        } else {
+            val.to_string()
         }
     }
     #[cfg(target_os = "macos")]
     {
-        return String::new();
+        String::new()
     }
-    String::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 fn system_serial_number() -> String {
     #[cfg(target_os = "windows")]
     {
-        return String::new();
+        String::new()
     }
     #[cfg(target_os = "linux")]
     {
-        let val = fs::read_to_string("/sys/class/dmi/id/product_uuid").unwrap_or_default();
-        if !val.trim().is_empty() {
-            return val.trim().to_string();
+        let val = std::fs::read_to_string("/sys/class/dmi/id/product_uuid").unwrap_or_default();
+        let val = val.trim();
+        if val.is_empty() {
+            String::new()
+        } else {
+            val.to_string()
         }
     }
     #[cfg(target_os = "macos")]
     {
-        return String::new();
+        String::new()
     }
-    String::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        String::new()
+    }
 }
 
 fn domain_name() -> String {
@@ -283,29 +302,31 @@ fn domain_name() -> String {
 fn mac_addresses() -> Vec<String> {
     #[cfg(target_os = "windows")]
     {
-        return Vec::new();
+        Vec::new()
     }
     #[cfg(target_os = "linux")]
     {
         let mut macs = Vec::new();
-        if let Ok(entries) = fs::read_dir("/sys/class/net") {
+        if let Ok(entries) = std::fs::read_dir("/sys/class/net") {
             for entry in entries.flatten() {
                 let addr_path = entry.path().join("address");
-                let value = fs::read_to_string(addr_path).unwrap_or_default();
+                let value = std::fs::read_to_string(addr_path).unwrap_or_default();
                 let mac = value.trim().to_string();
                 if !mac.is_empty() && mac != "00:00:00:00:00:00" {
                     macs.push(mac);
                 }
             }
         }
-        return macs;
+        macs
     }
     #[cfg(target_os = "macos")]
     {
-        return Vec::new();
+        Vec::new()
     }
-    #[allow(unreachable_code)]
-    Vec::new()
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        Vec::new()
+    }
 }
 
 fn first_non_empty(values: Vec<String>) -> String {

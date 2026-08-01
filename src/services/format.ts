@@ -71,15 +71,12 @@ export function emptyToNull<T>(value: T): T | null {
 
 export function formatDateTimeLocal(value: unknown): string {
   if (value === undefined || value === null || value === "") return "-";
-
   const raw = String(value);
   const normalized = /^\d{4}-\d{2}-\d{2}T/.test(raw) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw)
     ? `${raw}Z`
     : raw;
   const date = new Date(normalized);
-
   if (Number.isNaN(date.getTime())) return raw;
-
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "medium",

@@ -17,6 +17,7 @@ use crate::{
 use super::{auth::require_session_by_token, support::require_admin_unlock};
 
 const LICENSE_SETTINGS_KEY: &str = "licensing_settings";
+const LICENSING_FEATURE_ENABLED: bool = false;
 
 fn company_seed(
     conn: &rusqlite::Connection,
@@ -56,7 +57,7 @@ fn default_license_settings() -> Map<String, Value> {
         Value::from(default_device_name()),
     );
     map.insert("machine_key".to_string(), Value::from(machine_key()));
-    map.insert("app_instance".to_string(), Value::from("ponto-manager"));
+    map.insert("app_instance".to_string(), Value::from("app-template"));
     map.insert("auto_register_machine".to_string(), Value::from(true));
     map.insert("auto_register_requested_licenses".to_string(), Value::Null);
     map.insert(
@@ -71,7 +72,7 @@ fn default_license_settings() -> Map<String, Value> {
         "auto_register_device_identifier".to_string(),
         Value::from(""),
     );
-    map.insert("licensing_disabled".to_string(), Value::from(false));
+    map.insert("licensing_disabled".to_string(), Value::from(true));
     map
 }
 
@@ -169,7 +170,7 @@ fn build_check_input(
         app_name: "Ponto Manager".to_string(),
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         app_slug: Some(
-            get_string(settings, "app_instance").unwrap_or_else(|| "ponto-manager".to_string()),
+            get_string(settings, "app_instance").unwrap_or_else(|| "app-template".to_string()),
         ),
         device_key: None,
         device_name: None,
@@ -256,6 +257,9 @@ pub fn licensing_load_settings(
     session_token: String,
     admin_unlock_token: Option<String>,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        return Err("Licenciamento desativado na configuração desta aplicação.".to_string());
+    }
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let identity = require_session_by_token(&conn, &session_token)?;
@@ -278,6 +282,9 @@ pub fn licensing_save_settings(
     admin_unlock_token: String,
     payload: Map<String, Value>,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        return Err("Licenciamento desativado na configuração desta aplicação.".to_string());
+    }
     let db_path = state.db_path()?;
     let data_dir = state.data_dir()?;
     let conn = open_connection(&db_path)?;
@@ -315,6 +322,9 @@ pub fn licensing_device_info(
     state: State<'_, SharedState>,
     session_token: String,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        return Err("Licenciamento desativado na configuração desta aplicação.".to_string());
+    }
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let _ = require_session_by_token(&conn, &session_token)?;
@@ -336,6 +346,13 @@ pub async fn licensing_check_runtime(
     session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        let mut result = Map::new();
+        result.insert("mode".to_string(), Value::from("disabled"));
+        result.insert("allowed".to_string(), Value::from(true));
+        result.insert("status".to_string(), Value::from("disabled"));
+        return Ok(result);
+    }
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let _identity = require_session_by_token(&conn, &session_token)?;
@@ -384,7 +401,7 @@ pub async fn licensing_check_runtime(
 
     let input = build_check_input(&settings, documento.clone(), empresa_nome, empresa_email);
     let mut config = LicenseConfig {
-        cache_namespace: format!("ponto-manager-{}", empresa_id_resolved),
+        cache_namespace: format!("app-template-{}", empresa_id_resolved),
         ..LicenseConfig::default()
     };
     if let Some(service_url) = get_string(&settings, "service_url") {
@@ -406,6 +423,13 @@ pub fn licensing_status(
     session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        let mut result = Map::new();
+        result.insert("mode".to_string(), Value::from("disabled"));
+        result.insert("allowed".to_string(), Value::from(true));
+        result.insert("status".to_string(), Value::from("disabled"));
+        return Ok(result);
+    }
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let _identity = require_session_by_token(&conn, &session_token)?;
@@ -440,6 +464,9 @@ pub fn licensing_start_trial(
     session_token: String,
     empresa_id: Option<i64>,
 ) -> Result<Map<String, Value>, String> {
+    if !LICENSING_FEATURE_ENABLED {
+        return Err("Licenciamento desativado na configuração desta aplicação.".to_string());
+    }
     let db_path = state.db_path()?;
     let conn = open_connection(&db_path)?;
     let _identity = require_session_by_token(&conn, &session_token)?;

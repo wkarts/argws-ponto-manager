@@ -1,62 +1,38 @@
+<script setup lang="ts">
+import BasePage from "../components/base/BasePage.vue";
+import BaseSectionCard from "../components/base/BaseSectionCard.vue";
+import { appFeatures } from "../config/projectConfig";
+</script>
+
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Documentação • Guia do usuário</h2>
-        <div class="muted-text">
-          Manual funcional da operação diária do Ponto Manager para RH, DP e gestores.
-        </div>
-      </div>
+  <BasePage title="Guia do usuário" subtitle="Guia funcional ajustado aos módulos ativos neste projeto.">
+    <div class="grid columns-2 mobile-columns-1">
+      <BaseSectionCard title="Primeiro acesso">
+        <ul class="summary-list">
+          <li>Acesse com o usuário inicial documentado para implantação.</li>
+          <li>Troque a senha no primeiro uso operacional.</li>
+          <li>Cadastre empresas e vincule usuários aos perfis corretos.</li>
+        </ul>
+      </BaseSectionCard>
+      <BaseSectionCard title="Controle de acesso">
+        <ul class="summary-list">
+          <li>Usuários controlam credenciais e vínculos.</li>
+          <li>Perfis organizam permissões por função.</li>
+          <li>Menus respeitam permissões e módulos ativos.</li>
+        </ul>
+      </BaseSectionCard>
+      <BaseSectionCard v-if="appFeatures.licensing" title="Licenciamento">
+        <p class="muted-text">O licenciamento pode operar local/offline e pode ser ocultado em projetos que não usam licença.</p>
+      </BaseSectionCard>
+      <BaseSectionCard v-if="appFeatures.logs" title="Logs">
+        <p class="muted-text">Use logs para auditoria técnica, diagnóstico de sessão, navegação e falhas administrativas.</p>
+      </BaseSectionCard>
+      <BaseSectionCard v-if="appFeatures.internalApi" title="API interna">
+        <p class="muted-text">A API interna expõe health check, versão, status e endpoints próprios do projeto quando habilitada.</p>
+      </BaseSectionCard>
+      <BaseSectionCard v-if="appFeatures.tray" title="Tray icon">
+        <p class="muted-text">O tray pode controlar restauração da janela, API interna e serviços quando o projeto habilitar esses recursos.</p>
+      </BaseSectionCard>
     </div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">1) Acesso e contexto da empresa</div>
-      <ul class="summary-list">
-        <li>Entre com login e senha na tela de autenticação.</li>
-        <li>No topo da aplicação, selecione a <strong>Empresa ativa</strong> para filtrar dados por contexto.</li>
-        <li>Se o usuário for master, poderá alternar entre empresas ou atuar em contexto geral.</li>
-      </ul>
-    </div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">2) Cadastros essenciais</div>
-      <ul class="summary-list">
-        <li><strong>Empresas:</strong> base institucional para operação multiempresa.</li>
-        <li><strong>Funcionários:</strong> dados pessoais, vínculos e parâmetros operacionais.</li>
-        <li><strong>Usuários e perfis:</strong> controle de acesso por permissões.</li>
-        <li><strong>Jornadas e entidades:</strong> horários, eventos, funções, escalas e classificações auxiliares.</li>
-      </ul>
-      <div class="muted-text">Recomendação: valide cadastros antes de iniciar importações ou apuração mensal.</div>
-    </div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">3) Operação de ponto</div>
-      <ul class="summary-list">
-        <li><strong>Batidas:</strong> consulta e manutenção de registros brutos.</li>
-        <li><strong>Cartão de ponto:</strong> visualização consolidada por colaborador e período.</li>
-        <li><strong>Tratamento de ponto:</strong> ajustes operacionais com rastreabilidade.</li>
-        <li><strong>Importação AFD:</strong> carga de arquivos de REP conforme layout fiscal.</li>
-        <li><strong>Apuração e banco de horas:</strong> consolidação de saldo e fechamento.</li>
-      </ul>
-    </div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">4) Relatórios e integração</div>
-      <ul class="summary-list">
-        <li><strong>Central de relatórios:</strong> exportações analíticas por período e empresa.</li>
-        <li><strong>Exportação REP:</strong> geração dos arquivos para atendimento operacional e legal.</li>
-        <li><strong>Fila técnica de sincronização:</strong> painel técnico para auditoria de integrações pendentes. Não é etapa obrigatória do uso diário quando o banco local já recebeu os dados.</li>
-      </ul>
-    </div>
-
-    <div class="card grid page-gap">
-      <div class="section-title">5) Boas práticas de uso</div>
-      <ul class="summary-list">
-        <li>Evite compartilhamento de credenciais entre usuários.</li>
-        <li>Use perfis com o mínimo privilégio necessário por função.</li>
-        <li>Mantenha rotina de fechamento mensal e conferência de pendências.</li>
-        <li>Em caso de inconsistência, registre evidências e acione o suporte técnico.</li>
-      </ul>
-    </div>
-  </div>
+  </BasePage>
 </template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
+import BasePage from "../components/base/BasePage.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboList,
@@ -17,6 +18,7 @@ import { booleanLabel, formatPhone } from "../services/format";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
 import { showSplashSuccess } from "../services/splash";
+import { appConfirm } from "../services/dialog";
 
 const session = useSessionStore();
 const rows = ref<Record<string, unknown>[]>([]);
@@ -51,6 +53,7 @@ function defaultForm() {
     administrador: false,
     senha_provisoria: false,
     ativo: true,
+    photo_url: "",
     empresa_ids: [] as string[],
     profile_ids: [] as string[]
   };
@@ -79,6 +82,21 @@ function openNewModal() {
 
 function resetForm() {
   Object.assign(form, defaultForm());
+}
+
+function readPhotoFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    form.photo_url = String(reader.result || "");
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearPhoto() {
+  form.photo_url = "";
 }
 
 function toStringArray(value: unknown): string[] {
@@ -201,7 +219,7 @@ async function persist() {
 
 async function removeRow(id: number) {
   if (!canManage.value) return;
-  if (!confirm("Deseja excluir este usuário?")) return;
+  if (!(await appConfirm({ title: "Excluir usuário", message: "Deseja excluir este usuário?", danger: true, confirmText: "Excluir" }))) return;
   try {
     await ensureSession();
     await deleteUser(session.sessionToken!, id);
@@ -229,16 +247,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Cadastro de usuários</h2>
-        <div class="muted-text">Listagem fixa com manutenção do acesso em modal.</div>
-      </div>
-      <div class="actions">
-        <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo cadastro</button>
-      </div>
-    </div>
+  <BasePage title="Cadastro de usuários" subtitle="Listagem fixa com manutenção do acesso em modal." icon="users">
+    <template #actions>
+      <button class="secondary" :disabled="!canManage" @click="openNewModal">Novo cadastro</button>
+    </template>
 
     <div v-if="!session.can('usuarios:view')" class="alert error">Você não possui permissão para visualizar usuários.</div>
     <div v-else class="grid page-gap">
@@ -310,8 +322,7 @@ onMounted(async () => {
               <tr v-for="row in rows" :key="Number(row.id)">
                 <td>{{ row.id }}</td>
                 <td>
-                  <strong>{{ row.nome }}</strong>
-                  <div class="muted-row">{{ row.login }}</div>
+                  <div class="avatar-preview-row avatar-editor-card"><img v-if="row.photo_url" :src="String(row.photo_url)" class="user-avatar-img" alt="Foto" /><div v-else class="user-avatar">{{ String(row.nome || row.login || 'U').slice(0, 1).toUpperCase() }}</div><div><strong>{{ row.nome }}</strong><div class="muted-row">{{ row.login }}</div></div></div>
                   <div class="pill-box top-gap-6">
                     <span v-if="Number(row.master_user) === 1 || row.master_user === true" class="status-pill pill-master">MASTER</span>
                     <span v-if="Number(row.administrador) === 1 || row.administrador === true" class="status-pill pill-secondary">ADMIN</span>
@@ -349,8 +360,18 @@ onMounted(async () => {
       width="xl"
       @close="closeModal"
     >
-      <div class="grid page-gap">
+      <div class="grid page-gap user-modal-shell">
+        <section class="modal-section-card">
         <div class="section-title">Dados do acesso</div>
+        <div class="avatar-preview-row">
+          <img v-if="form.photo_url" :src="form.photo_url" class="avatar-preview" alt="Foto do usuário" />
+          <div v-else class="avatar-placeholder">{{ (form.nome || form.login || 'U').slice(0, 1).toUpperCase() }}</div>
+          <div class="field">
+            <label>Foto do usuário</label>
+            <input type="file" accept="image/*" :disabled="!canManage" @change="readPhotoFile" />
+            <button class="secondary small top-gap-6" type="button" :disabled="!canManage || !form.photo_url" @click="clearPhoto">Remover foto</button>
+          </div>
+        </div>
         <div class="grid columns-2 mobile-columns-1">
           <div class="field">
             <label>Nome *</label>
@@ -377,25 +398,41 @@ onMounted(async () => {
             <input v-model="form.senha" type="password" :disabled="!canManage" placeholder="mínimo 6 caracteres" />
           </div>
         </div>
+        </section>
 
-        <div class="section-title">Perfis e empresas</div>
-        <div class="grid columns-2 mobile-columns-1">
-          <div class="field span-2">
-            <label>Perfis de acesso</label>
-            <select v-model="form.profile_ids" multiple size="5" :disabled="!canManage || form.master_user">
-              <option v-for="item in profileOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-            <div class="muted-row">Segure Ctrl/Cmd para selecionar múltiplos perfis.</div>
+        <section class="modal-section-card">
+          <div class="section-title">Perfis e empresas</div>
+          <div class="selection-summary-row">
+            <span class="selection-summary-pill">{{ form.profile_ids.length }} perfil(is) selecionado(s)</span>
+            <span class="selection-summary-pill">{{ form.empresa_ids.length }} empresa(s) vinculada(s)</span>
+            <span v-if="form.master_user" class="selection-summary-pill">Master: vínculo específico opcional</span>
           </div>
-          <div class="field span-2">
-            <label>Empresas vinculadas</label>
-            <select v-model="form.empresa_ids" multiple size="5" :disabled="!canManage || form.master_user">
-              <option v-for="item in companyOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
-            </select>
-            <div class="muted-row">Usuário master pode operar sem vínculo específico de empresa.</div>
+          <div class="grid columns-2 mobile-columns-1">
+            <div class="field">
+              <label>Perfis de acesso</label>
+              <div class="selection-card-grid">
+                <label v-for="item in profileOptions" :key="item.id" class="selection-card">
+                  <input v-model="form.profile_ids" type="checkbox" :value="String(item.id)" :disabled="!canManage || form.master_user" />
+                  <span class="selection-switch-ui"></span>
+                  <span class="selection-card-copy"><strong>{{ item.label }}</strong><small>Perfil #{{ item.id }}</small></span>
+                </label>
+              </div>
+            </div>
+            <div class="field">
+              <label>Empresas vinculadas</label>
+              <div class="selection-card-grid">
+                <label v-for="item in companyOptions" :key="item.id" class="selection-card">
+                  <input v-model="form.empresa_ids" type="checkbox" :value="String(item.id)" :disabled="!canManage || form.master_user" />
+                  <span class="selection-switch-ui"></span>
+                  <span class="selection-card-copy"><strong>{{ item.label }}</strong><small>Acesso permitido para esta empresa</small></span>
+                </label>
+              </div>
+              <div class="muted-row">Ative as empresas onde este usuário poderá operar. Usuário master pode operar sem vínculo específico.</div>
+            </div>
           </div>
-        </div>
+        </section>
 
+        <section class="modal-section-card">
         <div class="section-title">Status e observações</div>
         <div class="grid columns-2 mobile-columns-1">
           <div class="field span-2">
@@ -407,8 +444,9 @@ onMounted(async () => {
           <AppSwitch v-model="form.senha_provisoria" label="Senha provisória / exigir troca" :disabled="!canManage" />
           <AppSwitch v-model="form.ativo" label="Usuário ativo" :disabled="!canManage" />
         </div>
+        </section>
 
-        <div class="actions">
+        <div class="actions modal-actions-footer">
           <button class="primary" :disabled="saving || !canManage" @click="persist">
             {{ saving ? "Salvando..." : form.id ? "Atualizar usuário" : "Salvar usuário" }}
           </button>
@@ -416,5 +454,5 @@ onMounted(async () => {
         </div>
       </div>
     </AppModal>
-  </div>
+  </BasePage>
 </template>
