@@ -1,5 +1,6 @@
 use rusqlite::{params, Connection};
-use std::{env, fs, path::Path};
+use sha2::{Digest, Sha256};
+use std::{env, fs, io::Read, path::Path};
 use tempfile::TempDir;
 
 #[path = "../../../src-tauri/src/bootstrap.rs"]
@@ -28,6 +29,101 @@ fn scalar_count(path: &Path, table: &str) -> Result<i64, String> {
     Connection::open(path)
         .and_then(|conn| conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)))
         .map_err(|error| error.to_string())
+}
+
+fn create_legacy_credential_database(
+    path: &Path,
+    password_hash: &str,
+    temporary_password: i64,
+) -> Result<(), String> {
+    let conn = Connection::open(path).map_err(|error| error.to_string())?;
+    conn.execute_batch(
+        "CREATE TABLE usuarios (
+            id INTEGER PRIMARY KEY,
+            login TEXT NOT NULL,
+            senha_hash TEXT NOT NULL,
+            senha_provisoria INTEGER NOT NULL DEFAULT 0
+         );",
+    )
+    .map_err(|error| error.to_string())?;
+    conn.execute(
+        "INSERT INTO usuarios (id, login, senha_hash, senha_provisoria)
+         VALUES (1, 'admin', ?1, ?2)",
+        params![password_hash, temporary_password],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn create_affected_target_database(
+    path: &Path,
+    password_hash: &str,
+    last_login: Option<&str>,
+) -> Result<(), String> {
+    let conn = Connection::open(path).map_err(|error| error.to_string())?;
+    conn.execute_batch(
+        "CREATE TABLE usuarios (
+            id INTEGER PRIMARY KEY,
+            login TEXT NOT NULL,
+            senha_hash TEXT NOT NULL,
+            senha_provisoria INTEGER NOT NULL DEFAULT 0,
+            ultimo_login_em TEXT,
+            updated_at TEXT NOT NULL
+         );
+         CREATE TABLE app_settings (
+            chave TEXT PRIMARY KEY,
+            valor TEXT,
+            updated_at TEXT NOT NULL
+         );
+         INSERT INTO app_settings (chave, valor, updated_at)
+         VALUES ('security_bootstrap_credential_rotation_v1', 'completed', '2026-08-01T00:00:00Z');",
+    )
+    .map_err(|error| error.to_string())?;
+    conn.execute(
+        "INSERT INTO usuarios (
+            id, login, senha_hash, senha_provisoria, ultimo_login_em, updated_at
+         ) VALUES (1, 'admin', ?1, 1, ?2, '2026-08-01T00:00:00Z')",
+        params![password_hash, last_login],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn sha256_file(path: &Path) -> Result<String, String> {
+    let mut file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| error.to_string())?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn write_legacy_migration_marker(
+    data_dir: &Path,
+    legacy: &Path,
+    target: &Path,
+) -> Result<(), String> {
+    fs::create_dir_all(data_dir).map_err(|error| error.to_string())?;
+    let marker = serde_json::json!({
+        "schema_version": 1,
+        "application_version": "1.24.2",
+        "source_path": legacy.to_string_lossy(),
+        "source_checksum_sha256": sha256_file(legacy)?,
+        "target_path": target.to_string_lossy(),
+        "backup_path": data_dir.join("backups/original.db").to_string_lossy(),
+        "completed_at": "2026-08-01T00:00:00Z"
+    });
+    fs::write(
+        data_dir.join("legacy-database-migration-v1.json"),
+        serde_json::to_vec_pretty(&marker).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn test_new_install() -> Result<(), String> {
@@ -158,6 +254,90 @@ fn test_bootstrap_credential_lifecycle() -> Result<(), String> {
     Ok(())
 }
 
+fn test_rotated_legacy_credential_is_restored() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let legacy = temp.path().join("pontos.db");
+    let data_dir = temp.path().join("novo");
+    let target = data_dir.join("ponto-manager.db");
+    fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
+    create_legacy_credential_database(&legacy, "hash-legado-preservado", 0)?;
+    create_affected_target_database(&target, "hash-bootstrap-rotacionado", None)?;
+    write_legacy_migration_marker(&data_dir, &legacy, &target)?;
+    fs::write(
+        data_dir.join(format!("schema-backup-{}.ok", env!("CARGO_PKG_VERSION"))),
+        b"ok\n",
+    )
+    .map_err(|error| error.to_string())?;
+
+    let recovery = legacy_data::prepare(&data_dir, &target)?
+        .ok_or_else(|| "Reparo de credencial deveria forçar backup do destino.".to_string())?;
+    if !legacy_data::restore_rotated_legacy_credential(&data_dir, &target)? {
+        return Err("Credencial legada afetada não foi restaurada.".to_string());
+    }
+    legacy_data::finalize(&data_dir, &target, Some(&recovery))?;
+
+    let restored: (String, i64) = Connection::open(&target)
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT senha_hash, senha_provisoria FROM usuarios WHERE login = 'admin'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    if restored != ("hash-legado-preservado".to_string(), 0) {
+        return Err("Hash ou estado provisório da credencial legada foi alterado.".to_string());
+    }
+    if legacy_data::restore_rotated_legacy_credential(&data_dir, &target)? {
+        return Err("Reparo de credencial não foi idempotente.".to_string());
+    }
+    let source_hash: String = Connection::open(&legacy)
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT senha_hash FROM usuarios WHERE login = 'admin'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    if source_hash != "hash-legado-preservado" {
+        return Err("Banco legado original foi modificado durante o reparo.".to_string());
+    }
+    Ok(())
+}
+
+fn test_used_target_credential_is_not_overwritten() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let legacy = temp.path().join("pontos.db");
+    let data_dir = temp.path().join("novo");
+    let target = data_dir.join("ponto-manager.db");
+    fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
+    create_legacy_credential_database(&legacy, "hash-legado-antigo", 0)?;
+    create_affected_target_database(
+        &target,
+        "hash-atual-em-uso",
+        Some("2026-08-01T12:00:00Z"),
+    )?;
+    write_legacy_migration_marker(&data_dir, &legacy, &target)?;
+
+    if legacy_data::restore_rotated_legacy_credential(&data_dir, &target)? {
+        return Err("Credencial já utilizada não deveria ser sobrescrita.".to_string());
+    }
+    let target_hash: String = Connection::open(&target)
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT senha_hash FROM usuarios WHERE login = 'admin'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    if target_hash != "hash-atual-em-uso" {
+        return Err("Credencial atual foi alterada indevidamente.".to_string());
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     test_new_install()?;
     test_upgrade_repeat_and_completed_start()?;
@@ -166,8 +346,10 @@ fn main() -> Result<(), String> {
     test_failed_migration_rollback()?;
     test_existing_database_rollback()?;
     test_bootstrap_credential_lifecycle()?;
+    test_rotated_legacy_credential_is_restored()?;
+    test_used_target_credential_is_not_overwritten()?;
     env::remove_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH");
     env::remove_var("ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE");
-    println!("7 cenários de migração/segurança aprovados.");
+    println!("9 cenários de migração/segurança aprovados.");
     Ok(())
 }
