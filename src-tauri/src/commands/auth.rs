@@ -1,5 +1,6 @@
 use chrono::{Duration, Utc};
 use rusqlite::{params, OptionalExtension};
+#[cfg(feature = "desktop")]
 use tauri::State;
 use uuid::Uuid;
 
@@ -230,6 +231,7 @@ pub(crate) fn require_session_by_token(
     })
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn auth_login(
     state: State<'_, SharedState>,
@@ -340,6 +342,7 @@ pub fn auth_login(
     })
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn auth_restore(
     state: State<'_, SharedState>,
@@ -393,6 +396,7 @@ pub fn auth_restore(
     })
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Result<bool, String> {
     let db_path = state.db_path()?;
@@ -418,6 +422,7 @@ pub fn auth_logout(state: State<'_, SharedState>, session_token: String) -> Resu
     Ok(true)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn auth_change_password(
     state: State<'_, SharedState>,
