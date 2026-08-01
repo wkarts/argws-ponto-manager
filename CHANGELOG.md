@@ -1,3 +1,17 @@
+## [1.24.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.1...v1.24.2) (2026-08-01)
+
+
+### Bug Fixes
+
+* **ci:** corrige continuações do gate headless ([a4d71ad](https://github.com/wkarts/argws-ponto-manager/commit/a4d71adf9e022e4593ca358f0b014dc708b5821a))
+* **cloudpanel:** isola comandos Tauri no modo desktop ([5aff02f](https://github.com/wkarts/argws-ponto-manager/commit/5aff02f993cfc7140aa8bcfca61dd8387ca40455))
+* **cloudpanel:** preserva auxiliares sem carregar comandos desktop ([302044f](https://github.com/wkarts/argws-ponto-manager/commit/302044f64ae5ce1f4bb0d14f1a87c56612b901d3))
+* **cloudpanel:** preserva auxiliares sem carregar comandos desktop ([29678fe](https://github.com/wkarts/argws-ponto-manager/commit/29678fe342906d85fe23b6df3fdc005ba8f2564b))
+* **cloudpanel:** torna Tauri opcional no runtime headless ([409b01d](https://github.com/wkarts/argws-ponto-manager/commit/409b01de476b6ed65ef967ce5c281b5a3b9908ce))
+* **headless:** executa tauri-build somente no desktop ([8c03e14](https://github.com/wkarts/argws-ponto-manager/commit/8c03e146074463b43760204a3cb7cae4454f214d))
+* **headless:** torna tauri-build opcional ([79f913b](https://github.com/wkarts/argws-ponto-manager/commit/79f913b44c14e801ec3710e43dd9bbedf8604974))
+* **test:** normaliza regex do gate CloudPanel ([37ac5bb](https://github.com/wkarts/argws-ponto-manager/commit/37ac5bbeca14bd004c5f1f47bbfd334077b71dd5))
+
 ## [1.24.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.0...v1.24.1) (2026-08-01)
 
 
