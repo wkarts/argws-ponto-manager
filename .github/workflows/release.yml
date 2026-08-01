@@ -105,16 +105,18 @@ jobs:
           product_name="$(node -p "JSON.parse(require('fs').readFileSync('src-tauri/tauri.conf.json', 'utf8')).productName")"
           notes="Retomada idempotente da release ${REQUESTED_TAG}."
 
-          echo "published=true" >> "${GITHUB_OUTPUT}"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          echo "tag=${REQUESTED_TAG}" >> "${GITHUB_OUTPUT}"
-          echo "name=${product_name} v${version}" >> "${GITHUB_OUTPUT}"
-          echo "notes_b64=$(printf '%s' "${notes}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
-          if [[ "${version}" == *-* ]]; then
-            echo "prerelease=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "prerelease=false" >> "${GITHUB_OUTPUT}"
-          fi
+          {
+            echo "published=true"
+            echo "version=${version}"
+            echo "tag=${REQUESTED_TAG}"
+            echo "name=${product_name} v${version}"
+            echo "notes_b64=$(printf '%s' "${notes}" | base64 -w0)"
+            if [[ "${version}" == *-* ]]; then
+              echo "prerelease=true"
+            else
+              echo "prerelease=false"
+            fi
+          } >> "${GITHUB_OUTPUT}"
 
   desktop:
     name: ${{ matrix.label }}
