@@ -290,8 +290,7 @@ fn pending_rotated_legacy_credential(
         )
         .optional()
         .map_err(|err| format!("Falha ao consultar administrador migrado: {err}"))?;
-    let Some((target_user_id, target_hash, temporary_password, last_login)) = target_admin
-    else {
+    let Some((target_user_id, target_hash, temporary_password, last_login)) = target_admin else {
         return Ok(None);
     };
     if temporary_password != 1
@@ -336,11 +335,20 @@ fn read_migration_marker(data_dir: &Path) -> Result<Option<MigrationMarker>, Str
     if !path.is_file() {
         return Ok(None);
     }
-    let raw = fs::read(&path)
-        .map_err(|err| format!("Falha ao ler marcador de migração {}: {err}", path.display()))?;
+    let raw = fs::read(&path).map_err(|err| {
+        format!(
+            "Falha ao ler marcador de migração {}: {err}",
+            path.display()
+        )
+    })?;
     serde_json::from_slice::<MigrationMarker>(&raw)
         .map(Some)
-        .map_err(|err| format!("Falha ao interpretar marcador de migração {}: {err}", path.display()))
+        .map_err(|err| {
+            format!(
+                "Falha ao interpretar marcador de migração {}: {err}",
+                path.display()
+            )
+        })
 }
 
 fn table_has_column(conn: &Connection, table: &str, column: &str) -> Result<bool, String> {
