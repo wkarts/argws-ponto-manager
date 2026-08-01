@@ -125,6 +125,52 @@ for item in "${TARGETS[@]}"; do
     fi
   fi
 
+  headless_packages="$(
+    env "${cargo_env[@]}" cargo tree \
+      --manifest-path "$ROOT_DIR/src-tauri/Cargo.toml" \
+      --target "$triple" \
+      --locked \
+      --no-default-features \
+      --features "$FEATURES" \
+      --edges normal,build \
+      --prefix none \
+      --format '{p}' \
+      | awk '{print $1}' \
+      | sort -u
+  )"
+
+  forbidden_headless_crates=(
+    tauri
+    tauri-build
+    tauri-runtime
+    tauri-runtime-wry
+    wry
+    gtk
+    gtk-sys
+    gdk
+    gdk-sys
+    webkit2gtk
+    webkit2gtk-sys
+    tray-icon
+    muda
+    libappindicator
+    libappindicator-sys
+  )
+  unexpected_headless_crates=()
+  for crate_name in "${forbidden_headless_crates[@]}"; do
+    if grep -Fxq "$crate_name" <<<"$headless_packages"; then
+      unexpected_headless_crates+=("$crate_name")
+    fi
+  done
+
+  if [[ ${#unexpected_headless_crates[@]} -gt 0 ]]; then
+    echo "O grafo CloudPanel headless contém crates gráficas/Tauri indevidas:" >&2
+    printf '  - %s\n' "${unexpected_headless_crates[@]}" >&2
+    echo "Mantenha tauri opcional e habilitado somente pela feature desktop." >&2
+    exit 1
+  fi
+  echo "Grafo headless validado: sem Tauri, GTK, GDK ou WebKitGTK."
+
   env "${cargo_env[@]}" cargo build \
     --manifest-path "$ROOT_DIR/src-tauri/Cargo.toml" \
     --target "$triple" \
