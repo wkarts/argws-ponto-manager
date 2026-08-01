@@ -1,6 +1,7 @@
 use chrono::Utc;
 use rusqlite::{params_from_iter, OptionalExtension};
 use serde_json::{json, Map, Value};
+#[cfg(feature = "desktop")]
 use tauri::State;
 
 use crate::{
@@ -321,6 +322,7 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
     }
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn entity_list(
     state: State<'_, SharedState>,
@@ -366,6 +368,7 @@ pub fn entity_list(
     rows.map_err(|err| format!("Falha ao mapear listagem de {}: {err}", definition.table))
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn combo_list(
     state: State<'_, SharedState>,
@@ -439,6 +442,7 @@ pub fn combo_list(
     result.map_err(|err| format!("Falha ao mapear combo de {}: {err}", definition.table))
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn entity_save(
     state: State<'_, SharedState>,
@@ -627,6 +631,7 @@ pub fn entity_save(
     Ok(saved)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn entity_delete(
     state: State<'_, SharedState>,
@@ -998,6 +1003,7 @@ pub(crate) fn provider_delete_with_database(
     Ok(affected > 0)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn entity_provider_list(
     state: State<'_, SharedState>,
@@ -1008,6 +1014,7 @@ pub fn entity_provider_list(
     provider_list_with_database(&provider, &entity, &search)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn provider_entity_list(
     state: State<'_, SharedState>,
@@ -1017,6 +1024,7 @@ pub fn provider_entity_list(
     entity_provider_list(state, entity, search)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn provider_entity_get(
     state: State<'_, SharedState>,
@@ -1027,6 +1035,7 @@ pub fn provider_entity_get(
     provider_get_with_database(&provider, &entity, id)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn provider_entity_create(
     state: State<'_, SharedState>,
@@ -1037,6 +1046,7 @@ pub fn provider_entity_create(
     provider_save_with_database(&provider, entity, payload)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn provider_entity_update(
     state: State<'_, SharedState>,
@@ -1052,6 +1062,7 @@ pub fn provider_entity_update(
     provider_save_with_database(&provider, entity, payload)
 }
 
+#[cfg(feature = "desktop")]
 #[tauri::command]
 pub fn provider_entity_delete(
     state: State<'_, SharedState>,
