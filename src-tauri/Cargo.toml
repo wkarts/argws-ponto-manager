@@ -1,19 +1,25 @@
 [package]
-name = "pontos_desktop_tauri"
+name = "argws_ponto_manager"
 version = "1.23.4"
-description = "Pontos Desktop em Rust + Tauri"
-authors = ["Wallace Kleiton <wkarts@gmail.com>"]
+description = "Sistema corporativo de gestão, tratamento, apuração e controle de ponto"
+authors = ["Wallace Kleiton"]
 edition = "2021"
 
 [lib]
-name = "pontos_desktop_tauri_lib"
+name = "argws_ponto_manager_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+default = ["desktop"]
+desktop = ["tauri/wry", "tauri/tray-icon", "tauri/image-png", "tauri/custom-protocol"]
+mysql-db = ["dep:mysql"]
+postgres-db = ["dep:postgres"]
+
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -33,3 +39,11 @@ hostname = "0.4"
 hmac = "0.12"
 sha1 = "0.10"
 data-encoding = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+axum = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.6", features = ["cors"] }
+url = "2"
+futures-util = "0.3"
+
+mysql = { version = "25", optional = true }
+postgres = { version = "0.19", optional = true }

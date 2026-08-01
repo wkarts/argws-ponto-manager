@@ -1,64 +1,43 @@
 <script setup lang="ts">
-import { onMounted, reactive } from "vue";
-import { getAppMeta } from "../services/crud";
-import { logAppError } from "../services/logger";
+import { onMounted, ref } from "vue";
+import BasePage from "../components/base/BasePage.vue";
+import BaseSectionCard from "../components/base/BaseSectionCard.vue";
+import { getSystemInfo, type GenericRecord } from "../services/crud";
+import { appFeatures, projectConfig } from "../config/projectConfig";
 
-const appInfo = reactive({
-  appName: "Ponto Manager",
-  version: "-",
-  buildHash: "-",
-  buildNumber: "-",
-});
-
-const support = {
-  site: "https://wwsoftwares.com.br",
-  email: "suporte@wwsoftwares.com.br",
-  phone: "(75) 98333-4153",
-};
-
-onMounted(async () => {
-  try {
-    const meta = await getAppMeta();
-    appInfo.appName = String(meta.product_name || appInfo.appName);
-    appInfo.version = String(meta.version || "-");
-    appInfo.buildHash = String(meta.build_hash || "-");
-    appInfo.buildNumber = String(meta.build_number || meta.build || "-");
-  } catch (err) {
-    logAppError("about", "Falha ao carregar metadados da aplicação na tela Sobre.", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-});
+const info = ref<GenericRecord>({});
+onMounted(async () => { try { info.value = await getSystemInfo(); } catch { info.value = {}; } });
 </script>
 
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Sobre e suporte</h2>
-        <div class="muted-text">Área institucional e técnica da aplicação.</div>
-      </div>
-    </div>
-
+  <BasePage title="Sobre" subtitle="Informações da aplicação, ambiente e stack técnica.">
     <div class="grid columns-2 mobile-columns-1">
-      <div class="card grid page-gap">
-        <div class="section-title">Aplicação</div>
-        <ul class="summary-list">
-          <li><strong>Nome:</strong> {{ appInfo.appName }}</li>
-          <li><strong>Versão:</strong> {{ appInfo.version }}</li>
-          <li><strong>Hash da build:</strong> {{ appInfo.buildHash }}</li>
-          <li><strong>Número da build:</strong> {{ appInfo.buildNumber }}</li>
-        </ul>
-      </div>
-
-      <div class="card grid page-gap">
-        <div class="section-title">Suporte</div>
-        <ul class="summary-list">
-          <li><strong>Site:</strong> <a :href="support.site" target="_blank" rel="noopener noreferrer">{{ support.site }}</a></li>
-          <li><strong>E-mail:</strong> <a :href="`mailto:${support.email}`">{{ support.email }}</a></li>
-          <li><strong>WhatsApp / Telefone:</strong> {{ support.phone }}</li>
-        </ul>
-      </div>
+      <BaseSectionCard title="Aplicação">
+        <div class="info-grid compact-info">
+          <div class="info-item"><strong>Nome</strong><code>{{ projectConfig.app.name }}</code></div>
+          <div class="info-item"><strong>Versão</strong><code>{{ info.version || projectConfig.app.version }}</code></div>
+          <div class="info-item"><strong>Build</strong><code>{{ info.build_hash || 'dev' }}</code></div>
+          <div class="info-item"><strong>Identificador</strong><code>{{ projectConfig.app.identifier }}</code></div>
+          <div class="info-item"><strong>Desenvolvedor</strong><code>{{ projectConfig.app.developer }}</code></div>
+          <div class="info-item"><strong>Ambiente</strong><code>{{ projectConfig.app.mode }}</code></div>
+        </div>
+      </BaseSectionCard>
+      <BaseSectionCard title="Stack técnica">
+        <div class="module-chip-grid">
+          <span class="module-chip enabled">Tauri 2</span><span class="module-chip enabled">Rust</span><span class="module-chip enabled">Vue 3</span><span class="module-chip enabled">TypeScript</span><span class="module-chip enabled">SQLite</span><span class="module-chip enabled">Pinia</span><span class="module-chip enabled">Vue Router</span>
+        </div>
+      </BaseSectionCard>
+      <BaseSectionCard title="Dados locais">
+        <div class="info-grid compact-info">
+          <div class="info-item"><strong>Banco local</strong><code>{{ info.db_path || '-' }}</code></div>
+          <div class="info-item"><strong>Dados</strong><code>{{ info.data_dir || '-' }}</code></div>
+        </div>
+      </BaseSectionCard>
+      <BaseSectionCard title="Módulos">
+        <div class="module-chip-grid">
+          <span v-for="(enabled, key) in appFeatures" :key="key" class="module-chip" :class="enabled ? 'enabled' : 'disabled'">{{ key }}: {{ enabled ? 'ativo' : 'oculto' }}</span>
+        </div>
+      </BaseSectionCard>
     </div>
-  </div>
+  </BasePage>
 </template>

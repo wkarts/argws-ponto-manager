@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::migrations;
+use crate::{legacy_data, migrations};
 
 #[derive(Debug, Clone)]
 pub struct AppContext {
@@ -39,8 +39,21 @@ impl SharedState {
         std::fs::create_dir_all(&data_dir)
             .map_err(|err| format!("Falha ao criar diretório de dados: {err}"))?;
 
-        let db_path = data_dir.join("pontos.db");
-        migrations::migrate(&db_path)?;
+        let db_path = data_dir.join("ponto-manager.db");
+        let recovery = legacy_data::prepare(&data_dir, &db_path)?;
+        if let Err(error) = migrations::migrate(&db_path)
+            .and_then(|_| legacy_data::finalize(&data_dir, &db_path, recovery.as_ref()))
+        {
+            let rollback_error = legacy_data::rollback(&db_path, recovery.as_ref()).err();
+            return Err(match rollback_error {
+                Some(rollback_error) => format!(
+                    "Falha ao preparar o banco do Ponto Manager: {error}. O rollback também falhou: {rollback_error}"
+                ),
+                None => format!(
+                    "Falha ao preparar o banco do Ponto Manager: {error}. O estado anterior foi restaurado."
+                ),
+            });
+        }
 
         let mut guard = self
             .inner
@@ -83,7 +96,7 @@ impl SharedState {
         let config_dir = dirs::config_local_dir()
             .or_else(|| std::env::current_dir().ok())
             .ok_or_else(|| "Não foi possível resolver o diretório de configuração.".to_string())?
-            .join("pontos_desktop_tauri");
+            .join(runtime_app_local_data_dir());
         std::fs::create_dir_all(&config_dir)
             .map_err(|err| format!("Falha ao criar diretório de configuração: {err}"))?;
         Ok(config_dir.join("bootstrap.json"))
@@ -120,7 +133,16 @@ impl SharedState {
 
         dirs::data_local_dir()
             .or_else(|| std::env::current_dir().ok())
-            .map(|path| path.join("pontos_desktop_tauri"))
+            .map(|path| path.join(runtime_app_local_data_dir()))
             .ok_or_else(|| "Não foi possível resolver o diretório de dados.".to_string())
     }
+}
+
+fn runtime_app_local_data_dir() -> String {
+    std::env::var("ARGWS_PONTO_MANAGER_LOCAL_DATA_DIR")
+        .or_else(|_| std::env::var("APP_LOCAL_DATA_DIR"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "argws-ponto-manager".to_string())
 }

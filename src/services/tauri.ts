@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeAppCommand } from "../core/invoker/CommandProviderFactory";
 import { showSplashError, showSplashInfo, showSplashWarning } from "./splash";
 
 function toCamelCase(key: string): string {
@@ -23,23 +23,17 @@ function entityLabelFromCommand(command: string): string {
   const root = command.replace(/_(save|delete|import|export|clone)$/i, "");
   const map: Record<string, string> = {
     company: "Empresa",
-    employee: "Funcionário",
     user: "Usuário",
     profile: "Perfil",
-    jornada: "Jornada",
-    batida: "Batida",
-    feriado: "Feriado",
     entity: "Registro",
     support_guard: "Proteção administrativa",
     licensing: "Licenciamento",
-    holiday_source: "Fonte de feriados",
   };
   return map[root] || "Registro";
 }
 
 function shouldAutoNotify(command: string): boolean {
   if (command === "app_log_write") return false;
-  if (command === "afd_import_file") return false;
   if (/_list$|_get$|_combo$|_status$|_check/.test(command)) return false;
   if (/^auth_(login|restore|logout)$/.test(command)) return false;
   return (
@@ -113,15 +107,46 @@ function withTauriArgAliases<T>(value: T): T {
   return result as T;
 }
 
+function isSessionInvalidError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return normalized.includes("sessão inválida")
+    || normalized.includes("sessao invalida")
+    || normalized.includes("sessão expirada")
+    || normalized.includes("sessao expirada")
+    || normalized.includes("session invalid")
+    || normalized.includes("session expired");
+}
+
+async function forceLoginOnInvalidSession(message: string) {
+  try {
+    const [{ useSessionStore }, { default: router }] = await Promise.all([
+      import("../stores/session"),
+      import("../router"),
+    ]);
+    const session = useSessionStore();
+    if (session.sessionToken || session.user) {
+      session.clearAuthState();
+    }
+    showSplashWarning("Sua sessão foi encerrada porque houve novo acesso em outro dispositivo ou porque ela expirou. Faça login novamente.");
+    if (router.currentRoute.value.path !== "/login") {
+      await router.replace("/login");
+    }
+  } catch {
+    showSplashWarning(message || "Sessão expirada. Faça login novamente.");
+  }
+}
+
 export async function invokeCommand<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const normalizedArgs = withTauriArgAliases(args);
   try {
-    const response = await invoke<T>(command, normalizedArgs);
+    const response = await invokeAppCommand<T>(command, normalizedArgs);
     notifySuccess(command, normalizedArgs, response);
     return response;
   } catch (error) {
     const errorText = error instanceof Error ? error.message : String(error);
-    if (errorText.includes("429 Too Many Requests") || errorText.toLowerCase().includes("rate limit")) {
+    if (isSessionInvalidError(errorText)) {
+      await forceLoginOnInvalidSession(errorText);
+    } else if (errorText.includes("429 Too Many Requests") || errorText.toLowerCase().includes("rate limit")) {
       showSplashWarning("Limite temporário de consulta atingido nos serviços públicos. Aguarde alguns segundos e tente novamente.");
     } else {
       showSplashError(errorText);

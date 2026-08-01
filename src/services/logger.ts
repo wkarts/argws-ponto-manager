@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeAppCommand } from "../core/invoker/CommandProviderFactory";
 
 export type AppLogLevel = "debug" | "info" | "warning" | "error";
 
@@ -56,7 +56,7 @@ export async function writeAppLog(payload: AppLogPayload): Promise<void> {
     details: sanitizeForLog(payload.details ?? null),
   };
   try {
-    await invoke<boolean>("app_log_write", { payload: normalized });
+    await invokeAppCommand<boolean>("app_log_write", { payload: normalized });
   } catch (error) {
     console.error("Falha ao gravar log da aplicação", sanitizeForLog(normalized), error);
   }

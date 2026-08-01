@@ -21,11 +21,34 @@ function updatePackageJson() {
   writeJson(filePath, data);
 }
 
+function updatePackageLock() {
+  const filePath = path.join(root, 'package-lock.json');
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  data.version = version;
+  if (data.packages && data.packages['']) {
+    data.packages[''].version = version;
+  }
+  writeJson(filePath, data);
+}
+
 function updateTauriConf() {
   const filePath = path.join(root, 'src-tauri', 'tauri.conf.json');
   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   data.version = version;
   writeJson(filePath, data);
+}
+
+function updateProjectConfig() {
+  const filePath = path.join(root, 'src', 'config', 'projectConfig.ts');
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const updated = content.replace(/version:\s*["'][^"']+["']/, `version: "${version}"`);
+  fs.writeFileSync(filePath, updated);
 }
 
 function updateCargoToml() {
@@ -38,6 +61,8 @@ function updateCargoToml() {
 fs.writeFileSync(path.join(root, 'VERSION'), `${version}
 `);
 updatePackageJson();
+updatePackageLock();
 updateTauriConf();
 updateCargoToml();
+updateProjectConfig();
 console.log(`Versão atualizada para ${version}`);

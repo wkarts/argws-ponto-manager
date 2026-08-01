@@ -3,6 +3,7 @@ import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useSessionStore } from "../stores/session";
 import logoLight from "../assets/branding/logo-light.png";
+import { appBranding } from "../config/appBranding";
 import { logAppError, logAppInfo } from "../services/logger";
 
 const router = useRouter();
@@ -15,6 +16,12 @@ const form = reactive({
 
 const error = ref("");
 const info = ref("");
+const logoFailed = ref(false);
+
+function handleLogoError() {
+  logoFailed.value = true;
+  logAppError("assets", "Falha ao carregar logo-light.png; fallback visual aplicado.", { asset: "src/assets/branding/logo-light.png" });
+}
 
 function clearCredentials() {
   form.login = "";
@@ -46,9 +53,10 @@ async function submit() {
   <div class="login-page">
     <div class="login-box">
       <div class="login-brand">
-        <img :src="logoLight" alt="Ponto Manager" class="login-logo" />
+        <img v-if="!logoFailed" :src="logoLight" :alt="appBranding.appName" class="login-logo" @error="handleLogoError" />
+        <div v-else class="login-logo fallback-logo">{{ appBranding.shortName }}</div>
       </div>
-      <div class="badge">Ponto Manager</div>
+      <div class="badge">{{ appBranding.appName }}</div>
       <h1>Acesso ao sistema</h1>
       <p class="muted">
         Entre com seu login e senha. Informações de usuário padrão ficam apenas na documentação técnica, não na interface.

@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     app_state::SharedState,
+    bootstrap,
     db::{open_connection, write_app_log, AppLogInput},
     models::{AuthUser, LoginResponse, SessionIdentity},
     security::{hash_password, verify_password},
@@ -429,8 +430,17 @@ pub fn auth_change_password(
     let conn = open_connection(&db_path)?;
     let identity = require_session_by_token(&conn, &session_token)?;
 
-    if new_password.trim().len() < 6 {
-        return Err("A nova senha deve conter ao menos 6 caracteres.".to_string());
+    let new_password = new_password.trim();
+    if new_password.len() < 12
+        || !new_password.chars().any(|value| value.is_ascii_lowercase())
+        || !new_password.chars().any(|value| value.is_ascii_uppercase())
+        || !new_password.chars().any(|value| value.is_ascii_digit())
+        || !new_password.chars().any(|value| !value.is_alphanumeric())
+    {
+        return Err(
+            "A nova senha deve ter ao menos 12 caracteres, com maiúscula, minúscula, número e símbolo."
+                .to_string(),
+        );
     }
 
     let current_hash: String = conn
@@ -445,12 +455,15 @@ pub fn auth_change_password(
         return Err("A senha atual informada está incorreta.".to_string());
     }
 
-    let new_hash = hash_password(new_password.trim())?;
+    let new_hash = hash_password(new_password)?;
     conn.execute(
         "UPDATE usuarios SET senha_hash = ?1, senha_provisoria = 0, updated_at = ?2 WHERE id = ?3",
         params![new_hash, Utc::now().to_rfc3339(), identity.user_id],
     )
     .map_err(|err| format!("Falha ao atualizar senha: {err}"))?;
+    if identity.master_user {
+        bootstrap::remove_after_password_change(&db_path)?;
+    }
     let _ = write_app_log(
         &conn,
         &data_dir,

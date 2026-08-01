@@ -1,0 +1,20 @@
+{
+  "appName": "Ponto Manager",
+  "shortName": "Ponto",
+  "productName": "Ponto Manager",
+  "identifier": "br.com.argws.pontomanager",
+  "packageName": "argws-ponto-manager",
+  "version": "1.23.4",
+  "developer": "ARGWS",
+  "localDataDir": "argws_ponto_manager",
+  "storagePrefix": "argws-ponto-manager",
+  "assets": {
+    "logoLight": "branding/logo-light.png",
+    "logoDark": "branding/logo-dark.png",
+    "logoMark": "branding/logo-mark.png",
+    "iconPng": "branding/icon.png",
+    "iconIco": "branding/icon.ico",
+    "trayIcon": "branding/tray-icon.png"
+  },
+  "description": "Sistema corporativo de gestão, tratamento, apuração e controle de ponto"
+}

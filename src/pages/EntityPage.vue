@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
+import BasePage from "../components/base/BasePage.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
-import { useSessionStore } from "../stores/session";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
 import { booleanLabel } from "../services/format";
+import { appConfirm } from "../services/dialog";
+import { useSessionStore } from "../stores/session";
 
 const props = defineProps<{
   entityKey: string;
 }>();
+const session = useSessionStore();
 
 const config = computed(() => entityConfigs[props.entityKey]);
 const rows = ref<Record<string, unknown>[]>([]);
@@ -22,60 +25,6 @@ type FormFieldValue = string | number | boolean | undefined;
 type TextBindableValue = string | number | readonly string[] | null | undefined;
 const form = reactive<Record<string, FormFieldValue>>({ id: undefined });
 const optionsMap = ref<Record<string, ComboOption[]>>({});
-const session = useSessionStore();
-
-const fallbackColumnLabels: Record<string, string> = {
-  id: "ID",
-  codigo: "Código",
-  descricao: "Descrição",
-  documento: "Documento",
-  cidade: "Cidade",
-  estado: "Estado",
-  ativo: "Ativo",
-  acoes: "Ações",
-  nome: "Nome",
-  login: "Login",
-  administrador: "Administrador",
-  numero: "Número",
-  carga_horaria_minutos: "Carga diária",
-  horario_id: "Horário",
-  dias_ativos: "Dias ativos",
-  tolerancia_minutos: "Tolerância",
-  modelo: "Modelo",
-  ip: "IP",
-  porta: "Porta",
-  usar_conector: "Usa conector",
-  conector_device_id: "Dispositivo conector",
-  conector_base_url: "URL do conector",
-  conector_ultimo_nsr: "Último NSR",
-  tipo: "Tipo",
-  data: "Data",
-  contexto_tipo: "Contexto",
-  empresa_id: "Empresa",
-  departamento_id: "Departamento",
-  funcao_id: "Função",
-  centro_custo_id: "Centro de custo",
-  regra_compensacao: "Compensação",
-  funcionario_id: "Colaborador",
-  data_inicial: "Data inicial",
-  data_final: "Data final",
-  status: "Status",
-  jornada_id: "Jornada",
-  matricula: "Matrícula",
-  abono: "Abono",
-};
-
-function humanizeColumnKey(column: string): string {
-  return column
-    .replace(/_id$/i, "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function columnLabel(column: string): string {
-  const field = config.value.fields.find((item) => item.key === column);
-  return field?.label || fallbackColumnLabels[column] || humanizeColumnKey(column);
-}
 
 function inputValue(value: unknown): TextBindableValue {
   if (typeof value === "string" || typeof value === "number") return value;
@@ -98,7 +47,6 @@ function onTextareaInput(key: string, event: Event) {
 }
 
 function defaultFieldValue(field: EntityField): FormFieldValue {
-  if (field.defaultValue !== undefined) return field.defaultValue;
   if (field.type === "checkbox") return true;
   return "";
 }
@@ -131,7 +79,10 @@ async function loadOptions() {
 
   const next: Record<string, ComboOption[]> = {};
   for (const field of config.value.fields.filter((item) => item.type === "select" && item.options?.length)) {
-    next[field.key] = field.options!.map((option) => ({ id: option.value, label: option.label } as unknown as ComboOption));
+    next[field.key] = field.options!.map((option) => ({
+      id: option.value,
+      label: option.label,
+    } as unknown as ComboOption));
   }
   for (const entry of entries) {
     next[entry.key] = entry.items;
@@ -139,17 +90,10 @@ async function loadOptions() {
   optionsMap.value = next;
 }
 
-function getOptionLabel(fieldKey: string, value: unknown): string {
-  const options = optionsMap.value[fieldKey] || [];
-  const matched = options.find((item) => String(item.id) === String(value));
-  return matched?.label || String(value ?? "");
-}
-
 const isFeriasEntity = computed(() => props.entityKey === "ferias_colaboradores");
 
 function canCreate(): boolean {
-  if (isFeriasEntity.value) return session.can("ferias:create") || session.can("ferias:manage");
-  return true;
+  return !isFeriasEntity.value || session.can("ferias:create") || session.can("ferias:manage");
 }
 
 function canEditRow(row: Record<string, unknown>): boolean {
@@ -169,8 +113,13 @@ function canCancelRow(row: Record<string, unknown>): boolean {
 }
 
 function canDeleteRow(): boolean {
-  if (isFeriasEntity.value) return false;
-  return true;
+  return !isFeriasEntity.value;
+}
+
+function getOptionLabel(fieldKey: string, value: unknown): string {
+  const options = optionsMap.value[fieldKey] || [];
+  const matched = options.find((item) => String(item.id) === String(value));
+  return matched?.label || String(value ?? "");
 }
 
 function displayValue(column: string, row: Record<string, unknown>): string {
@@ -226,7 +175,7 @@ async function persist() {
 }
 
 async function removeRow(id: number) {
-  if (!confirm("Deseja remover este registro?")) return;
+  if (!(await appConfirm({ title: "Remover registro", message: "Deseja remover este registro?", danger: true, confirmText: "Remover" }))) return;
   try {
     await deleteEntity(config.value.key, id);
     await load();
@@ -246,14 +195,14 @@ async function cancelFerias(row: Record<string, unknown>) {
     error.value = "Informe o motivo do cancelamento para preservar o histórico.";
     return;
   }
-
   try {
+    const observacao = String(row.observacao || "").trim();
     await saveEntity(config.value.key, {
       ...row,
       status: "cancelado",
       ativo: false,
       motivo_cancelamento: motivo.trim(),
-      observacao: `${String(row.observacao || "").trim()}${String(row.observacao || "").trim() ? "\n" : ""}Cancelamento: ${motivo.trim()}`
+      observacao: `${observacao}${observacao ? "\n" : ""}Cancelamento: ${motivo.trim()}`,
     });
     await load();
     if (Number(form.id) === Number(row.id)) {
@@ -283,19 +232,12 @@ watch(
 </script>
 
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">{{ config.title }}</h2>
-        <div class="muted">{{ config.description || "Cadastro local padronizado com edição e inclusão em modal." }}</div>
-      </div>
-
-      <div class="actions">
-        <input v-model="search" placeholder="Pesquisar..." @keyup.enter="load" />
-        <button class="secondary" @click="load">Buscar</button>
-        <button v-if="canCreate()" class="secondary" @click="openNewModal">Novo</button>
-      </div>
-    </div>
+  <BasePage :title="config.title" subtitle="Cadastro local padronizado com edição e inclusão em modal.">
+    <template #actions>
+      <input v-model="search" class="titlebar-search" placeholder="Pesquisar..." @keyup.enter="load" />
+      <button class="secondary" @click="load">Buscar</button>
+      <button v-if="canCreate()" class="primary" @click="openNewModal">Novo</button>
+    </template>
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
@@ -307,8 +249,8 @@ watch(
         <table>
           <thead>
             <tr>
-              <th v-for="column in config.columns" :key="column">{{ columnLabel(column) }}</th>
-              <th>Ações</th>
+              <th v-for="column in config.columns" :key="column">{{ column }}</th>
+              <th>ações</th>
             </tr>
           </thead>
           <tbody>
@@ -339,10 +281,6 @@ watch(
       width="lg"
       @close="closeModal"
     >
-      <div v-if="config.modalHelp?.length" class="alert info">
-        <div v-for="item in config.modalHelp" :key="item">{{ item }}</div>
-      </div>
-
       <form class="grid" @submit.prevent="persist">
         <div v-for="field in config.fields" :key="field.key" class="field">
           <label v-if="field.type !== 'checkbox'" :for="field.key">
@@ -396,8 +334,6 @@ watch(
                         ? 'password'
                         : 'text'"
           />
-
-          <small v-if="field.help" class="muted">{{ field.help }}</small>
         </div>
 
         <div class="actions">
@@ -408,5 +344,5 @@ watch(
         </div>
       </form>
     </AppModal>
-  </div>
+  </BasePage>
 </template>

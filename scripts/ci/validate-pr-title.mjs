@@ -43,13 +43,13 @@ if (legacyPattern.test(title)) {
 
 if (freeformLegacyPattern.test(title)) {
   console.warn(`Título legado aceito para compatibilidade: ${title}`);
-  console.warn('Recomendação: use Conventional Commits (ex.: feat(core): adiciona engine de apuração).');
+  console.warn('Recomendação: use Conventional Commits (ex.: feat(core): adiciona recurso genérico).');
   process.exit(0);
 }
 
 console.error(`Título do PR inválido: "${title}"`);
 console.error('Use Conventional Commits. Exemplos válidos:');
-console.error('- feat(pontos): adiciona exportação de espelho mensal');
+console.error('- feat(core): adiciona novo módulo da aplicação');
 console.error('- fix(auth): corrige restauração de sessão local');
 console.error('- docs(ci): documenta fluxo de release desktop');
 console.error('Formato legado aceito temporariamente: Core: descrição');

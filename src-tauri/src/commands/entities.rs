@@ -20,27 +20,55 @@ struct EntityDefinition {
 
 fn entity_definition(entity: &str) -> Option<EntityDefinition> {
     match entity {
-        "empresas" => Some(EntityDefinition {
+        "empresas" | "companies" => Some(EntityDefinition {
             table: "empresas",
             fields: &[
                 "nome",
+                "nome_fantasia",
                 "documento",
+                "inscricao_estadual",
+                "inscricao_municipal",
                 "telefone",
                 "email",
+                "responsavel_nome",
+                "responsavel_telefone",
+                "cep",
                 "endereco",
+                "numero",
+                "complemento",
                 "bairro",
                 "cidade",
                 "estado",
+                "observacoes",
                 "ativo",
             ],
-            searchable: &["nome", "documento", "cidade"],
+            searchable: &["nome", "nome_fantasia", "documento", "cidade"],
             required: &["nome"],
             label_column: "nome",
         }),
-        "usuarios" => Some(EntityDefinition {
+        "perfis" | "perfis_acesso" | "profiles" => Some(EntityDefinition {
+            table: "perfis_acesso",
+            fields: &["nome", "descricao", "perfil_master", "ativo"],
+            searchable: &["nome", "descricao"],
+            required: &["nome"],
+            label_column: "nome",
+        }),
+        "usuarios" | "users" => Some(EntityDefinition {
             table: "usuarios",
-            fields: &["nome", "login", "senha_hash", "administrador", "ativo"],
-            searchable: &["nome", "login"],
+            fields: &[
+                "nome",
+                "login",
+                "email",
+                "telefone",
+                "cargo",
+                "observacoes",
+                "senha_hash",
+                "master_user",
+                "administrador",
+                "senha_provisoria",
+                "ativo",
+            ],
+            searchable: &["nome", "login", "email"],
             required: &["nome", "login"],
             label_column: "nome",
         }),
@@ -94,7 +122,6 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
             required: &["descricao"],
             label_column: "descricao",
         }),
-
         "feriados" => Some(EntityDefinition {
             table: "feriados",
             fields: &[
@@ -112,7 +139,6 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
             required: &["data", "descricao"],
             label_column: "descricao",
         }),
-
         "ferias_colaboradores" => Some(EntityDefinition {
             table: "ferias_colaboradores",
             fields: &[
@@ -219,10 +245,9 @@ fn entity_definition(entity: &str) -> Option<EntityDefinition> {
 
 fn normalize_ferias_status(raw: Option<&str>) -> Result<String, String> {
     let status = raw
-        .map(|v| v.trim().to_lowercase())
-        .filter(|v| !v.is_empty())
+        .map(|value| value.trim().to_lowercase())
+        .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "ativo".to_string());
-
     match status.as_str() {
         "ativo" | "programado" | "concluido" | "cancelado" => Ok(status),
         _ => Err(
@@ -234,9 +259,10 @@ fn normalize_ferias_status(raw: Option<&str>) -> Result<String, String> {
 fn payload_string(payload: &Map<String, Value>, key: &str) -> Option<String> {
     payload
         .get(key)
-        .and_then(|v| v.as_str())
-        .map(|v| v.trim().to_string())
-        .filter(|v| !v.is_empty())
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }
 
 fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
@@ -278,6 +304,9 @@ fn normalize_value(payload: &Map<String, Value>, field: &str) -> Value {
         | "conector_ultimo_nsr"
         | "ativo"
         | "administrador"
+        | "master_user"
+        | "senha_provisoria"
+        | "usar_conector"
         | "impacta_banco_horas"
         | "abono"
         | "banco_horas_ativo"
@@ -342,71 +371,35 @@ pub fn combo_list(
     state: State<'_, SharedState>,
     entity: String,
 ) -> Result<Vec<ComboOption>, String> {
-    if entity == "contextos_feriado" {
-        return Ok(vec![
-            ComboOption {
-                id: 1,
-                label: "global".to_string(),
-            },
-            ComboOption {
-                id: 2,
-                label: "empresa".to_string(),
-            },
-            ComboOption {
-                id: 3,
-                label: "departamento".to_string(),
-            },
-            ComboOption {
-                id: 4,
-                label: "operacional".to_string(),
-            },
-        ]);
-    }
-    if entity == "regras_jornada" {
-        return Ok(vec![
-            ComboOption {
-                id: 1,
-                label: "normal".to_string(),
-            },
-            ComboOption {
-                id: 2,
-                label: "reduzida".to_string(),
-            },
-            ComboOption {
-                id: 3,
-                label: "especial".to_string(),
-            },
-            ComboOption {
-                id: 4,
-                label: "escala diferenciada".to_string(),
-            },
-        ]);
-    }
-    if entity == "regras_compensacao" {
-        return Ok(vec![
-            ComboOption {
-                id: 1,
-                label: "banco_horas".to_string(),
-            },
-            ComboOption {
-                id: 2,
-                label: "hora_extra".to_string(),
-            },
-            ComboOption {
-                id: 3,
-                label: "consumo_horas".to_string(),
-            },
-            ComboOption {
-                id: 4,
-                label: "sem_compensacao".to_string(),
-            },
-        ]);
+    let static_values: Option<&[&str]> = match entity.as_str() {
+        "contextos_feriado" => Some(&["global", "empresa", "departamento", "operacional"]),
+        "regras_jornada" => Some(&["normal", "reduzida", "especial", "escala diferenciada"]),
+        "regras_compensacao" => Some(&[
+            "banco_horas",
+            "hora_extra",
+            "consumo_horas",
+            "sem_compensacao",
+        ]),
+        _ => None,
+    };
+    if let Some(values) = static_values {
+        return Ok(values
+            .iter()
+            .enumerate()
+            .map(|(index, label)| ComboOption {
+                id: (index + 1) as i64,
+                label: (*label).to_string(),
+            })
+            .collect());
     }
     if entity == "jornadas_lookup" {
         let db_path = state.db_path()?;
         let conn = open_connection(&db_path)?;
         let mut stmt = conn
-            .prepare("SELECT id, descricao AS label FROM jornadas_trabalho WHERE ativo = 1 ORDER BY descricao ASC")
+            .prepare(
+                "SELECT id, descricao AS label FROM jornadas_trabalho \
+                 WHERE ativo = 1 ORDER BY descricao ASC",
+            )
             .map_err(|err| format!("Falha ao preparar combo de jornadas: {err}"))?;
         let rows = stmt
             .query_map([], |row| {
@@ -463,17 +456,10 @@ pub fn entity_save(
     });
 
     for required in definition.required {
-        let value = payload.get(*required).cloned().unwrap_or(Value::Null);
-        let raw = match value {
-            Value::String(v) => v.trim().to_string(),
-            Value::Number(v) => v.to_string(),
-            Value::Bool(v) => {
-                if v {
-                    "1".to_string()
-                } else {
-                    String::new()
-                }
-            }
+        let raw = match payload.get(*required).cloned().unwrap_or(Value::Null) {
+            Value::String(value) => value.trim().to_string(),
+            Value::Number(value) => value.to_string(),
+            Value::Bool(true) => "1".to_string(),
             _ => String::new(),
         };
         if raw.is_empty() {
@@ -484,59 +470,45 @@ pub fn entity_save(
     if entity == "ferias_colaboradores" {
         let funcionario_id = payload
             .get("funcionario_id")
-            .and_then(|v| {
-                v.as_i64()
-                    .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+            .and_then(|value| {
+                value
+                    .as_i64()
+                    .or_else(|| value.as_str().and_then(|text| text.parse::<i64>().ok()))
             })
-            .unwrap_or(0);
+            .unwrap_or_default();
         if funcionario_id <= 0 {
             return Err("Informe um colaborador válido para o lançamento de férias.".to_string());
         }
-
-        let data_inicial = payload
-            .get("data_inicial")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-        let data_final = payload
-            .get("data_final")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .trim()
-            .to_string();
-
+        let data_inicial = payload_string(&payload, "data_inicial").unwrap_or_default();
+        let data_final = payload_string(&payload, "data_final").unwrap_or_default();
         if data_final < data_inicial {
             return Err(
                 "A data final das férias deve ser maior ou igual à data inicial.".to_string(),
             );
         }
-
-        let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
-        if status == "cancelado" {
-            let motivo_cancelamento = payload_string(&payload, "motivo_cancelamento")
-                .or_else(|| payload_string(&payload, "observacao"));
-            if motivo_cancelamento.is_none() {
-                return Err("Informe o motivo/observação para cancelar férias.".to_string());
-            }
+        let status = normalize_ferias_status(payload.get("status").and_then(Value::as_str))?;
+        if status == "cancelado"
+            && payload_string(&payload, "motivo_cancelamento")
+                .or_else(|| payload_string(&payload, "observacao"))
+                .is_none()
+        {
+            return Err("Informe o motivo/observação para cancelar férias.".to_string());
         }
 
-        let current_id = id.unwrap_or(0);
-        let conflito: i64 = conn
+        let conflito = conn
             .query_row(
-                "SELECT COUNT(*)
-                   FROM ferias_colaboradores
-                  WHERE funcionario_id = ?1
-                    AND ativo = 1
-                    AND status <> 'cancelado'
-                    AND id <> ?2
-                    AND data_inicial <= ?3
-                    AND data_final >= ?4",
-                rusqlite::params![funcionario_id, current_id, data_final, data_inicial],
-                |row| row.get(0),
+                "SELECT COUNT(*) FROM ferias_colaboradores
+                 WHERE funcionario_id = ?1 AND ativo = 1 AND status <> 'cancelado'
+                   AND id <> ?2 AND data_inicial <= ?3 AND data_final >= ?4",
+                rusqlite::params![
+                    funcionario_id,
+                    id.unwrap_or_default(),
+                    data_final,
+                    data_inicial
+                ],
+                |row| row.get::<_, i64>(0),
             )
             .map_err(|err| format!("Falha ao validar conflito de férias: {err}"))?;
-
         if conflito > 0 {
             return Err(
                 "Já existe lançamento de férias ativo para este colaborador no período informado."
@@ -565,20 +537,21 @@ pub fn entity_save(
 
         columns.push((*field).to_string());
         if entity == "ferias_colaboradores" && *field == "status" {
-            let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
-            values.push(Value::String(status));
+            values.push(Value::String(normalize_ferias_status(
+                payload.get("status").and_then(Value::as_str),
+            )?));
         } else if entity == "ferias_colaboradores" && *field == "cancelado_em" {
-            let status = normalize_ferias_status(payload.get("status").and_then(|v| v.as_str()))?;
-            let cancelado_em = if status == "cancelado" {
+            let status = normalize_ferias_status(payload.get("status").and_then(Value::as_str))?;
+            let value = if status == "cancelado" {
                 payload_string(&payload, "cancelado_em").unwrap_or_else(|| now.clone())
             } else {
                 payload_string(&payload, "cancelado_em").unwrap_or_default()
             };
-            if cancelado_em.is_empty() {
-                values.push(Value::Null);
+            values.push(if value.is_empty() {
+                Value::Null
             } else {
-                values.push(Value::String(cancelado_em));
-            }
+                Value::String(value)
+            });
         } else {
             values.push(normalize_value(&payload, field));
         }
@@ -681,4 +654,410 @@ pub fn entity_delete(
     }
 
     Ok(affected > 0)
+}
+
+fn db_value_from_json(value: Value) -> crate::core::database::provider::types::DbValue {
+    crate::core::database::provider::types::DbValue::from(value)
+}
+
+fn current_provider_driver() -> String {
+    std::env::var("ARGWS_PONTO_MANAGER_DATABASE_DRIVER")
+        .or_else(|_| std::env::var("ARGWS_PONTO_MANAGER_DB_DRIVER"))
+        .unwrap_or_else(|_| "sqlite".to_string())
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn active_provider(
+    state: &SharedState,
+) -> Result<crate::core::database::provider::ActiveDatabaseProvider, String> {
+    use crate::core::database::{config::DatabaseConfig, provider::ActiveDatabaseProvider};
+
+    let driver = current_provider_driver();
+    let db_path = state.db_path()?;
+    let config = DatabaseConfig::from_env_with_driver(&driver);
+    ActiveDatabaseProvider::from_config(config, &db_path)
+}
+
+fn select_columns(definition: &EntityDefinition) -> String {
+    format!("id, {}", definition.fields.join(", "))
+}
+
+fn placeholders(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    start: usize,
+    count: usize,
+) -> Vec<String> {
+    (start..start + count)
+        .map(|index| provider.placeholder(index))
+        .collect()
+}
+
+pub fn provider_list_with_database(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: &str,
+    search: &str,
+) -> Result<Vec<Map<String, Value>>, String> {
+    let definition =
+        entity_definition(entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let mut sql = format!(
+        "SELECT {} FROM {}",
+        select_columns(&definition),
+        definition.table
+    );
+    let mut params = Vec::new();
+
+    if !search.trim().is_empty() {
+        let clauses = definition
+            .searchable
+            .iter()
+            .enumerate()
+            .map(|(index, column)| format!("{column} LIKE {}", provider.placeholder(index + 1)))
+            .collect::<Vec<_>>()
+            .join(" OR ");
+        sql.push_str(&format!(" WHERE ({clauses})"));
+        for _ in definition.searchable {
+            params.push(crate::core::database::provider::types::DbValue::Text(
+                format!("%{}%", search.trim()),
+            ));
+        }
+    }
+
+    sql.push_str(" ORDER BY id DESC");
+    provider.query(&sql, &params)
+}
+
+pub(crate) fn provider_get_with_database(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: &str,
+    id: i64,
+) -> Result<Option<Map<String, Value>>, String> {
+    let definition =
+        entity_definition(entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let sql = format!(
+        "SELECT {} FROM {} WHERE id = {}",
+        select_columns(&definition),
+        definition.table,
+        provider.placeholder(1)
+    );
+    provider.query_one(
+        &sql,
+        &[crate::core::database::provider::types::DbValue::Integer(id)],
+    )
+}
+
+fn provider_insert_audit(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: &str,
+    action: &str,
+    record_id: Option<i64>,
+    payload: &Value,
+    now: &str,
+) -> Result<(), String> {
+    let sql = format!(
+        "INSERT INTO audit_logs (entity_name, action_name, record_id, payload_json, created_at) VALUES ({}, {}, {}, {}, {})",
+        provider.placeholder(1),
+        provider.placeholder(2),
+        provider.placeholder(3),
+        provider.placeholder(4),
+        provider.placeholder(5)
+    );
+    provider.execute(
+        &sql,
+        &[
+            crate::core::database::provider::types::DbValue::Text(entity.to_string()),
+            crate::core::database::provider::types::DbValue::Text(action.to_string()),
+            record_id
+                .map(crate::core::database::provider::types::DbValue::Integer)
+                .unwrap_or(crate::core::database::provider::types::DbValue::Null),
+            crate::core::database::provider::types::DbValue::Text(payload.to_string()),
+            crate::core::database::provider::types::DbValue::Text(now.to_string()),
+        ],
+    )?;
+    Ok(())
+}
+
+fn provider_enqueue_sync(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: &str,
+    action: &str,
+    record_id: Option<i64>,
+    payload: &Value,
+    now: &str,
+) -> Result<(), String> {
+    let sql = format!(
+        "INSERT INTO sync_queue (entity_name, action_name, record_id, payload_json, status, created_at, updated_at) VALUES ({}, {}, {}, {}, {}, {}, {})",
+        provider.placeholder(1),
+        provider.placeholder(2),
+        provider.placeholder(3),
+        provider.placeholder(4),
+        provider.placeholder(5),
+        provider.placeholder(6),
+        provider.placeholder(7)
+    );
+    provider.execute(
+        &sql,
+        &[
+            crate::core::database::provider::types::DbValue::Text(entity.to_string()),
+            crate::core::database::provider::types::DbValue::Text(action.to_string()),
+            record_id
+                .map(crate::core::database::provider::types::DbValue::Integer)
+                .unwrap_or(crate::core::database::provider::types::DbValue::Null),
+            crate::core::database::provider::types::DbValue::Text(payload.to_string()),
+            crate::core::database::provider::types::DbValue::Text("pending".to_string()),
+            crate::core::database::provider::types::DbValue::Text(now.to_string()),
+            crate::core::database::provider::types::DbValue::Text(now.to_string()),
+        ],
+    )?;
+    Ok(())
+}
+
+pub(crate) fn provider_save_with_database(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: String,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    use crate::core::database::{config::DatabaseDriver, provider::types::DbValue};
+
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let now = Utc::now().to_rfc3339();
+    let id = payload.get("id").and_then(|value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_str().and_then(|text| text.parse::<i64>().ok()))
+    });
+
+    for required in definition.required {
+        let raw = match payload.get(*required).cloned().unwrap_or(Value::Null) {
+            Value::String(value) => value.trim().to_string(),
+            Value::Number(value) => value.to_string(),
+            Value::Bool(true) => "1".to_string(),
+            _ => String::new(),
+        };
+        if raw.is_empty() {
+            return Err(format!("O campo {required} é obrigatório."));
+        }
+    }
+
+    if entity == "ferias_colaboradores" {
+        let data_inicial = payload_string(&payload, "data_inicial").unwrap_or_default();
+        let data_final = payload_string(&payload, "data_final").unwrap_or_default();
+        if data_final < data_inicial {
+            return Err(
+                "A data final das férias deve ser maior ou igual à data inicial.".to_string(),
+            );
+        }
+        let status = normalize_ferias_status(payload.get("status").and_then(Value::as_str))?;
+        if status == "cancelado"
+            && payload_string(&payload, "motivo_cancelamento")
+                .or_else(|| payload_string(&payload, "observacao"))
+                .is_none()
+        {
+            return Err("Informe o motivo/observação para cancelar férias.".to_string());
+        }
+    }
+
+    let mut columns = Vec::new();
+    let mut values = Vec::new();
+    for field in definition.fields {
+        columns.push((*field).to_string());
+        let value = if entity == "ferias_colaboradores" && *field == "status" {
+            Value::String(normalize_ferias_status(
+                payload.get("status").and_then(Value::as_str),
+            )?)
+        } else if entity == "ferias_colaboradores" && *field == "cancelado_em" {
+            let status = normalize_ferias_status(payload.get("status").and_then(Value::as_str))?;
+            if status == "cancelado" {
+                Value::String(
+                    payload_string(&payload, "cancelado_em").unwrap_or_else(|| now.clone()),
+                )
+            } else {
+                Value::Null
+            }
+        } else {
+            normalize_value(&payload, field)
+        };
+        values.push(db_value_from_json(value));
+    }
+
+    let record_id = if let Some(existing_id) = id {
+        let set_clause = columns
+            .iter()
+            .enumerate()
+            .map(|(index, column)| format!("{column} = {}", provider.placeholder(index + 1)))
+            .chain(std::iter::once(format!(
+                "updated_at = {}",
+                provider.placeholder(columns.len() + 1)
+            )))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "UPDATE {} SET {} WHERE id = {}",
+            definition.table,
+            set_clause,
+            provider.placeholder(columns.len() + 2)
+        );
+        values.push(DbValue::Text(now.clone()));
+        values.push(DbValue::Integer(existing_id));
+        provider.execute(&sql, &values)?;
+        existing_id
+    } else {
+        let mut insert_columns = columns.clone();
+        insert_columns.push("created_at".to_string());
+        insert_columns.push("updated_at".to_string());
+        values.push(DbValue::Text(now.clone()));
+        values.push(DbValue::Text(now.clone()));
+        let value_placeholders = placeholders(provider, 1, insert_columns.len()).join(", ");
+        let returning = if provider.driver() == DatabaseDriver::Postgres {
+            " RETURNING id"
+        } else {
+            ""
+        };
+        let sql = format!(
+            "INSERT INTO {} ({}) VALUES ({}){}",
+            definition.table,
+            insert_columns.join(", "),
+            value_placeholders,
+            returning
+        );
+        if provider.driver() == DatabaseDriver::Postgres {
+            let row = provider
+                .query_one(&sql, &values)?
+                .ok_or_else(|| "Falha ao obter id retornado pelo PostgreSQL.".to_string())?;
+            row.get("id")
+                .and_then(|value| {
+                    value
+                        .as_i64()
+                        .or_else(|| value.as_str()?.parse::<i64>().ok())
+                })
+                .ok_or_else(|| "Id retornado pelo provider é inválido.".to_string())?
+        } else {
+            provider.execute(&sql, &values)?;
+            let row = provider
+                .query_one(provider.last_insert_id_sql(), &[])?
+                .ok_or_else(|| "Falha ao obter último id inserido pelo provider.".to_string())?;
+            row.get("id")
+                .and_then(|value| {
+                    value
+                        .as_i64()
+                        .or_else(|| value.as_str()?.parse::<i64>().ok())
+                })
+                .ok_or_else(|| "Id retornado pelo provider é inválido.".to_string())?
+        }
+    };
+
+    let saved = provider_get_with_database(provider, &entity, record_id)?
+        .ok_or_else(|| "Registro salvo não encontrado pelo provider.".to_string())?;
+    let action = if id.is_some() { "update" } else { "create" };
+    let payload_value = Value::Object(saved.clone());
+    provider_insert_audit(
+        provider,
+        &entity,
+        action,
+        Some(record_id),
+        &payload_value,
+        &now,
+    )?;
+    provider_enqueue_sync(
+        provider,
+        &entity,
+        action,
+        Some(record_id),
+        &payload_value,
+        &now,
+    )?;
+    Ok(saved)
+}
+
+pub(crate) fn provider_delete_with_database(
+    provider: &dyn crate::core::database::provider::DatabaseProvider,
+    entity: String,
+    id: i64,
+) -> Result<bool, String> {
+    if entity == "ferias_colaboradores" {
+        return Err("Férias lançadas não podem ser excluídas fisicamente. Utilize a ação Cancelar férias para preservar o histórico.".to_string());
+    }
+    let definition =
+        entity_definition(&entity).ok_or_else(|| "Entidade não permitida.".to_string())?;
+    let sql = format!(
+        "DELETE FROM {} WHERE id = {}",
+        definition.table,
+        provider.placeholder(1)
+    );
+    let affected = provider.execute(
+        &sql,
+        &[crate::core::database::provider::types::DbValue::Integer(id)],
+    )?;
+    if affected > 0 {
+        let now = Utc::now().to_rfc3339();
+        let payload = json!({ "id": id, "entity": entity });
+        provider_insert_audit(provider, &entity, "delete", Some(id), &payload, &now)?;
+        provider_enqueue_sync(provider, &entity, "delete", Some(id), &payload, &now)?;
+    }
+    Ok(affected > 0)
+}
+
+#[tauri::command]
+pub fn entity_provider_list(
+    state: State<'_, SharedState>,
+    entity: String,
+    search: String,
+) -> Result<Vec<Map<String, Value>>, String> {
+    let provider = active_provider(&state)?;
+    provider_list_with_database(&provider, &entity, &search)
+}
+
+#[tauri::command]
+pub fn provider_entity_list(
+    state: State<'_, SharedState>,
+    entity: String,
+    search: String,
+) -> Result<Vec<Map<String, Value>>, String> {
+    entity_provider_list(state, entity, search)
+}
+
+#[tauri::command]
+pub fn provider_entity_get(
+    state: State<'_, SharedState>,
+    entity: String,
+    id: i64,
+) -> Result<Option<Map<String, Value>>, String> {
+    let provider = active_provider(&state)?;
+    provider_get_with_database(&provider, &entity, id)
+}
+
+#[tauri::command]
+pub fn provider_entity_create(
+    state: State<'_, SharedState>,
+    entity: String,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    let provider = active_provider(&state)?;
+    provider_save_with_database(&provider, entity, payload)
+}
+
+#[tauri::command]
+pub fn provider_entity_update(
+    state: State<'_, SharedState>,
+    entity: String,
+    payload: Map<String, Value>,
+) -> Result<Map<String, Value>, String> {
+    if payload.get("id").is_none() {
+        return Err(
+            "Campo id é obrigatório para atualização via provider_entity_update.".to_string(),
+        );
+    }
+    let provider = active_provider(&state)?;
+    provider_save_with_database(&provider, entity, payload)
+}
+
+#[tauri::command]
+pub fn provider_entity_delete(
+    state: State<'_, SharedState>,
+    entity: String,
+    id: i64,
+) -> Result<bool, String> {
+    let provider = active_provider(&state)?;
+    provider_delete_with_database(&provider, entity, id)
 }

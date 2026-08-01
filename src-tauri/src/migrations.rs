@@ -2,16 +2,24 @@ use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
-use crate::{db::open_connection, security::hash_password};
+use crate::{
+    bootstrap,
+    db::open_connection,
+    security::{hash_password, verify_password},
+};
 const BOOTSTRAP_SEED_KEY: &str = "bootstrap_seed_version";
 const BOOTSTRAP_SEED_STATUS_KEY: &str = "bootstrap_seed_status";
 const BOOTSTRAP_SEED_VERSION: i64 = 1;
 
 pub fn migrate(db_path: &Path) -> Result<(), String> {
-    let conn = open_connection(db_path)?;
+    let mut conn = open_connection(db_path)?;
+    let transaction = conn
+        .transaction()
+        .map_err(|err| format!("Falha ao iniciar transação das migrations: {err}"))?;
 
-    conn.execute_batch(
-        r#"
+    transaction
+        .execute_batch(
+            r#"
         CREATE TABLE IF NOT EXISTS empresas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
@@ -44,6 +52,7 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             telefone TEXT,
             cargo TEXT,
             observacoes TEXT,
+            photo_url TEXT,
             senha_hash TEXT NOT NULL,
             master_user INTEGER NOT NULL DEFAULT 0,
             administrador INTEGER NOT NULL DEFAULT 0,
@@ -606,6 +615,58 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             FOREIGN KEY (empresa_id) REFERENCES empresas(id)
         );
 
+        CREATE TABLE IF NOT EXISTS feature_flags (
+            chave TEXT PRIMARY KEY,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            descricao TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS integration_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'rest',
+            base_url TEXT NOT NULL,
+            metodo_padrao TEXT NOT NULL DEFAULT 'GET',
+            headers_json TEXT,
+            token_encrypted TEXT,
+            ambiente TEXT NOT NULL DEFAULT 'production',
+            status TEXT NOT NULL DEFAULT 'inactive',
+            timeout_seconds INTEGER NOT NULL DEFAULT 30,
+            retry_attempts INTEGER NOT NULL DEFAULT 0,
+            ultimo_erro TEXT,
+            ultima_execucao_em TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS integration_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            integration_id INTEGER,
+            method TEXT,
+            url TEXT,
+            request_headers_json TEXT,
+            status_code INTEGER,
+            success INTEGER NOT NULL DEFAULT 0,
+            duration_ms INTEGER,
+            error_message TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (integration_id) REFERENCES integration_configs(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            token_hash TEXT NOT NULL,
+            escopo TEXT,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            expires_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
 
         CREATE TABLE IF NOT EXISTS conector_coletas_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -631,12 +692,16 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             updated_at TEXT NOT NULL
         );
         "#,
-    )
-    .map_err(|err| format!("Falha ao executar migrations: {err}"))?;
+        )
+        .map_err(|err| format!("Falha ao executar migrations: {err}"))?;
 
-    migrate_existing_schema(&conn)?;
-    ensure_indexes(&conn)?;
-    seed_data(&conn)
+    migrate_existing_schema(&transaction)?;
+    rotate_legacy_public_admin(&transaction, db_path)?;
+    ensure_indexes(&transaction)?;
+    seed_data(&transaction, db_path)?;
+    transaction
+        .commit()
+        .map_err(|err| format!("Falha ao confirmar transação das migrations: {err}"))
 }
 
 fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
@@ -654,6 +719,7 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
         ("usuarios", "telefone", "TEXT"),
         ("usuarios", "cargo", "TEXT"),
         ("usuarios", "observacoes", "TEXT"),
+        ("usuarios", "photo_url", "TEXT"),
         ("usuarios", "master_user", "INTEGER NOT NULL DEFAULT 0"),
         ("usuarios", "senha_provisoria", "INTEGER NOT NULL DEFAULT 0"),
         ("usuarios", "ultimo_login_em", "TEXT"),
@@ -882,6 +948,9 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_admin_unlock_sessions_token ON admin_unlock_sessions(unlock_token);
         CREATE INDEX IF NOT EXISTS idx_local_licenses_cnpj ON local_licenses(cnpj);
         CREATE INDEX IF NOT EXISTS idx_app_settings_chave ON app_settings(chave);
+        CREATE INDEX IF NOT EXISTS idx_sync_queue_status ON sync_queue(status);
+        CREATE INDEX IF NOT EXISTS idx_integration_configs_status ON integration_configs(status, ativo);
+        CREATE INDEX IF NOT EXISTS idx_integration_logs_created_at ON integration_logs(created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_nome ON funcionarios(nome);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_documento ON funcionarios(documento);
         CREATE INDEX IF NOT EXISTS idx_funcionarios_pis ON funcionarios(pis);
@@ -915,7 +984,58 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
     Ok(())
 }
 
-fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
+fn rotate_legacy_public_admin(conn: &rusqlite::Connection, db_path: &Path) -> Result<(), String> {
+    const ROTATION_KEY: &str = "security_bootstrap_credential_rotation_v1";
+    let completed: Option<String> = conn
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = ?1 LIMIT 1",
+            [ROTATION_KEY],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar rotação da credencial bootstrap: {err}"))?;
+    if completed.as_deref() == Some("completed") {
+        return Ok(());
+    }
+
+    let admin: Option<(i64, String)> = conn
+        .query_row(
+            "SELECT id, senha_hash FROM usuarios WHERE LOWER(login) = 'admin' LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar credencial administrativa legada: {err}"))?;
+
+    if let Some((admin_id, password_hash)) = admin {
+        let legacy_public_password: String = [97_u8, 100, 109, 105, 110, 49, 50, 51]
+            .into_iter()
+            .map(char::from)
+            .collect();
+        if verify_password(&legacy_public_password, &password_hash)? {
+            let credential = bootstrap::load_or_create(db_path)?;
+            let replacement_hash = hash_password(&credential.password)?;
+            conn.execute(
+                "UPDATE usuarios
+                    SET senha_hash = ?1, senha_provisoria = 1, updated_at = ?2
+                  WHERE id = ?3",
+                params![replacement_hash, Utc::now().to_rfc3339(), admin_id],
+            )
+            .map_err(|err| {
+                format!("Falha ao substituir credencial administrativa pública: {err}")
+            })?;
+        }
+    }
+
+    conn.execute(
+        "INSERT OR REPLACE INTO app_settings (chave, valor, updated_at) VALUES (?1, 'completed', ?2)",
+        params![ROTATION_KEY, Utc::now().to_rfc3339()],
+    )
+    .map_err(|err| format!("Falha ao registrar rotação da credencial bootstrap: {err}"))?;
+    Ok(())
+}
+
+fn seed_data(conn: &rusqlite::Connection, db_path: &Path) -> Result<(), String> {
     let now = Utc::now().to_rfc3339();
 
     if bootstrap_seed_already_applied(conn)? {
@@ -968,11 +1088,12 @@ fn seed_data(conn: &rusqlite::Connection) -> Result<(), String> {
         .map_err(|err| format!("Falha ao verificar admin inicial: {err}"))?;
 
     if admin_exists.is_none() {
-        let password_hash = hash_password("admin123")?;
+        let credential = bootstrap::load_or_create(db_path)?;
+        let password_hash = hash_password(&credential.password)?;
         conn.execute(
             "INSERT INTO usuarios (nome, login, email, telefone, cargo, observacoes, senha_hash, master_user, administrador, senha_provisoria, ativo, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 1, 0, 1, ?8, ?8)",
-            params!["Administrador Master", "admin", "admin@local", "75999990000", "Usuário master", "Usuário master inicial do sistema.", password_hash, now],
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, 1, 1, 1, ?8, ?8)",
+            params!["Administrador Master", credential.username, "admin@local", "75999990000", "Usuário master", "Usuário master inicial do sistema.", password_hash, now],
         )
         .map_err(|err| format!("Falha ao criar usuário admin inicial: {err}"))?;
     }
@@ -1075,7 +1196,7 @@ fn ensure_access_seed(conn: &rusqlite::Connection, now: &str) -> Result<(), Stri
 
     conn.execute(
         "UPDATE usuarios
-         SET master_user = 1, administrador = 1, senha_provisoria = 0, ativo = 1, updated_at = ?1
+         SET master_user = 1, administrador = 1, ativo = 1, updated_at = ?1
          WHERE id = ?2",
         params![now, admin_id],
     )

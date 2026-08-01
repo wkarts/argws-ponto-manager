@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { clearAppLogs, listAppLogs, type GenericRecord } from "../services/crud";
+import BasePage from "../components/base/BasePage.vue";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
-import { formatDateTimeLocal } from "../services/format";
+import { appConfirm } from "../services/dialog";
 
 const session = useSessionStore();
 const rows = ref<GenericRecord[]>([]);
@@ -36,7 +37,7 @@ async function load() {
 }
 
 async function clearLogs() {
-  if (!confirm("Deseja limpar os logs da aplicação?")) return;
+  if (!(await appConfirm({ title: "Limpar logs", message: "Deseja limpar os logs da aplicação?", danger: true, confirmText: "Limpar" }))) return;
   clearing.value = true;
   try {
     await ensureSession();
@@ -54,17 +55,11 @@ onMounted(load);
 </script>
 
 <template>
-  <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Logs da aplicação</h2>
-        <div class="muted-text">Diagnóstico de inicialização, sessão, navegação, páginas e falhas administrativas. Os horários são exibidos no fuso local do computador; o valor original em UTC fica no tooltip da coluna Quando.</div>
-      </div>
-      <div class="actions">
-        <button class="secondary" :disabled="loading" @click="load">Atualizar</button>
-        <button class="danger" :disabled="clearing" @click="clearLogs">Limpar logs</button>
-      </div>
-    </div>
+  <BasePage title="Logs da aplicação" subtitle="Diagnóstico de inicialização, sessão, navegação, páginas e falhas administrativas." icon="clipboard">
+    <template #actions>
+      <button class="secondary" :disabled="loading" @click="load">Atualizar</button>
+      <button class="danger" :disabled="clearing" @click="clearLogs">Limpar logs</button>
+    </template>
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
@@ -95,7 +90,7 @@ onMounted(load);
       <table>
         <thead>
           <tr>
-            <th>Quando (local)</th>
+            <th>Quando</th>
             <th>Nível</th>
             <th>Categoria</th>
             <th>Mensagem</th>
@@ -106,7 +101,7 @@ onMounted(load);
         </thead>
         <tbody>
           <tr v-for="row in rows" :key="Number(row.id)">
-            <td :title="String(row.created_at || '')">{{ formatDateTimeLocal(row.created_at) }}</td>
+            <td>{{ row.created_at }}</td>
             <td>{{ row.level }}</td>
             <td>{{ row.category }}</td>
             <td>{{ row.message }}</td>
@@ -120,5 +115,5 @@ onMounted(load);
         </tbody>
       </table>
     </div>
-  </div>
+  </BasePage>
 </template>

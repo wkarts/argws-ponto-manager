@@ -86,7 +86,7 @@ impl OfflineCache {
     }
 
     fn file_path(&self, document: &str) -> Result<PathBuf, LicenseError> {
-        let dirs = ProjectDirs::from("br", "wkarts", "generic-license").ok_or_else(|| {
+        let dirs = ProjectDirs::from("br", "argws", "generic-license").ok_or_else(|| {
             LicenseError::Io("não foi possível resolver o diretório de dados do app".to_string())
         })?;
 

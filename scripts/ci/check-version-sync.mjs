@@ -13,6 +13,7 @@ const root = process.cwd();
 const versionFile = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const tauriConf = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri', 'tauri.conf.json'), 'utf8'));
+const projectConfig = fs.readFileSync(path.join(root, 'src', 'config', 'projectConfig.ts'), 'utf8');
 const cargoToml = fs.readFileSync(path.join(root, 'src-tauri', 'Cargo.toml'), 'utf8');
 const cargoMatch = cargoToml.match(/\[package\][\s\S]*?^version\s*=\s*"([^"]+)"/m);
 
@@ -21,11 +22,18 @@ if (!cargoMatch) {
   process.exit(1);
 }
 
+const projectVersionMatch = projectConfig.match(/version:\s*"([^"]+)"/);
+if (!projectVersionMatch) {
+  console.error('Não foi possível localizar a versão em src/config/projectConfig.ts');
+  process.exit(1);
+}
+
 const versions = {
   'VERSION': versionFile,
   'package.json': packageJson.version,
   'src-tauri/Cargo.toml': cargoMatch[1],
   'src-tauri/tauri.conf.json': tauriConf.version,
+  'src/config/projectConfig.ts': projectVersionMatch[1],
 };
 
 const unique = new Set(Object.values(versions));
