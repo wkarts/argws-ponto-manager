@@ -132,7 +132,7 @@ for item in "${TARGETS[@]}"; do
       --locked \
       --no-default-features \
       --features "$FEATURES" \
-      --edges normal \
+      --edges normal,build \
       --prefix none \
       --format '{p}' \
       | awk '{print $1}' \
@@ -141,6 +141,7 @@ for item in "${TARGETS[@]}"; do
 
   forbidden_headless_crates=(
     tauri
+    tauri-build
     tauri-runtime
     tauri-runtime-wry
     wry
