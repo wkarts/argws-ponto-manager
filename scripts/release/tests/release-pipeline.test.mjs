@@ -179,22 +179,22 @@ test('CloudPanel isola Tauri/GTK e compila x64 e x86 no CI', () => {
     'utf8',
   );
 
-  assert.match(cargoManifest, /desktop = \\["dep:tauri"/);
-  assert.match(cargoManifest, /tauri = \\{[^}]*optional = true[^}]*\\}/);
+  assert.match(cargoManifest, /desktop = \["dep:tauri"/);
+  assert.match(cargoManifest, /tauri = \{[^}]*optional = true[^}]*\}/);
   assert.match(buildScript, /--no-default-features/);
   assert.match(buildScript, /cargo tree/);
   assert.match(buildScript, /forbidden_headless_crates/);
   assert.match(buildScript, /tauri-runtime-wry/);
   assert.match(buildScript, /pkg-config --exists openssl/);
-  assert.match(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod access;/);
-  assert.doesNotMatch(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod auth;/);
-  assert.doesNotMatch(librarySource, /#\\[cfg\\(feature = "desktop"\\)\\]\\n    pub mod entities;/);
-  assert.match(authCommands, /#\\[cfg\\(feature = "desktop"\\)\\]\\n#\\[tauri::command\\]\\npub fn auth_login/);
-  assert.match(entityCommands, /#\\[cfg\\(feature = "desktop"\\)\\]\\n#\\[tauri::command\\]\\npub fn entity_list/);
+  assert.match(librarySource, /#\[cfg\(feature = "desktop"\)\]\n    pub mod access;/);
+  assert.doesNotMatch(librarySource, /#\[cfg\(feature = "desktop"\)\]\n    pub mod auth;/);
+  assert.doesNotMatch(librarySource, /#\[cfg\(feature = "desktop"\)\]\n    pub mod entities;/);
+  assert.match(authCommands, /#\[cfg\(feature = "desktop"\)\]\n#\[tauri::command\]\npub fn auth_login/);
+  assert.match(entityCommands, /#\[cfg\(feature = "desktop"\)\]\n#\[tauri::command\]\npub fn entity_list/);
   assert.match(ciWorkflow, /cloudpanel-headless:/);
   assert.match(ciWorkflow, /Build and package CloudPanel headless/);
   assert.match(ciWorkflow, /BUILD_WEB: "false"/);
   assert.doesNotMatch(dependencyScript, /libayatana-appindicator3-dev:i386/);
   assert.doesNotMatch(dependencyScript, /libxdo-dev:i386/);
-  assert.doesNotMatch(dependencyScript, /libwebkit2gtk-4\\.1-dev:i386/);
+  assert.doesNotMatch(dependencyScript, /libwebkit2gtk-4\.1-dev:i386/);
 });
