@@ -2,11 +2,7 @@ use chrono::Utc;
 use rusqlite::{params, OptionalExtension};
 use std::path::Path;
 
-use crate::{
-    bootstrap,
-    db::open_connection,
-    security::hash_password,
-};
+use crate::{bootstrap, db::open_connection, security::hash_password};
 const BOOTSTRAP_SEED_KEY: &str = "bootstrap_seed_version";
 const BOOTSTRAP_SEED_STATUS_KEY: &str = "bootstrap_seed_status";
 const BOOTSTRAP_SEED_VERSION: i64 = 1;
