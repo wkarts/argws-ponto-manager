@@ -107,7 +107,11 @@ jobs:
           node --check scripts/release/collect-release-assets.mjs
           node --check scripts/release/upload-release-assets.mjs
           node --check scripts/release/prepare-release.mjs
+          node --check scripts/release/write-build-status.mjs
           node --check scripts/release/run-semantic-release.mjs
+
+      - name: Test release pipeline
+        run: node --test scripts/release/tests/*.test.mjs
 
   windows-build-script:
     name: Windows build script
