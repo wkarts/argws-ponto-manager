@@ -1,3 +1,10 @@
+## [1.26.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.1...v1.26.2) (2026-08-02)
+
+
+### Bug Fixes
+
+* **cartao:** exibe pre-visualizacao A4 fiel a impressao ([fdd7ccd](https://github.com/wkarts/argws-ponto-manager/commit/fdd7ccde115c46ef70a596ea88dd54347ce6ef2d))
+
 ## [1.26.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.0...v1.26.1) (2026-08-02)
 
 
