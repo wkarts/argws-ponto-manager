@@ -22,7 +22,7 @@ Sistema corporativo da ARGWS para gestão, tratamento, apuração e controle de 
 
 ## Segurança do primeiro acesso
 
-Na instalação nova, o usuário `admin` recebe uma credencial exclusiva gerada localmente em `.bootstrap-admin.local`, com permissão restrita. O arquivo é ignorado pelo Git e removido após a troca obrigatória de senha. Não existe senha inicial pública.
+Na instalação nova, o usuário `admin` recebe uma credencial exclusiva gerada localmente em `%LOCALAPPDATA%\argws-ponto-manager\.bootstrap-admin.local`, com permissão restrita. Consulte esse arquivo para obter a senha inicial. Ele é ignorado pelo Git e removido após a troca obrigatória de senha. Não existe senha inicial pública ou igual para todas as instalações.
 
 ## Desenvolvimento
 

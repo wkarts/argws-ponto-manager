@@ -8,6 +8,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::storage_contract;
+
 const MIGRATION_MARKER: &str = "legacy-database-migration-v1.json";
 const LEGACY_ROTATION_KEY: &str = "security_bootstrap_credential_rotation_v1";
 const LEGACY_CREDENTIAL_REPAIR_KEY: &str = "legacy_credentials_preserved_v1";
@@ -15,10 +17,17 @@ const LEGACY_CREDENTIAL_REPAIR_KEY: &str = "legacy_credentials_preserved_v1";
 #[derive(Debug, Clone)]
 pub struct DatabaseRecovery {
     backup_path: PathBuf,
+    source_backup_path: PathBuf,
     target_existed: bool,
     copied_from_legacy: bool,
     source_path: PathBuf,
     source_checksum: String,
+}
+
+impl DatabaseRecovery {
+    pub fn copied_from_legacy(&self) -> bool {
+        self.copied_from_legacy
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,6 +59,14 @@ pub fn prepare(data_dir: &Path, target_db: &Path) -> Result<Option<DatabaseRecov
 
     if target_db.is_file() {
         validate_integrity(target_db)?;
+        if !data_dir.join(MIGRATION_MARKER).is_file()
+            && target_is_unused_bootstrap(target_db)?
+        {
+            if let Some(legacy_db) = resolve_legacy_database(target_db)? {
+                return replace_unused_target_with_legacy(data_dir, target_db, &legacy_db)
+                    .map(Some);
+            }
+        }
         let credential_repair_pending =
             pending_rotated_legacy_credential(data_dir, target_db)?.is_some();
         let marker = data_dir.join(format!("schema-backup-{}.ok", env!("CARGO_PKG_VERSION")));
@@ -59,7 +76,7 @@ pub fn prepare(data_dir: &Path, target_db: &Path) -> Result<Option<DatabaseRecov
         return backup_database(data_dir, target_db, true, false).map(Some);
     }
 
-    let Some(legacy_db) = resolve_legacy_database()? else {
+    let Some(legacy_db) = resolve_legacy_database(target_db)? else {
         return Ok(None);
     };
     validate_integrity(&legacy_db)?;
@@ -143,7 +160,7 @@ pub fn finalize(
         source_path: recovery.source_path.to_string_lossy().to_string(),
         source_checksum_sha256: recovery.source_checksum.clone(),
         target_path: target_db.to_string_lossy().to_string(),
-        backup_path: recovery.backup_path.to_string_lossy().to_string(),
+        backup_path: recovery.source_backup_path.to_string_lossy().to_string(),
         completed_at: Utc::now().to_rfc3339(),
     };
     let payload = serde_json::to_vec_pretty(&marker)
@@ -172,7 +189,7 @@ pub fn rollback(target_db: &Path, recovery: Option<&DatabaseRecovery>) -> Result
     Ok(())
 }
 
-fn resolve_legacy_database() -> Result<Option<PathBuf>, String> {
+fn resolve_legacy_database(target_db: &Path) -> Result<Option<PathBuf>, String> {
     let mut candidates = Vec::new();
     if let Ok(configured) = std::env::var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH") {
         let trimmed = configured.trim();
@@ -181,7 +198,7 @@ fn resolve_legacy_database() -> Result<Option<PathBuf>, String> {
         }
     }
     if let Some(config_base) = dirs::config_local_dir() {
-        for slug in ["pontos_desktop_tauri", "pontos-desktop-tauri"] {
+        for slug in storage_contract::LEGACY_LOCAL_DATA_DIRS {
             append_configured_legacy_database(
                 &mut candidates,
                 &config_base.join(slug).join("bootstrap.json"),
@@ -189,8 +206,7 @@ fn resolve_legacy_database() -> Result<Option<PathBuf>, String> {
         }
     }
     if let Some(base) = dirs::data_local_dir() {
-        candidates.push(base.join("pontos_desktop_tauri").join("pontos.db"));
-        candidates.push(base.join("pontos-desktop-tauri").join("pontos.db"));
+        candidates.extend(storage_contract::known_legacy_database_candidates(&base));
     }
     let mut unique = Vec::new();
     for candidate in candidates {
@@ -198,7 +214,19 @@ fn resolve_legacy_database() -> Result<Option<PathBuf>, String> {
             unique.push(candidate);
         }
     }
-    Ok(unique.into_iter().find(|path| path.is_file()))
+    Ok(unique
+        .into_iter()
+        .find(|path| path.is_file() && !same_file(path, target_db)))
+}
+
+fn same_file(left: &Path, right: &Path) -> bool {
+    if left == right {
+        return true;
+    }
+    match (fs::canonicalize(left), fs::canonicalize(right)) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => false,
+    }
 }
 
 fn append_configured_legacy_database(
@@ -231,7 +259,7 @@ fn append_configured_legacy_database(
     if configured_path.is_file() {
         candidates.push(configured_path);
     } else {
-        candidates.push(configured_path.join("pontos.db"));
+        candidates.extend(storage_contract::legacy_database_candidates_in(&configured_path));
     }
     Ok(())
 }
@@ -367,6 +395,161 @@ fn table_has_column(conn: &Connection, table: &str, column: &str) -> Result<bool
     Ok(false)
 }
 
+fn target_is_unused_bootstrap(target_db: &Path) -> Result<bool, String> {
+    let target = Connection::open_with_flags(target_db, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|err| format!("Falha ao inspecionar banco atual antes da migração: {err}"))?;
+    if !table_exists(&target, "usuarios")? {
+        return Ok(true);
+    }
+    if !table_exists(&target, "app_settings")?
+        || !table_has_column(&target, "usuarios", "senha_provisoria")?
+        || !table_has_column(&target, "usuarios", "ultimo_login_em")?
+    {
+        return Ok(false);
+    }
+
+    let bootstrap_status: Option<String> = target
+        .query_row(
+            "SELECT valor FROM app_settings WHERE chave = 'bootstrap_seed_status' LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| format!("Falha ao verificar bootstrap do banco atual: {err}"))?;
+    if bootstrap_status.as_deref() != Some("applied") {
+        return Ok(false);
+    }
+
+    let users: i64 = target
+        .query_row("SELECT COUNT(*) FROM usuarios", [], |row| row.get(0))
+        .map_err(|err| format!("Falha ao contar usuários do banco atual: {err}"))?;
+    let untouched_admin: i64 = target
+        .query_row(
+            "SELECT COUNT(*)
+               FROM usuarios
+              WHERE LOWER(login) = 'admin'
+                AND nome = 'Administrador Master'
+                AND senha_provisoria = 1
+                AND (ultimo_login_em IS NULL OR TRIM(ultimo_login_em) = '')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|err| format!("Falha ao validar administrador bootstrap: {err}"))?;
+    if users != 1 || untouched_admin != 1 {
+        return Ok(false);
+    }
+
+    if !has_only_expected_demo_row(&target, "empresas", "nome", "Empresa Demo Ltda")?
+        || !has_only_expected_demo_row(
+            &target,
+            "funcionarios",
+            "nome",
+            "Funcionário Demo",
+        )?
+    {
+        return Ok(false);
+    }
+
+    for table in [
+        "user_sessions",
+        "batidas",
+        "batidas_ignoradas_afd",
+        "afd_importacoes",
+        "afd_marcacoes",
+        "ocorrencias_ponto",
+        "ferias_colaboradores",
+        "banco_horas_lancamentos",
+        "fechamentos_mensais",
+        "relatorios_gerados",
+        "sync_queue",
+        "audit_logs",
+        "integration_configs",
+        "integration_logs",
+        "api_tokens",
+    ] {
+        if table_exists(&target, table)? && table_count(&target, table)? > 0 {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
+}
+
+fn has_only_expected_demo_row(
+    conn: &Connection,
+    table: &str,
+    field: &str,
+    expected: &str,
+) -> Result<bool, String> {
+    if !table_exists(conn, table)? {
+        return Ok(false);
+    }
+    let total = table_count(conn, table)?;
+    let sql = format!("SELECT COUNT(*) FROM {table} WHERE {field} = ?1");
+    let expected_count: i64 = conn
+        .query_row(&sql, [expected], |row| row.get(0))
+        .map_err(|err| format!("Falha ao validar seed em {table}: {err}"))?;
+    Ok(total == 1 && expected_count == 1)
+}
+
+fn table_count(conn: &Connection, table: &str) -> Result<i64, String> {
+    let sql = format!("SELECT COUNT(*) FROM {table}");
+    conn.query_row(&sql, [], |row| row.get(0))
+        .map_err(|err| format!("Falha ao contar registros de {table}: {err}"))
+}
+
+fn replace_unused_target_with_legacy(
+    data_dir: &Path,
+    target_db: &Path,
+    legacy_db: &Path,
+) -> Result<DatabaseRecovery, String> {
+    validate_integrity(legacy_db)?;
+    let target_recovery = backup_database(data_dir, target_db, true, false)?;
+    let source_recovery = backup_database(data_dir, legacy_db, false, true)?;
+    let temporary = target_db.with_extension("db.migrating");
+    if temporary.exists() {
+        fs::remove_file(&temporary)
+            .map_err(|err| format!("Falha ao limpar cópia temporária anterior: {err}"))?;
+    }
+    copy_synced(legacy_db, &temporary)?;
+    validate_integrity(&temporary)?;
+    validate_critical_counts(legacy_db, &temporary)?;
+
+    let displaced = target_db.with_extension("db.bootstrap-unused");
+    if displaced.exists() {
+        fs::remove_file(&displaced)
+            .map_err(|err| format!("Falha ao limpar banco bootstrap temporário: {err}"))?;
+    }
+    fs::rename(target_db, &displaced)
+        .map_err(|err| format!("Falha ao preservar banco bootstrap antes da migração: {err}"))?;
+    if let Err(error) = fs::rename(&temporary, target_db) {
+        let restore_error = fs::rename(&displaced, target_db).err();
+        return Err(match restore_error {
+            Some(restore_error) => format!(
+                "Falha ao ativar banco legado: {error}. A restauração do bootstrap também falhou: {restore_error}"
+            ),
+            None => format!(
+                "Falha ao ativar banco legado: {error}. O banco bootstrap anterior foi restaurado."
+            ),
+        });
+    }
+    if let Err(error) = fs::remove_file(&displaced) {
+        eprintln!(
+            "Aviso: o banco bootstrap substituído permaneceu em {}: {error}",
+            displaced.display()
+        );
+    }
+
+    Ok(DatabaseRecovery {
+        backup_path: target_recovery.backup_path,
+        source_backup_path: source_recovery.source_backup_path,
+        target_existed: true,
+        copied_from_legacy: true,
+        source_path: legacy_db.to_path_buf(),
+        source_checksum: source_recovery.source_checksum,
+    })
+}
+
 fn backup_database(
     data_dir: &Path,
     source: &Path,
@@ -377,7 +560,7 @@ fn backup_database(
     let backups = data_dir.join("backups");
     fs::create_dir_all(&backups)
         .map_err(|err| format!("Falha ao criar diretório de backups: {err}"))?;
-    let stamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+    let stamp = Utc::now().format("%Y%m%dT%H%M%S%fZ");
     let backup_path = backups.join(format!(
         "ponto-manager-{}-{}-{}.db",
         env!("CARGO_PKG_VERSION"),
@@ -387,6 +570,7 @@ fn backup_database(
     copy_synced(source, &backup_path)?;
     validate_integrity(&backup_path)?;
     Ok(DatabaseRecovery {
+        source_backup_path: backup_path.clone(),
         backup_path,
         target_existed,
         copied_from_legacy,

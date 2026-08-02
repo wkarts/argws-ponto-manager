@@ -256,7 +256,7 @@ pub fn system_set_data_dir(
 
     let current_db = state.db_path()?;
     let current_data_dir = state.data_dir()?;
-    let new_db = target_dir.join("ponto-manager.db");
+    let new_db = crate::storage_contract::sqlite_database_path(&target_dir);
 
     if current_db.exists() && current_db != new_db {
         if let Some(parent) = new_db.parent() {
