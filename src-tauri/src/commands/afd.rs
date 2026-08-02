@@ -379,8 +379,7 @@ pub fn afd_import_file(
             let duplicate: Option<(i64, String)> = if ignorada_por_ajuste {
                 None
             } else {
-                conn
-                .query_row(
+                conn.query_row(
                     "SELECT id, COALESCE(origem, '')
                        FROM batidas
                       WHERE funcionario_id = ?1

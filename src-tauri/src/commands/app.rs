@@ -278,7 +278,10 @@ pub(crate) fn app_bootstrap_from_paths(
         let value = conn
             .query_row(sql, [], |row| row.get::<_, Option<String>>(0))
             .unwrap_or(None);
-        payload.insert(key.to_string(), value.map(Value::String).unwrap_or(Value::Null));
+        payload.insert(
+            key.to_string(),
+            value.map(Value::String).unwrap_or(Value::Null),
+        );
     }
 
     let mut batidas_por_dia = Vec::new();
@@ -300,10 +303,7 @@ pub(crate) fn app_bootstrap_from_paths(
             batidas_por_dia.extend(rows.filter_map(Result::ok));
         }
     }
-    payload.insert(
-        "batidas_por_dia".to_string(),
-        Value::Array(batidas_por_dia),
-    );
+    payload.insert("batidas_por_dia".to_string(), Value::Array(batidas_por_dia));
 
     payload.insert(
         "database_status".to_string(),

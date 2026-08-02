@@ -10,9 +10,7 @@ use uuid::Uuid;
 use crate::{
     commands::{auth::build_auth_user, entities},
     core::database::{config::DatabaseConfig, provider::ActiveDatabaseProvider},
-    db::{
-        enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput,
-    },
+    db::{enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput},
     internal_api::state::InternalApiState,
     models::LoginResponse,
     security::{hash_password, verify_password},

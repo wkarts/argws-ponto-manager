@@ -60,8 +60,7 @@ pub fn marcar_duplicidade(
         || target.data_referencia != principal.data_referencia
     {
         return Err(
-            "A batida principal deve pertencer ao mesmo funcionário e à mesma data."
-                .to_string(),
+            "A batida principal deve pertencer ao mesmo funcionário e à mesma data.".to_string(),
         );
     }
     if !principal.ativo {
@@ -102,7 +101,10 @@ pub fn marcar_duplicidade(
                         ELSE mensagem || ' ' || ?2
                     END
               WHERE batida_id = ?1",
-            params![id, format!("Batida ocultada como duplicidade da marcação {batida_principal_id}.")],
+            params![
+                id,
+                format!("Batida ocultada como duplicidade da marcação {batida_principal_id}.")
+            ],
         )
         .map_err(|err| format!("Falha ao atualizar rastreabilidade AFD da duplicidade: {err}"))?;
     }
@@ -211,7 +213,12 @@ mod tests {
         let hidden = carregar_snapshot(&conn, 2).unwrap().unwrap();
         assert!(!hidden.ativo);
         assert_eq!(hidden.status, STATUS_DUPLICIDADE);
-        assert_eq!(conn.query_row("SELECT COUNT(*) FROM batidas", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
+        assert_eq!(
+            conn.query_row("SELECT COUNT(*) FROM batidas", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
 
         assert!(reativar_duplicidade(&conn, 2, "Conferência do RH").unwrap());
         let restored = carregar_snapshot(&conn, 2).unwrap().unwrap();
