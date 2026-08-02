@@ -1,3 +1,10 @@
+## [1.26.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.2...v1.26.3) (2026-08-02)
+
+
+### Bug Fixes
+
+* **cartao:** restaura preview da versao 1.23 ([78f3a07](https://github.com/wkarts/argws-ponto-manager/commit/78f3a0791e8c9a78aae95522fe7327f6bf99888d))
+
 ## [1.26.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.1...v1.26.2) (2026-08-02)
 
 
