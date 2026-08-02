@@ -1,3 +1,13 @@
+## [1.24.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.2...v1.24.3) (2026-08-02)
+
+
+### Bug Fixes
+
+* **auth:** preserva hashes de instalações legadas ([37061ab](https://github.com/wkarts/argws-ponto-manager/commit/37061ab48c2f8cfc09b7402efe728fe893c39340))
+* **migration:** recupera credencial rotacionada com backup ([1308b12](https://github.com/wkarts/argws-ponto-manager/commit/1308b12ab5f9faba19be69fdb72c3596f9cfed03))
+* **startup:** aplica reparo idempotente de credencial ([34643dd](https://github.com/wkarts/argws-ponto-manager/commit/34643ddf10be68deedff7b560306dd71daaeac66))
+* **ui:** simplifica orientação na tela de login ([b52dfab](https://github.com/wkarts/argws-ponto-manager/commit/b52dfabeb4a3938cb647bba29c8cb4963ecebada))
+
 ## [1.24.2](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.1...v1.24.2) (2026-08-01)
 
 
