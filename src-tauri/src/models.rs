@@ -42,6 +42,8 @@ pub struct PunchFilters {
     pub data_inicial: Option<String>,
     #[serde(rename = "dataFinal")]
     pub data_final: Option<String>,
+    #[serde(rename = "incluirInativas", default)]
+    pub incluir_inativas: bool,
 }
 
 #[derive(Debug, Serialize)]

@@ -10,7 +10,9 @@ use uuid::Uuid;
 use crate::{
     commands::{auth::build_auth_user, entities},
     core::database::{config::DatabaseConfig, provider::ActiveDatabaseProvider},
-    db::{open_connection, row_to_json_map, write_app_log, AppLogInput},
+    db::{
+        enqueue_sync, open_connection, row_to_json_map, write_app_log, write_audit, AppLogInput,
+    },
     internal_api::state::InternalApiState,
     models::LoginResponse,
     security::{hash_password, verify_password},
@@ -364,6 +366,118 @@ fn delete_record(conn: &Connection, table: &str, id: i64) -> Result<bool, String
     conn.execute(&sql, [id])
         .map_err(|err| format!("Falha ao excluir registro de {table}: {err}"))?;
     Ok(true)
+}
+
+fn optional_i64(args: &Map<String, Value>, key: &str) -> Option<i64> {
+    args.get(key).and_then(|value| {
+        value
+            .as_i64()
+            .or_else(|| value.as_str()?.parse::<i64>().ok())
+    })
+}
+
+fn batidas_list_http(state: &InternalApiState, args: &Map<String, Value>) -> Result<Value, String> {
+    let filters = get_filters(args);
+    let conn = open_connection(&state.db_path)?;
+    let mut sql = String::from(
+        "SELECT b.*, f.nome AS funcionario_nome,
+                COALESCE(e.descricao, '') AS equipamento_nome,
+                COALESCE(j.descricao, '') AS justificativa_nome,
+                CASE
+                    WHEN LOWER(COALESCE(b.origem, '')) LIKE '%afd%'
+                      OR LOWER(COALESCE(b.origem, '')) LIKE '%conector%'
+                      OR LOWER(COALESCE(b.origem, '')) LIKE '%rep%'
+                    THEN 1 ELSE 0
+                END AS origem_protegida
+           FROM batidas b
+           JOIN funcionarios f ON f.id = b.funcionario_id
+           LEFT JOIN equipamentos e ON e.id = b.equipamento_id
+           LEFT JOIN justificativas j ON j.id = b.justificativa_id
+          WHERE 1 = 1",
+    );
+    let mut values = Vec::<rusqlite::types::Value>::new();
+    if !filters
+        .get("incluirInativas")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        sql.push_str(" AND COALESCE(b.ativo, 1) = 1");
+    }
+    if let Some(value) = optional_i64(&filters, "empresaId") {
+        sql.push_str(" AND f.empresa_id = ?");
+        values.push(value.into());
+    }
+    if let Some(value) = optional_i64(&filters, "funcionarioId") {
+        sql.push_str(" AND b.funcionario_id = ?");
+        values.push(value.into());
+    }
+    if let Some(value) = filters.get("dataInicial").and_then(Value::as_str) {
+        if !value.is_empty() {
+            sql.push_str(" AND b.data_referencia >= ?");
+            values.push(value.to_string().into());
+        }
+    }
+    if let Some(value) = filters.get("dataFinal").and_then(Value::as_str) {
+        if !value.is_empty() {
+            sql.push_str(" AND b.data_referencia <= ?");
+            values.push(value.to_string().into());
+        }
+    }
+    sql.push_str(" ORDER BY b.data_referencia DESC, b.hora DESC, b.id DESC");
+    Ok(Value::Array(query_json_params(
+        &conn,
+        &sql,
+        params_from_iter(values.iter()),
+    )?))
+}
+
+fn dashboard_http(state: &InternalApiState) -> Result<Value, String> {
+    let conn = open_connection(&state.db_path)?;
+    let scalar = |sql: &str| {
+        conn.query_row(sql, [], |row| row.get::<_, i64>(0))
+            .unwrap_or(0)
+    };
+    let last_value = |sql: &str| {
+        conn.query_row(sql, [], |row| row.get::<_, Option<String>>(0))
+            .unwrap_or(None)
+    };
+    let batidas_por_dia = query_json(
+        &conn,
+        "SELECT data_referencia AS data, COUNT(*) AS total
+           FROM batidas
+          WHERE COALESCE(ativo, 1) = 1
+            AND data_referencia >= date('now', 'localtime', '-6 days')
+            AND data_referencia <= date('now', 'localtime')
+          GROUP BY data_referencia
+          ORDER BY data_referencia",
+    )?;
+
+    Ok(json!({
+        "db_path": state.db_path.to_string_lossy(),
+        "data_dir": state.data_dir.to_string_lossy(),
+        "database_status": "ok",
+        "internal_api_status": "ativo",
+        "empresas": scalar("SELECT COUNT(*) FROM empresas"),
+        "usuarios": scalar("SELECT COUNT(*) FROM usuarios"),
+        "perfis": scalar("SELECT COUNT(*) FROM perfis_acesso"),
+        "funcionarios_ativos": scalar("SELECT COUNT(*) FROM funcionarios WHERE ativo = 1"),
+        "funcionarios_inativos": scalar("SELECT COUNT(*) FROM funcionarios WHERE ativo = 0"),
+        "funcionarios_ferias_hoje": scalar("SELECT COUNT(DISTINCT funcionario_id) FROM ferias_colaboradores WHERE ativo = 1 AND status IN ('ativo', 'programado') AND date('now', 'localtime') BETWEEN data_inicial AND data_final"),
+        "batidas_hoje": scalar("SELECT COUNT(*) FROM batidas WHERE COALESCE(ativo, 1) = 1 AND data_referencia = date('now', 'localtime')"),
+        "batidas_pendentes_validacao": scalar("SELECT COUNT(*) FROM batidas WHERE COALESCE(ativo, 1) = 1 AND manual_ajuste = 1 AND validado = 0"),
+        "batidas_duplicadas_ocultas": scalar("SELECT COUNT(*) FROM batidas WHERE COALESCE(ativo, 1) = 0 AND status = 'duplicidade'"),
+        "inconsistencias_hoje": scalar("SELECT COUNT(*) FROM (SELECT funcionario_id FROM batidas WHERE COALESCE(ativo, 1) = 1 AND data_referencia = date('now', 'localtime') GROUP BY funcionario_id HAVING COUNT(*) % 2 <> 0)"),
+        "afd_importacoes_hoje": scalar("SELECT COUNT(*) FROM afd_importacoes WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "afd_processadas_hoje": scalar("SELECT COALESCE(SUM(total_processadas), 0) FROM afd_importacoes WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "afd_descartadas_hoje": scalar("SELECT COALESCE(SUM(total_descartadas), 0) FROM afd_importacoes WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "conector_coletas_hoje": scalar("SELECT COUNT(*) FROM conector_coletas_log WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "conector_importadas_hoje": scalar("SELECT COALESCE(SUM(total_importadas), 0) FROM conector_coletas_log WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "conector_duplicadas_hoje": scalar("SELECT COALESCE(SUM(total_duplicadas), 0) FROM conector_coletas_log WHERE substr(created_at, 1, 10) = date('now', 'localtime')"),
+        "sync_pendente": scalar("SELECT COUNT(*) FROM sync_queue WHERE status = 'pending'"),
+        "ultima_importacao_afd": last_value("SELECT MAX(created_at) FROM afd_importacoes"),
+        "ultima_coleta_conector": last_value("SELECT MAX(created_at) FROM conector_coletas_log"),
+        "batidas_por_dia": batidas_por_dia,
+    }))
 }
 
 fn as_i64_list(value: Option<&Value>) -> Vec<i64> {
@@ -752,11 +866,7 @@ pub(crate) fn execute_command(
             "identifier": runtime_app_identifier(),
             "runtime": "internal-api-web",
         })),
-        "app_bootstrap" => Ok(json!({
-            "ok": true,
-            "runtime": {"mode": "internal-api-web", "isWeb": true, "isTauri": false},
-            "database": "internal-api"
-        })),
+        "app_bootstrap" => dashboard_http(state),
         "system_info" => Ok(json!({
             "runtime": {"mode": "internal-api-web"},
             "database_provider": std::env::var("ARGWS_PONTO_MANAGER_DATABASE_DRIVER").unwrap_or_else(|_| "sqlite".to_string()),
@@ -1002,6 +1112,101 @@ pub(crate) fn execute_command(
         "company_lookup_cnpj" | "company_lookup_ie" => Ok(
             json!({"ok": false, "message": "Consulta externa não configurada nesta API interna."}),
         ),
+        "batidas_list" => batidas_list_http(state, &args),
+        "batida_save" => {
+            let conn = open_connection(&state.db_path)?;
+            let payload = get_payload(&args);
+            if let Some(id) = optional_i64(&payload, "id") {
+                let origem = conn
+                    .query_row("SELECT origem FROM batidas WHERE id = ?1", [id], |row| {
+                        row.get::<_, String>(0)
+                    })
+                    .optional()
+                    .map_err(|err| format!("Falha ao verificar origem da batida: {err}"))?;
+                if origem
+                    .as_deref()
+                    .is_some_and(crate::punch_integrity::origem_oficial)
+                {
+                    return Err(
+                        "Marcações oficiais AFD/REP/Connector são imutáveis. Trate repetições como duplicidade."
+                            .to_string(),
+                    );
+                }
+            }
+            let saved = save_record(&conn, "batidas", &payload)?;
+            let record_id = saved.get("id").and_then(Value::as_i64);
+            write_audit(&conn, "batidas", "save", record_id, &saved)?;
+            enqueue_sync(&conn, "batidas", "save", record_id, &saved)?;
+            Ok(saved)
+        }
+        "batida_delete" => {
+            let conn = open_connection(&state.db_path)?;
+            let id = get_i64(&args, "id");
+            let origem = conn
+                .query_row("SELECT origem FROM batidas WHERE id = ?1", [id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .optional()
+                .map_err(|err| format!("Falha ao verificar origem da batida: {err}"))?;
+            if origem
+                .as_deref()
+                .is_some_and(crate::punch_integrity::origem_oficial)
+            {
+                return Err(
+                    "Marcações oficiais não podem ser excluídas. Use a classificação de duplicidade."
+                        .to_string(),
+                );
+            }
+            let changed = delete_record(&conn, "batidas", id)?;
+            if changed {
+                let payload = json!({ "id": id });
+                write_audit(&conn, "batidas", "delete", Some(id), &payload)?;
+                enqueue_sync(&conn, "batidas", "delete", Some(id), &payload)?;
+            }
+            Ok(Value::Bool(changed))
+        }
+        "batida_marcar_duplicidade" => {
+            let conn = open_connection(&state.db_path)?;
+            let id = get_i64(&args, "id");
+            let principal_id = get_i64(&args, "batida_principal_id");
+            let motivo = get_string(&args, "motivo");
+            let changed = crate::punch_integrity::marcar_duplicidade(
+                &conn,
+                id,
+                principal_id,
+                if motivo.is_empty() {
+                    "Duplicidade confirmada pela interface web."
+                } else {
+                    &motivo
+                },
+            )?;
+            if changed {
+                let payload = json!({ "id": id, "batida_principal_id": principal_id, "exclusao_fisica": false });
+                write_audit(&conn, "batidas", "mark_duplicate", Some(id), &payload)?;
+                enqueue_sync(&conn, "batidas", "mark_duplicate", Some(id), &payload)?;
+            }
+            Ok(Value::Bool(changed))
+        }
+        "batida_reativar" => {
+            let conn = open_connection(&state.db_path)?;
+            let id = get_i64(&args, "id");
+            let motivo = get_string(&args, "motivo");
+            let changed = crate::punch_integrity::reativar_duplicidade(
+                &conn,
+                id,
+                if motivo.is_empty() {
+                    "Reativação confirmada pela interface web."
+                } else {
+                    &motivo
+                },
+            )?;
+            if changed {
+                let payload = json!({ "id": id, "motivo": motivo });
+                write_audit(&conn, "batidas", "reactivate", Some(id), &payload)?;
+                enqueue_sync(&conn, "batidas", "reactivate", Some(id), &payload)?;
+            }
+            Ok(Value::Bool(changed))
+        }
         "entity_list" => {
             let provider = provider_for_state(state)?;
             let entity = get_string(&args, "entity");

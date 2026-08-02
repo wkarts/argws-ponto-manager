@@ -276,7 +276,7 @@ fn build_punch_query(filters: &PunchFilters) -> (String, Vec<rusqlite::types::Va
          FROM batidas b
          INNER JOIN funcionarios f ON f.id = b.funcionario_id
          LEFT JOIN equipamentos e ON e.id = b.equipamento_id
-         WHERE 1 = 1",
+         WHERE COALESCE(b.ativo, 1) = 1",
     );
 
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
@@ -466,7 +466,7 @@ fn has_manual_adjustment(
 ) -> Result<bool, String> {
     let count: Option<i64> = conn
         .query_row(
-            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND manual_ajuste = 1",
+            "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND manual_ajuste = 1 AND COALESCE(ativo, 1) = 1",
             params![funcionario_id, data],
             |row| row.get(0),
         )
@@ -580,7 +580,7 @@ pub fn apurar_periodo_internal(
                 .prepare(
                     "SELECT hora
                      FROM batidas
-                     WHERE funcionario_id = ?1 AND data_referencia = ?2
+                     WHERE funcionario_id = ?1 AND data_referencia = ?2 AND COALESCE(ativo, 1) = 1
                      ORDER BY hora ASC, id ASC",
                 )
                 .map_err(|err| format!("Falha ao preparar batidas da apuração: {err}"))?;

@@ -11,6 +11,8 @@ import {
   listCompanies,
   listEmployees,
   listOcorrencias,
+  markBatidaDuplicate,
+  reactivateBatida,
   registerGeneratedReport,
   saveBatida,
   saveOcorrencia,
@@ -37,9 +39,11 @@ const ocorrenciaModalOpen = ref(false);
 const employeeOptions = ref<ComboOption[]>([]);
 const justificativaOptions = ref<ComboOption[]>([]);
 const batidas = ref<GenericRecord[]>([]);
+const batidasInativas = ref<GenericRecord[]>([]);
 const ocorrencias = ref<GenericRecord[]>([]);
 const apuracaoResumo = ref<ApuracaoResumo | null>(null);
 const reportHtml = ref("");
+const previewExpanded = ref(false);
 const empresaResponsavel = ref("Responsável / RH");
 
 const selectedDate = ref("");
@@ -71,9 +75,18 @@ interface DuplicatePunchCandidate {
   date: string;
   funcionarioNome: string;
   horarioBase: string;
-  ids: number[];
+  principalId: number;
+  duplicateIds: number[];
+  principalOrigem: string;
   repeticoes: number;
   diferencaSegundos: number;
+}
+
+function isProtectedPunch(row: GenericRecord | null | undefined): boolean {
+  if (!row) return false;
+  if (Number(row.origem_protegida || 0) === 1 || row.origem_protegida === true) return true;
+  const origem = String(row.origem || '').toLowerCase();
+  return origem.includes('afd') || origem.includes('conector') || origem.includes('rep');
 }
 
 const smartSuggestions = ref<SmartSuggestionItem[]>([]);
@@ -94,19 +107,6 @@ const gridCellRefs = ref<Record<string, HTMLInputElement | null>>({});
 const activeSideTab = ref<"marcacoes" | "ocorrencias" | "smart" | "exclusao">("marcacoes");
 const sidePanelCollapsed = ref(false);
 const gridStatus = ref('Pronto para edição inline. Use Enter, setas e Del para operar a grade.');
-
-type SidebarTab = 'marcacoes' | 'ocorrencias' | 'smart' | 'duplicadas';
-const sidebarCollapsed = ref(false);
-const sidebarTab = ref<SidebarTab>('marcacoes');
-
-function toggleSidebarCollapse() {
-  sidebarCollapsed.value = !sidebarCollapsed.value;
-}
-
-function setSidebarTab(tab: SidebarTab) {
-  sidebarTab.value = tab;
-  sidebarCollapsed.value = false;
-}
 
 const hoje = new Date();
 const filtros = reactive({
@@ -528,6 +528,8 @@ function localizarDuplicidades() {
       funcionarioNome: String(item.funcionario_nome || '-'),
       date: String(item.data_referencia || ''),
       hora: String(item.hora || ''),
+      origem: String(item.origem || 'manual'),
+      oficial: isProtectedPunch(item),
     }))
     .filter((item) => item.id > 0 && item.date && item.hora)
     .sort((a, b) => `${a.date} ${a.hora}`.localeCompare(`${b.date} ${b.hora}`));
@@ -538,41 +540,44 @@ function localizarDuplicidades() {
     (byDay[key] ||= []).push(row);
   }
 
+  const addCandidate = (groupKey: string, entries: typeof rows) => {
+    if (entries.length < 2) return;
+    const [funcionarioNome, date] = groupKey.split('::');
+    const prioritized = [...entries].sort((a, b) => {
+      if (a.oficial !== b.oficial) return a.oficial ? -1 : 1;
+      return a.hora.localeCompare(b.hora) || a.id - b.id;
+    });
+    const principal = prioritized[0];
+    grouped.push({
+      key: `${groupKey}:${entries[0].hora}`,
+      date,
+      funcionarioNome,
+      horarioBase: entries[0].hora,
+      principalId: principal.id,
+      principalOrigem: principal.origem,
+      duplicateIds: prioritized.slice(1).map((entry) => entry.id),
+      repeticoes: entries.length,
+      diferencaSegundos: Math.max(
+        0,
+        (parseTimeToMinutes(entries[entries.length - 1].hora) || 0)
+          - (parseTimeToMinutes(entries[0].hora) || 0),
+      ) * 60,
+    });
+  };
+
   for (const [groupKey, items] of Object.entries(byDay)) {
     let current: typeof items = [];
     for (const item of items) {
       const currMinutes = parseTimeToMinutes(item.hora);
       const lastMinutes = current.length ? parseTimeToMinutes(current[current.length - 1].hora) : null;
       if (current.length === 0 || currMinutes == null || lastMinutes == null || (currMinutes - lastMinutes) > 1) {
-        if (current.length > 1) {
-          const [funcionarioNome, date] = groupKey.split('::');
-          grouped.push({
-            key: `${groupKey}:${current[0].hora}`,
-            date,
-            funcionarioNome,
-            horarioBase: current[0].hora,
-            ids: current.map((entry) => entry.id),
-            repeticoes: current.length,
-            diferencaSegundos: Math.max(0, (parseTimeToMinutes(current[current.length - 1].hora) || 0) - (parseTimeToMinutes(current[0].hora) || 0)) * 60,
-          });
-        }
+        addCandidate(groupKey, current);
         current = [item];
       } else {
         current.push(item);
       }
     }
-    if (current.length > 1) {
-      const [funcionarioNome, date] = groupKey.split('::');
-      grouped.push({
-        key: `${groupKey}:${current[0].hora}`,
-        date,
-        funcionarioNome,
-        horarioBase: current[0].hora,
-        ids: current.map((entry) => entry.id),
-        repeticoes: current.length,
-        diferencaSegundos: Math.max(0, (parseTimeToMinutes(current[current.length - 1].hora) || 0) - (parseTimeToMinutes(current[0].hora) || 0)) * 60,
-      });
-    }
+    addCandidate(groupKey, current);
   }
 
   duplicateCandidates.value = grouped;
@@ -584,29 +589,52 @@ function localizarDuplicidades() {
 }
 
 async function excluirDuplicidadesSelecionadas() {
-  const ids = duplicateCandidates.value
-    .filter((item) => duplicateSelection[item.key])
-    .flatMap((item) => item.ids.slice(1));
-  if (!ids.length) {
-    message.value = 'Nenhuma duplicidade selecionada para exclusão.';
+  const candidates = duplicateCandidates.value.filter((item) => duplicateSelection[item.key]);
+  const total = candidates.reduce((sum, item) => sum + item.duplicateIds.length, 0);
+  if (!total) {
+    message.value = 'Nenhuma duplicidade selecionada para tratamento.';
     showSplashInfo(message.value);
     return;
   }
-  if (!confirm(`Excluir ${ids.length} batida(s) duplicada(s)/muito próxima(s)?`)) return;
+  if (!confirm(`Marcar ${total} batida(s) como duplicidade? Os registros serão ocultados, mas permanecerão auditáveis e poderão ser reativados.`)) return;
 
   duplicateBusy.value = true;
   error.value = '';
   message.value = '';
   try {
-    for (const id of ids) {
-      await deleteBatida(id);
+    for (const candidate of candidates) {
+      for (const id of candidate.duplicateIds) {
+        await markBatidaDuplicate(
+          id,
+          candidate.principalId,
+          `Duplicidade confirmada no cartão de ponto; principal ${candidate.principalId}.`,
+        );
+      }
     }
-    message.value = `${ids.length} batida(s) removida(s) com sucesso.`;
+    message.value = `${total} batida(s) marcadas como duplicidade, sem exclusão física.`;
     showSplashSuccess(message.value);
     await carregarCartao();
     localizarDuplicidades();
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Falha ao excluir batidas duplicadas.';
+    error.value = err instanceof Error ? err.message : 'Falha ao tratar batidas duplicadas.';
+    showSplashError(error.value);
+  } finally {
+    duplicateBusy.value = false;
+  }
+}
+
+async function reativarBatidaDuplicada(row: GenericRecord) {
+  if (!row.id || !confirm('Reativar esta batida? Ela voltará aos cálculos e relatórios do cartão.')) return;
+  duplicateBusy.value = true;
+  error.value = '';
+  try {
+    await reactivateBatida(Number(row.id), 'Reativação solicitada na guia Exclusão do cartão de ponto.');
+    message.value = 'Batida reativada e reincluída nos cálculos.';
+    showSplashSuccess(message.value);
+    await carregarCartao();
+    localizarDuplicidades();
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : 'Falha ao reativar a batida.';
     showSplashError(error.value);
   } finally {
     duplicateBusy.value = false;
@@ -643,6 +671,12 @@ async function commitGridCell(date: string, slotIndex: number) {
   const key = slot.key;
   const input = normalizeHourInput(gridEditor[key] || '');
   const previous = slot.record ? String(slot.record.hora || '').slice(0, 5) : '';
+
+  if (slot.record && isProtectedPunch(slot.record) && input !== previous) {
+    error.value = 'Marcações oficiais AFD/REP/Connector não podem ser alteradas. Use a guia Exclusão para tratar uma duplicidade sem apagar o registro.';
+    gridEditor[key] = previous;
+    return;
+  }
 
   if (!input) {
     if (slot.record?.id) {
@@ -701,6 +735,11 @@ async function commitGridCell(date: string, slotIndex: number) {
 async function clearGridCell(date: string, slotIndex: number) {
   const slot = getGridSlot(date, slotIndex);
   if (!slot) return;
+  if (slot.record && isProtectedPunch(slot.record)) {
+    error.value = 'Esta marcação é oficial e imutável. Use a guia Exclusão para classificá-la como duplicidade.';
+    gridEditor[slot.key] = String(slot.record.hora || '').slice(0, 5);
+    return;
+  }
   if (slot.record?.id) {
     await deleteBatida(Number(slot.record.id));
     gridStatus.value = `Batida removida em ${date} (${slot.tipo}).`;
@@ -833,12 +872,19 @@ async function carregarCartao() {
   error.value = "";
   message.value = "";
   try {
-    const [rowsBatida, rowsOcorrencia, apuracao] = await Promise.all([
+    const [rowsBatida, rowsBatidaComInativas, rowsOcorrencia, apuracao] = await Promise.all([
       listBatidas({
         empresaId: session.activeCompanyId ?? null,
         funcionarioId: funcionarioIdNumero.value,
         dataInicial: filtros.dataInicial || null,
         dataFinal: filtros.dataFinal || null,
+      }),
+      listBatidas({
+        empresaId: session.activeCompanyId ?? null,
+        funcionarioId: funcionarioIdNumero.value,
+        dataInicial: filtros.dataInicial || null,
+        dataFinal: filtros.dataFinal || null,
+        incluirInativas: true,
       }),
       listOcorrencias({
         empresaId: session.activeCompanyId ?? null,
@@ -856,6 +902,7 @@ async function carregarCartao() {
       }),
     ]);
     batidas.value = rowsBatida;
+    batidasInativas.value = rowsBatidaComInativas.filter((row) => Number(row.ativo ?? 1) === 0);
     ocorrencias.value = rowsOcorrencia;
     syncGridEditorFromData();
     apuracaoResumo.value = apuracao;
@@ -866,6 +913,7 @@ async function carregarCartao() {
     }
   } catch (err) {
     batidas.value = [];
+    batidasInativas.value = [];
     ocorrencias.value = [];
     apuracaoResumo.value = null;
     error.value = err instanceof Error ? err.message : "Falha ao carregar o cartão de ponto.";
@@ -1453,6 +1501,11 @@ async function salvarOcorrencia() {
 }
 
 function editarBatida(row: GenericRecord) {
+  if (isProtectedPunch(row)) {
+    message.value = 'Marcação oficial protegida: os dados AFD/REP/Connector são somente leitura.';
+    showSplashInfo(message.value);
+    return;
+  }
   batidaModalOpen.value = true;
   batidaForm.id = Number(row.id);
   batidaForm.funcionario_id = String(row.funcionario_id || filtros.funcionarioId || "");
@@ -1485,6 +1538,11 @@ function addBatidaFromGrid(referenceDate?: string) {
 }
 
 async function removerBatida(row: GenericRecord) {
+  if (isProtectedPunch(row)) {
+    error.value = 'Marcações oficiais não podem ser excluídas. Classifique a repetição como duplicidade na guia Exclusão.';
+    showSplashError(error.value);
+    return;
+  }
   if (!row.id || !confirm("Remover esta batida?")) return;
   try {
     await deleteBatida(Number(row.id));
@@ -1498,6 +1556,11 @@ async function removerBatida(row: GenericRecord) {
 }
 
 async function moverBatida(row: GenericRecord, direction: -1 | 1) {
+  if (isProtectedPunch(row)) {
+    error.value = 'Marcações oficiais não podem ter o horário ajustado.';
+    showSplashError(error.value);
+    return;
+  }
   const currentMinutes = parseTimeToMinutes(String(row.hora || ""));
   if (currentMinutes == null) return;
   const nextMinutes = Math.min(23 * 60 + 59, Math.max(0, currentMinutes + direction));
@@ -1641,6 +1704,22 @@ onMounted(async () => {
       </div>
     </div>
 
+    <div class="card table-wrap cartao-preview-card" :class="{ expanded: previewExpanded }">
+      <div class="vb6-group-header">
+        <div>
+          <h3>Pré-visualização fiel à impressão</h3>
+          <div class="muted-text">A prévia e a emissão final usam exatamente o mesmo conteúdo do relatório.</div>
+        </div>
+        <div class="actions compact-actions">
+          <button class="secondary" type="button" @click="previewExpanded = !previewExpanded">
+            {{ previewExpanded ? 'Recolher prévia' : 'Ampliar prévia' }}
+          </button>
+          <button class="primary" type="button" @click="imprimirOuSalvarPdf">Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+      <iframe class="report-frame" title="Pré-visualização do cartão de ponto" :srcdoc="reportHtml"></iframe>
+    </div>
+
     <div class="cartao-vb6-shell" :class="{ 'sidebar-collapsed': sidePanelCollapsed }">
       <div class="card cartao-vb6-grid-panel table-wrap">
         <div class="vb6-group-header">
@@ -1676,7 +1755,8 @@ onMounted(async () => {
                   class="grid-time-input"
                   maxlength="5"
                   placeholder="--:--"
-                  :disabled="gridSaving[slot.key] || !funcionarioIdNumero"
+                  :disabled="gridSaving[slot.key] || !funcionarioIdNumero || isProtectedPunch(slot.record)"
+                  :title="isProtectedPunch(slot.record) ? 'Marcação oficial protegida contra alteração' : 'Enter salva; Delete remove a marcação manual'"
                   @focus="selectDay(row.isoDate)"
                   @blur="commitGridCell(row.isoDate, slot.slotIndex)"
                   @keydown="onGridCellKeydown($event, row.isoDate, slot.slotIndex)"
@@ -1721,12 +1801,16 @@ onMounted(async () => {
                 <thead><tr><th>Data</th><th>Hora</th><th>Tipo</th><th>Origem</th><th>Just.</th><th>Ação</th></tr></thead>
                 <tbody>
                   <tr v-for="row in batidasSelecionadas" :key="String(row.id)" :class="rowBadgeClass(row)">
-                    <td>{{ row.data_referencia }}</td><td>{{ row.hora }}</td><td>{{ row.tipo }}</td><td>{{ row.origem || '-' }}</td><td>{{ row.justificativa_nome || '-' }}</td>
+                    <td>{{ row.data_referencia }}</td><td>{{ row.hora }}</td><td>{{ row.tipo }}</td>
+                    <td>
+                      <span v-if="isProtectedPunch(row)" class="official-punch-badge" title="Registro oficial imutável">Protegida</span>
+                      <span v-else>{{ row.origem || '-' }}</span>
+                    </td><td>{{ row.justificativa_nome || '-' }}</td>
                     <td><div class="actions compact-actions">
-                      <button class="secondary icon-btn" title="Editar" @click="editarBatida(row)">✎</button>
-                      <button class="secondary action-mini" @click="moverBatida(row, -1)">-1m</button>
-                      <button class="secondary action-mini" @click="moverBatida(row, 1)">+1m</button>
-                      <button class="danger icon-btn" title="Remover" @click="removerBatida(row)">🗑</button>
+                      <button class="secondary icon-btn" title="Editar" :disabled="isProtectedPunch(row)" @click="editarBatida(row)">✎</button>
+                      <button class="secondary action-mini" :disabled="isProtectedPunch(row)" @click="moverBatida(row, -1)">-1m</button>
+                      <button class="secondary action-mini" :disabled="isProtectedPunch(row)" @click="moverBatida(row, 1)">+1m</button>
+                      <button class="danger icon-btn" title="Remover marcação manual" :disabled="isProtectedPunch(row)" @click="removerBatida(row)">🗑</button>
                     </div></td>
                   </tr>
                   <tr v-if="!batidasSelecionadas.length"><td colspan="6" class="empty-cell">Nenhuma marcação encontrada para o dia selecionado.</td></tr>
@@ -1792,21 +1876,42 @@ onMounted(async () => {
 
             <div v-else class="vb6-group">
               <div class="vb6-group-header">
-                <h3>Exclusão assistida</h3>
+                <div>
+                  <h3>Duplicidades e reativação</h3>
+                  <div class="muted-text">Nenhuma marcação é apagada: a duplicidade fica oculta e auditável.</div>
+                </div>
                 <div class="actions compact-actions">
                   <button class="secondary" :disabled="duplicateBusy" @click="localizarDuplicidades">Localizar</button>
-                  <button class="danger" :disabled="duplicateBusy" @click="excluirDuplicidadesSelecionadas">Excluir</button>
+                  <button class="primary" :disabled="duplicateBusy" @click="excluirDuplicidadesSelecionadas">Marcar duplicidade</button>
                 </div>
               </div>
               <div class="compact-table-wrap">
                 <table class="quick-table table-compact">
-                  <thead><tr><th></th><th>Data</th><th>Hora</th><th>Rep.</th><th>IDs</th></tr></thead>
+                  <thead><tr><th></th><th>Data</th><th>Hora</th><th>Rep.</th><th>Principal</th><th>Duplicadas</th></tr></thead>
                   <tbody>
                     <tr v-for="item in duplicateCandidates" :key="item.key" @click="selectDay(item.date)">
                       <td><input v-model="duplicateSelection[item.key]" type="checkbox" /></td>
-                      <td>{{ item.date }}</td><td>{{ item.horarioBase }}</td><td>{{ item.repeticoes }}</td><td>{{ item.ids.join(', ') }}</td>
+                      <td>{{ item.date }}</td><td>{{ item.horarioBase }}</td><td>{{ item.repeticoes }}</td>
+                      <td>#{{ item.principalId }} · {{ item.principalOrigem }}</td><td>{{ item.duplicateIds.map((id) => `#${id}`).join(', ') }}</td>
                     </tr>
-                    <tr v-if="!duplicateCandidates.length"><td colspan="5" class="empty-cell">Nenhuma duplicidade localizada para o filtro atual.</td></tr>
+                    <tr v-if="!duplicateCandidates.length"><td colspan="6" class="empty-cell">Nenhuma duplicidade localizada para o filtro atual.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="vb6-group-header" style="margin-top: 14px">
+                <h3>Batidas ocultadas</h3>
+                <span class="inactive-punch-badge">{{ batidasInativas.length }} recuperável(is)</span>
+              </div>
+              <div class="compact-table-wrap">
+                <table class="quick-table table-compact">
+                  <thead><tr><th>Data</th><th>Hora</th><th>Origem</th><th>Principal</th><th>Ação</th></tr></thead>
+                  <tbody>
+                    <tr v-for="row in batidasInativas" :key="`inactive-${row.id}`">
+                      <td>{{ row.data_referencia }}</td><td>{{ row.hora }}</td><td>{{ row.origem || '-' }}</td>
+                      <td>{{ row.duplicada_de_id ? `#${row.duplicada_de_id}` : '-' }}</td>
+                      <td><button class="secondary" :disabled="duplicateBusy" @click="reativarBatidaDuplicada(row)">Reativar</button></td>
+                    </tr>
+                    <tr v-if="!batidasInativas.length"><td colspan="5" class="empty-cell">Nenhuma batida marcada como duplicidade.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1817,13 +1922,6 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div class="card table-wrap card-tight">
-      <div class="vb6-group-header">
-        <h3>Pré-visualização do relatório</h3>
-        <div class="muted-text">Mantida a prévia do cartão para conferência e emissão final.</div>
-      </div>
-      <iframe class="report-frame" :srcdoc="reportHtml"></iframe>
-    </div>
     <AppModal
       :open="batidaModalOpen"
       :title="batidaForm.id ? 'Editar marcação' : 'Nova marcação'"

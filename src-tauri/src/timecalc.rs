@@ -107,7 +107,7 @@ fn find_flex_swap_candidate(
         }
         let count: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
+                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND COALESCE(ativo, 1) = 1",
                 params![employee_id, candidate_date.format("%Y-%m-%d").to_string()],
                 |row| row.get(0),
             )
@@ -165,7 +165,7 @@ fn week_punch_counts(
 ) -> Result<HashMap<String, i64>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT data_referencia, COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia >= ?2 AND data_referencia <= ?3 GROUP BY data_referencia",
+            "SELECT data_referencia, COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia >= ?2 AND data_referencia <= ?3 AND COALESCE(ativo, 1) = 1 GROUP BY data_referencia",
         )
         .map_err(|err| format!("Falha ao preparar leitura semanal de batidas: {err}"))?;
     let rows = stmt
@@ -603,7 +603,7 @@ pub fn resolve_schedule_for_employee(
 
         let has_punches_today: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2",
+                "SELECT COUNT(*) FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND COALESCE(ativo, 1) = 1",
                 params![employee_id, date_iso],
                 |row| row.get(0),
             )

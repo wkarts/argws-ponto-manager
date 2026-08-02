@@ -3,6 +3,7 @@ use crate::{
     commands::afd::afd_import_file,
     db::{open_connection, write_audit},
     models::AfdImportRequest,
+    punch_integrity::{marcar_duplicidade, origem_oficial},
     services::conector_client::ConectorClient,
 };
 use chrono::Utc;
@@ -426,16 +427,31 @@ pub async fn conector_coletar_batidas(
             continue;
         }
 
-        let duplicada = conn
+        let duplicada: Option<(i64, String)> = conn
             .query_row(
-                "SELECT id FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND hora = ?3 AND COALESCE(nsr,'') = COALESCE(?4,'') LIMIT 1",
-                params![funcionario_id, data_referencia, hora, nsr.clone()],
-                |row| row.get::<_, i64>(0),
+                "SELECT id, COALESCE(origem, '')
+                   FROM batidas
+                  WHERE funcionario_id = ?1
+                    AND data_referencia = ?2
+                    AND hora = ?3
+                    AND COALESCE(ativo, 1) = 1
+                  ORDER BY CASE
+                      WHEN LOWER(COALESCE(origem, '')) LIKE '%afd%'
+                        OR LOWER(COALESCE(origem, '')) LIKE '%conector%'
+                        OR LOWER(COALESCE(origem, '')) LIKE '%rep%'
+                      THEN 0 ELSE 1
+                  END, id ASC
+                  LIMIT 1",
+                params![funcionario_id, data_referencia, hora],
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()
             .map_err(|err| format!("Falha ao verificar duplicidade de batida: {err}"))?;
 
-        if duplicada.is_some() {
+        if duplicada
+            .as_ref()
+            .is_some_and(|(_, origin)| origem_oficial(origin))
+        {
             total_duplicadas += 1;
             continue;
         }
@@ -454,6 +470,18 @@ pub async fn conector_coletar_batidas(
             ],
         )
         .map_err(|err| format!("Falha ao inserir batida via conector: {err}"))?;
+        let imported_id = conn.last_insert_rowid();
+        if let Some((manual_id, manual_origin)) = duplicada.as_ref() {
+            if !origem_oficial(manual_origin) {
+                marcar_duplicidade(
+                    &conn,
+                    *manual_id,
+                    imported_id,
+                    "Marcação manual ocultada porque uma marcação oficial do Connector idêntica foi coletada.",
+                )?;
+                total_duplicadas += 1;
+            }
+        }
         total_importadas += 1;
 
         if let Some(n) = item.get("nsr").and_then(Value::as_i64) {
