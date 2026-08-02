@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
@@ -122,6 +123,13 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  filters.funcionarioId = "";
+  filters.dataInicial = "";
+  filters.dataFinal = "";
+  await load();
+}
+
 function editRow(row: Record<string, unknown>) {
   form.id = normalizeFormValue(row.id, undefined);
   form.funcionario_id = normalizeFormValue(row.funcionario_id, "");
@@ -207,34 +215,27 @@ onMounted(async () => {
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="grid columns-1">
-      <div class="card">
-        <h3 style="margin-top: 0;">Filtros</h3>
-        <div class="grid">
-          <div class="field">
-            <label>Funcionário</label>
-            <select v-model="filters.funcionarioId">
-              <option value="">Todos</option>
-              <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label>Data inicial</label>
-            <input v-model="filters.dataInicial" type="date" />
-          </div>
-
-          <div class="field">
-            <label>Data final</label>
-            <input v-model="filters.dataFinal" type="date" />
-          </div>
-
-          <div class="actions">
-            <button class="secondary" @click="load">Filtrar</button>
-          </div>
-        </div>
+    <BaseFilterBar description="Refine as marcações por colaborador e período.">
+      <div class="field filter-field--wide">
+        <label>Funcionário</label>
+        <select v-model="filters.funcionarioId">
+          <option value="">Todos</option>
+          <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
       </div>
-    </div>
+      <div class="field filter-field--date">
+        <label>Data inicial</label>
+        <input v-model="filters.dataInicial" type="date" />
+      </div>
+      <div class="field filter-field--date">
+        <label>Data final</label>
+        <input v-model="filters.dataFinal" type="date" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" @click="load">Aplicar filtros</button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card">
       <h3 style="margin-top: 0;">Listagem</h3>

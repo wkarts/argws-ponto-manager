@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import {
   comboJornadas,
   listEmployees,
@@ -81,6 +82,14 @@ async function processar() {
   }
 }
 
+async function clearFilters() {
+  filters.funcionarioId = "";
+  filters.dataInicial = "";
+  filters.dataFinal = "";
+  result.value = null;
+  await load();
+}
+
 async function salvarAjuste() {
   saving.value = true;
   error.value = "";
@@ -117,28 +126,28 @@ onMounted(async () => {
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card grid page-gap">
-      <div class="section-title">Processar saldo por período</div>
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <div class="grid page-gap">
+      <BaseFilterBar title="Processar saldo por período" description="Defina o recorte usado para consultar e recalcular o banco de horas." :loading="loading || processing">
+        <div class="field filter-field--wide">
           <label>Funcionário</label>
           <select v-model="filters.funcionarioId">
             <option value="">Todos</option>
             <option v-for="item in employeeOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--date">
           <label>Data inicial</label>
           <input v-model="filters.dataInicial" type="date" />
         </div>
-        <div class="field">
+        <div class="field filter-field--date">
           <label>Data final</label>
           <input v-model="filters.dataFinal" type="date" />
         </div>
-        <div class="actions align-end">
-          <button class="primary" :disabled="processing" @click="processar">{{ processing ? 'Processando...' : 'Processar período' }}</button>
-        </div>
-      </div>
+        <template #actions>
+          <button class="secondary" type="button" :disabled="loading || processing" @click="clearFilters">Limpar filtros</button>
+          <button class="primary" type="button" :disabled="processing" @click="processar">{{ processing ? 'Processando...' : 'Processar período' }}</button>
+        </template>
+      </BaseFilterBar>
 
       <div v-if="result" class="kpis">
         <div class="kpi"><strong>Dias processados</strong><span>{{ result.dias_processados }}</span></div>

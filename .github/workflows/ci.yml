@@ -170,6 +170,9 @@ jobs:
       - name: Validate time card edition and preview contract
         run: npm run ci:cartao-view
 
+      - name: Validate responsive filter bars
+        run: npm run ci:filters
+
       - name: Typecheck
         run: npm run typecheck
 

@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import {
   comboJornadas,
   comboList,
@@ -133,6 +134,13 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+async function clearFilters() {
+  search.value = "";
+  filterEmpresaId.value = null;
+  onlyActive.value = true;
+  await load();
 }
 
 async function editRow(id: number) {
@@ -275,6 +283,27 @@ onMounted(async () => {
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="importMessage" class="alert success">{{ importMessage }}</div>
 
+    <BaseFilterBar description="Localize colaboradores por identificação, empresa ou situação." :loading="loading">
+      <div class="field filter-field--search">
+        <label>Buscar</label>
+        <input v-model="search" type="text" placeholder="Nome, matrícula ou CPF" @keyup.enter="load" />
+      </div>
+      <div class="field filter-field--wide">
+        <label>Empresa</label>
+        <select v-model="filterEmpresaId">
+          <option :value="null">Todas</option>
+          <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
+      </div>
+      <div class="filter-field--toggle">
+        <AppSwitch v-model="onlyActive" label="Somente ativos" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Aplicar filtros" }}</button>
+      </template>
+    </BaseFilterBar>
+
     <div class="card grid page-gap">
       <div class="toolbar">
         <div>
@@ -287,19 +316,6 @@ onMounted(async () => {
             <input type="file" accept=".csv,text/csv" @change="handleCsvFile" />
           </div>
           <button class="secondary" :disabled="importingCsv" @click="importCsv">{{ importingCsv ? 'Importando...' : 'Importar planilha' }}</button>
-          <div class="field min-field">
-            <label>Buscar</label>
-            <input v-model="search" type="text" placeholder="Nome, matrícula ou CPF" @keyup.enter="load" />
-          </div>
-          <div class="field min-field">
-            <label>Empresa</label>
-            <select v-model="filterEmpresaId">
-              <option :value="null">Todas</option>
-              <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-            </select>
-          </div>
-          <AppSwitch v-model="onlyActive" label="Somente ativos" />
-          <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
         </div>
       </div>
 

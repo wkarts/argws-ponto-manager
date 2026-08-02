@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
 import BasePage from "../components/base/BasePage.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import {
   comboList,
@@ -130,6 +131,13 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+async function clearFilters() {
+  filterEmpresaId.value = null;
+  search.value = "";
+  onlyActive.value = true;
+  await load();
 }
 
 async function loadPolicy() {
@@ -281,26 +289,32 @@ onMounted(async () => {
         </div>
       </div>
 
+      <BaseFilterBar description="Consulte usuários por empresa, identificação ou situação." :loading="loading">
+        <div class="field filter-field--wide">
+          <label>Empresa</label>
+          <select v-model="filterEmpresaId">
+            <option :value="null">Todas</option>
+            <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+        </div>
+        <div class="field filter-field--search">
+          <label>Buscar</label>
+          <input v-model="search" type="text" placeholder="Nome, login ou e-mail" @keyup.enter="load" />
+        </div>
+        <div class="filter-field--toggle">
+          <AppSwitch v-model="onlyActive" label="Somente ativos" />
+        </div>
+        <template #actions>
+          <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+          <button class="primary" type="button" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Aplicar filtros" }}</button>
+        </template>
+      </BaseFilterBar>
+
       <div class="card grid page-gap">
         <div class="toolbar">
           <div>
             <h3>Usuários cadastrados</h3>
             <div class="muted-text">Controle de login, sessão e vínculo de perfis por empresa.</div>
-          </div>
-          <div class="actions align-end">
-            <div class="field min-field">
-              <label>Empresa</label>
-              <select v-model="filterEmpresaId">
-                <option :value="null">Todas</option>
-                <option v-for="item in companyOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-              </select>
-            </div>
-            <div class="field min-field">
-              <label>Buscar</label>
-              <input v-model="search" type="text" placeholder="Nome, login ou e-mail" @keyup.enter="load" />
-            </div>
-            <AppSwitch v-model="onlyActive" label="Somente ativos" />
-            <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
           </div>
         </div>
 

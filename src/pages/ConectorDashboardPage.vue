@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { formatDateTimeLocal } from "../services/format";
 import {
   baixarAfdConector,
@@ -47,6 +48,10 @@ async function carregar() {
   } finally {
     loading.value = false;
   }
+}
+
+function clearFilters() {
+  filtros.value.somenteConector = false;
 }
 
 async function testar(equipamentoId: number) {
@@ -135,16 +140,25 @@ onMounted(carregar);
       <div class="card metric-card"><span>Última coleta</span><strong>{{ formatDate(String(totais.ultima_coleta || "")) }}</strong></div>
     </div>
 
+    <BaseFilterBar title="Filtros de equipamentos" description="Controle quais equipamentos participam da listagem operacional." density="compact" :loading="loading">
+      <div class="filter-field--toggle">
+        <label class="inline-check">
+          <input v-model="filtros.somenteConector" type="checkbox" />
+          Somente configurados no conector
+        </label>
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="carregar">{{ loading ? 'Atualizando...' : 'Atualizar lista' }}</button>
+      </template>
+    </BaseFilterBar>
+
     <div class="card grid page-gap">
       <div class="toolbar compact-toolbar">
         <div>
           <h3>Equipamentos</h3>
           <div class="muted-text">Use a coleta incremental para continuar a partir do último NSR persistido no cadastro do REP.</div>
         </div>
-        <label class="inline-check">
-          <input v-model="filtros.somenteConector" type="checkbox" />
-          Somente configurados no conector
-        </label>
       </div>
 
       <div class="table-wrap">

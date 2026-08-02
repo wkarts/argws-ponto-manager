@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import BasePage from "../components/base/BasePage.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import { entityConfigs, type EntityField } from "../config/entities";
 import { comboList, deleteEntity, listEntity, saveEntity, type ComboOption } from "../services/crud";
@@ -149,6 +150,11 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  search.value = "";
+  await load();
+}
+
 function editRow(row: Record<string, unknown>) {
   Object.keys(form).forEach((key) => delete form[key]);
   for (const field of config.value.fields) {
@@ -234,12 +240,21 @@ watch(
 <template>
   <BasePage :title="config.title" subtitle="Cadastro local padronizado com edição e inclusão em modal.">
     <template #actions>
-      <input v-model="search" class="titlebar-search" placeholder="Pesquisar..." @keyup.enter="load" />
-      <button class="secondary" @click="load">Buscar</button>
       <button v-if="canCreate()" class="primary" @click="openNewModal">Novo</button>
     </template>
 
     <div v-if="error" class="alert error">{{ error }}</div>
+
+    <BaseFilterBar description="Pesquise registros pelos campos principais do cadastro." :loading="loading">
+      <div class="field filter-field--search">
+        <label>Buscar</label>
+        <input v-model="search" type="text" placeholder="Pesquisar..." @keyup.enter="load" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">Aplicar filtros</button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card">
       <h3 style="margin-top: 0;">Listagem</h3>

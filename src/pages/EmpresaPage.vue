@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
 import BasePage from "../components/base/BasePage.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import {
   deleteCompany,
@@ -161,6 +162,12 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  search.value = "";
+  onlyActive.value = false;
+  await load();
+}
+
 async function editRow(id: number) {
   error.value = "";
   try {
@@ -216,20 +223,24 @@ onMounted(load);
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
+    <BaseFilterBar description="Consulte empresas por nome, documento, cidade ou situação." :loading="loading">
+      <div class="field filter-field--search">
+        <label>Buscar</label>
+        <input v-model="search" type="text" placeholder="Nome, documento ou cidade" @keyup.enter="load" />
+      </div>
+      <div class="filter-field--toggle">
+        <AppSwitch v-model="onlyActive" label="Somente ativas" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Aplicar filtros" }}</button>
+      </template>
+    </BaseFilterBar>
+
     <div class="card grid page-gap">
       <div class="toolbar">
         <div>
           <h3>Empresas cadastradas</h3>
-        </div>
-        <div class="actions align-end">
-          <div class="field min-field">
-            <label>Buscar</label>
-            <input v-model="search" type="text" placeholder="Nome, documento ou cidade" @keyup.enter="load" />
-          </div>
-          <AppSwitch v-model="onlyActive" label="Somente ativas" />
-          <button class="secondary" :disabled="loading" @click="load">
-            {{ loading ? "Carregando..." : "Atualizar" }}
-          </button>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { comboList, downloadGeneratedReport, listGeneratedReports, listUsers, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -32,6 +33,15 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+async function clearFilters() {
+  filters.competencia = "";
+  filters.funcionarioNome = "";
+  filters.tipoRelatorio = "";
+  filters.formato = "";
+  filters.usuarioLogin = "";
+  await load();
 }
 
 function base64ToBlob(base64: string, mimeType: string): Blob {
@@ -81,9 +91,8 @@ onMounted(async () => {
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card">
-      <div class="grid columns-6 mobile-columns-1">
-        <div class="field"><label>Competência</label><input v-model="filters.competencia" type="text" placeholder="02/2026" /></div>
+    <BaseFilterBar description="Localize arquivos por competência, colaborador, tipo, formato ou usuário." collapsible :loading="loading">
+        <div class="field filter-field--compact"><label>Competência</label><input v-model="filters.competencia" type="text" placeholder="02/2026" /></div>
         <div class="field">
           <label>Colaborador</label>
           <select v-model="filters.funcionarioNome">
@@ -91,14 +100,14 @@ onMounted(async () => {
             <option v-for="f in funcionarios" :key="f.id" :value="f.label">{{ f.label }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--status">
           <label>Tipo</label>
           <select v-model="filters.tipoRelatorio">
             <option value="">Todos</option>
             <option v-for="t in tipos" :key="t" :value="t">{{ t }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--status">
           <label>Formato</label>
           <select v-model="filters.formato">
             <option value="">Todos</option>
@@ -112,9 +121,11 @@ onMounted(async () => {
             <option v-for="u in users" :key="String(u.id)" :value="String(u.login || '')">{{ u.nome }} ({{ u.login }})</option>
           </select>
         </div>
-        <div class="actions align-end"><button class="primary" :disabled="loading" @click="load">Aplicar filtros</button></div>
-      </div>
-    </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">Aplicar filtros</button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card table-wrap">
       <table>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, registerGeneratedReport, type ApuracaoResumo } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -20,6 +21,17 @@ const message = ref("");
 const error = ref("");
 const exportFormat = ref<"html" | "excel" | "pdf">("pdf");
 const empresaResponsavel = ref("Responsável / RH");
+
+function clearFilters() {
+  const today = new Date();
+  reportType.value = "apuracao";
+  funcionarioId.value = employees.value[0]?.id ?? null;
+  dataInicial.value = today.toISOString().slice(0, 10);
+  dataFinal.value = today.toISOString().slice(0, 10);
+  ano.value = today.getFullYear();
+  mes.value = today.getMonth() + 1;
+  previewHtml.value = "";
+}
 
 const previewSrc = computed(() => (previewHtml.value ? `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml.value)}` : ""));
 const selectedEmployeeName = computed(() => employees.value.find((e) => e.id === funcionarioId.value)?.nome || null);
@@ -187,34 +199,33 @@ onMounted(loadEmployeesForCompany);
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <BaseFilterBar title="Parâmetros da prévia" description="Selecione o relatório, o colaborador e o período de emissão.">
+        <div class="field filter-field--status">
           <label>Relatório</label>
           <select v-model="reportType">
             <option value="apuracao">Apuração do período</option>
             <option value="fechamento">Fechamento mensal</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--wide">
           <label>Funcionário</label>
           <select v-model="funcionarioId">
             <option v-for="item in employees" :key="String(item.id)" :value="Number(item.id)">{{ item.nome }}</option>
           </select>
         </div>
         <template v-if="reportType === 'apuracao'">
-          <div class="field"><label>Data inicial</label><input v-model="dataInicial" type="date" /></div>
-          <div class="field"><label>Data final</label><input v-model="dataFinal" type="date" /></div>
+          <div class="field filter-field--date"><label>Data inicial</label><input v-model="dataInicial" type="date" /></div>
+          <div class="field filter-field--date"><label>Data final</label><input v-model="dataFinal" type="date" /></div>
         </template>
         <template v-else>
-          <div class="field"><label>Ano</label><input v-model="ano" type="number" min="2020" max="2100" /></div>
-          <div class="field"><label>Mês</label><input v-model="mes" type="number" min="1" max="12" /></div>
+          <div class="field filter-field--compact"><label>Ano</label><input v-model="ano" type="number" min="2020" max="2100" /></div>
+          <div class="field filter-field--compact"><label>Mês</label><input v-model="mes" type="number" min="1" max="12" /></div>
         </template>
-      </div>
-      <div class="actions">
-        <button class="primary" @click="generate">Gerar prévia</button>
-      </div>
-    </div>
+      <template #actions>
+        <button class="secondary" type="button" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" @click="generate">Gerar prévia</button>
+      </template>
+    </BaseFilterBar>
 
     <iframe v-if="previewSrc" class="report-frame" :src="previewSrc" title="Prévia do relatório" />
   </div>
