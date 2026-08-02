@@ -1,3 +1,10 @@
+## [1.24.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.3...v1.24.4) (2026-08-02)
+
+
+### Bug Fixes
+
+* **database:** migra banco legado para estrutura 1.24 ([23ae2cb](https://github.com/wkarts/argws-ponto-manager/commit/23ae2cbc9c8dcaa07ea0843297e4a685172b7e87))
+
 ## [1.24.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.2...v1.24.3) (2026-08-02)
 
 

@@ -13,7 +13,7 @@ export const projectConfig = {
     windowTitle: "Ponto Manager",
     subtitle: "ARGWS • Tauri • Web • PWA • Rust",
     description: "Sistema corporativo de gestão, tratamento, apuração e controle de ponto",
-    version: "1.24.3",
+    version: "1.24.4",
     mode: "desktop" as RuntimeMode,
     identifier: "br.com.argws.pontomanager",
     developer: "ARGWS",
