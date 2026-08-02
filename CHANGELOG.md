@@ -1,3 +1,10 @@
+## [1.26.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.3...v1.26.4) (2026-08-02)
+
+
+### Bug Fixes
+
+* **cartao:** restaura layout classico do relatorio padrao ([fe5f709](https://github.com/wkarts/argws-ponto-manager/commit/fe5f7096c884183acab4054a83ce16fdea2f71ce))
+
 ## [1.26.3](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.2...v1.26.3) (2026-08-02)
 
 
