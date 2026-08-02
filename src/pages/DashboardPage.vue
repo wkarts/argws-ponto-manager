@@ -176,7 +176,7 @@ onMounted(load);
       <DashboardMetricCard title="Ajustes pendentes" :value="Number(stats.batidas_pendentes_validacao || 0)" subtitle="Marcações manuais sem validação" icon="clipboardCheck" :status="Number(stats.batidas_pendentes_validacao || 0) > 0 ? 'warning' : 'success'" />
     </section>
 
-    <section v-if="dashboardWidgets.operational" class="dashboard-operational-grid">
+    <section v-if="dashboardWidgets.operational" class="dashboard-operational-grid dashboard-card-grid">
       <RouterLink v-for="group in operationalGroups" :key="group.title" :to="group.route" class="card dashboard-operation-card">
         <header>
           <span class="dashboard-operation-icon"><IconSymbol :name="group.icon" :size="18" /></span>
@@ -189,7 +189,7 @@ onMounted(load);
       </RouterLink>
     </section>
 
-    <section class="dashboard-grid-main">
+    <section class="dashboard-grid-main dashboard-card-grid">
       <DashboardHealthPanel
         v-if="dashboardWidgets.health"
         :items="[

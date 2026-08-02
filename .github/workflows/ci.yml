@@ -161,6 +161,9 @@ jobs:
       - name: Validate sidebar navigation integrity
         run: npm run ci:navigation
 
+      - name: Validate responsive dashboard cards
+        run: npm run ci:dashboard
+
       - name: Typecheck
         run: npm run typecheck
 
