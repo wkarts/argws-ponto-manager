@@ -440,7 +440,7 @@ pub fn afd_import_file(
                     "Marcação ignorada porque foi removida/alterada manualmente em tratamento anterior.".to_string(),
                     None,
                 )
-            } else if let Some((existing_id, existing_origin)) = duplicate
+            } else if let Some((existing_id, _)) = duplicate
                 .as_ref()
                 .filter(|(_, origin)| origem_oficial(origin))
             {
