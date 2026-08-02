@@ -46,7 +46,15 @@ const requirements = [
   ],
   [
     /@page\{size:A4 \$\{orientation\};margin:\$\{margin\}\}[\s\S]*?html,body\{width:100%;background:#fff\}/,
-    "O relatório deve preservar o CSS de impressão contínuo validado na versão 1.23.4.",
+    "O relatório deve preservar o CSS de impressão contínuo compartilhado pela prévia e pela impressão.",
+  ],
+  [
+    /cartao_ponto:\s*`[\s\S]*?<th>Dia<\/th><th>Ent\.1<\/th><th>Saí\.1<\/th><th>Ent\.2<\/th><th>Saí\.2<\/th><th>Ent\.3<\/th><th>Saí\.3<\/th><th>Normais<\/th><th>Faltas<\/th><th>Extras<\/th><th>Observações<\/th>[\s\S]*?r\.ent1[\s\S]*?r\.sai1[\s\S]*?r\.ent2[\s\S]*?r\.sai2[\s\S]*?r\.ent3[\s\S]*?r\.sai3[\s\S]*?r\.normal[\s\S]*?r\.falta[\s\S]*?r\.extra[\s\S]*?r\.ocorrencias[\s\S]*?<td colspan="7">TOTAIS<\/td>[\s\S]*?totals\.normal[\s\S]*?totals\.falta[\s\S]*?totals\.extra/,
+    "O relatório padrão deve preservar a grade clássica da versão 1.21.3/1.22.0, com seis marcações, normais, faltas, extras, observações e totais.",
+  ],
+  [
+    /const isClassicCard = modelo === "cartao_ponto"[\s\S]*?isClassicCard \? "12px"[\s\S]*?isClassicCard \? "4px 6px"[\s\S]*?isClassicCard \? "24px"[\s\S]*?isClassicCard \? "32px"[\s\S]*?isClassicCard \? "14px"/,
+    "O relatório padrão deve manter as proporções tipográficas e os espaçamentos do cartão clássico na prévia e na impressão.",
   ],
   [
     /<body>\s*<div class="head">[\s\S]*?<table>[\s\S]*?tableByModel\[filtros\.modeloRelatorio\][\s\S]*?<div class="sign">/,
@@ -86,6 +94,10 @@ for (const forbidden of ["rowsPerPageByModel", "data-page-count", "class=\"repor
   }
 }
 
+if (source.includes("<th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th>")) {
+  throw new Error("O modelo padrão não pode voltar ao cabeçalho sintético introduzido na versão 1.23.0.");
+}
+
 const styleRequirements = [
   [/\.cartao-sticky-header\s*\{[\s\S]*?position:\s*sticky[\s\S]*?top:\s*0/, "O cabeçalho do cartão deve permanecer fixo em telas amplas."],
   [/\.cartao-vb6-grid-panel\s*\{[\s\S]*?overflow:\s*auto/, "A rolagem deve permanecer concentrada na grade operacional."],
@@ -105,4 +117,4 @@ if (/v-if="activeView/.test(documentActions)) {
   throw new Error("As ações do documento não podem desaparecer ao alternar entre edição e pré-visualização.");
 }
 
-console.log("Cartão de ponto validado: preview 1.23.4 restaurada, modos na Title Bar, cabeçalho fixo, edição rolável e relatório sincronizado.");
+console.log("Cartão de ponto validado: layout clássico restaurado, modos na Title Bar, cabeçalho fixo, edição rolável e relatório sincronizado.");

@@ -1154,32 +1154,41 @@ function isCartaoModeloPaisagem(modelo = filtros.modeloRelatorio): boolean {
 
 function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
   const isLandscape = isCartaoModeloPaisagem(modelo);
+  const isClassicCard = modelo === "cartao_ponto";
   const margin = "6mm";
   const orientation = isLandscape ? "landscape" : "portrait";
-  const bodyFontSize = isLandscape ? "8.5px" : "9px";
-  const tableFontSize = isLandscape ? "7.4px" : "8.2px";
-  const cellPadding = isLandscape ? "1.6px 2.4px" : "2px 3px";
-  const titleSize = isLandscape ? "14px" : "15px";
-  const signatureMargin = isLandscape ? "10px" : "12px";
+  const bodyFontSize = isClassicCard ? "12px" : isLandscape ? "8.5px" : "9px";
+  const tableFontSize = isClassicCard ? "12px" : isLandscape ? "7.4px" : "8.2px";
+  const cellPadding = isClassicCard ? "4px 6px" : isLandscape ? "1.6px 2.4px" : "2px 3px";
+  const titleSize = isClassicCard ? "24px" : isLandscape ? "14px" : "15px";
+  const signatureMargin = isClassicCard ? "32px" : isLandscape ? "10px" : "12px";
+  const bodyMargin = isClassicCard ? "14px" : "0";
+  const headBorderWidth = isClassicCard ? "2px" : "1px";
+  const headPadding = isClassicCard ? "6px" : "3px";
+  const metaFontSize = isClassicCard ? "12px" : isLandscape ? "8px" : "8.5px";
+  const tableMargin = isClassicCard ? "10px" : "4px";
+  const tableLayout = isClassicCard ? "auto" : "fixed";
+  const lineHeight = isClassicCard ? "normal" : "1.12";
+  const logoWidth = isClassicCard ? "180px" : isLandscape ? "112px" : "120px";
 
   return `
       @page{size:A4 ${orientation};margin:${margin}}
       html,body{width:100%;background:#fff}
-      body{font-family:Consolas,monospace;margin:0;color:#111;font-size:${bodyFontSize}}
-      .head{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;border-bottom:1px solid #333;padding-bottom:3px}
+      body{font-family:Consolas,monospace;margin:${bodyMargin};color:#111;font-size:${bodyFontSize}}
+      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:${headBorderWidth} solid #333;padding-bottom:${headPadding}}
       h1{margin:0;font-size:${titleSize};line-height:1.1}
-      .meta{font-size:${isLandscape ? "8px" : "8.5px"};line-height:1.15}
-      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:4px;table-layout:fixed}
-      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word;line-height:1.12}
+      .meta{font-size:${metaFontSize};line-height:${isClassicCard ? "normal" : "1.15"}}
+      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:${tableMargin};table-layout:${tableLayout}}
+      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:${isClassicCard ? "normal" : "break-word"};line-height:${lineHeight}}
       thead th{background:#ececec}
       tr{break-inside:avoid;page-break-inside:avoid}
       .tot{font-weight:700;background:#f5f5f5}
-      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:18px;text-align:center}
-      .line{border-top:1px solid #333;padding-top:3px}
+      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:${isClassicCard ? "24px" : "18px"};text-align:center}
+      .line{border-top:1px solid #333;padding-top:${isClassicCard ? "4px" : "3px"}}
       .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px}
       .summary-box{border:1px solid #666;padding:3px;text-align:center}
       .legend{font-size:${isLandscape ? "7px" : "7.5px"};margin-top:4px}
-      svg{max-width:${isLandscape ? "112px" : "120px"};height:auto}
+      svg{max-width:${logoWidth};height:auto}
     `;
 }
 
@@ -1194,10 +1203,10 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
   const tableByModel: Record<string, string> = {
     cartao_ponto: `
-      <thead><tr><th>Data</th><th>Dia semana</th><th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th><th>Ocorrência</th><th>Observação</th></tr></thead>
+      <thead><tr><th>Dia</th><th>Ent.1</th><th>Saí.1</th><th>Ent.2</th><th>Saí.2</th><th>Ent.3</th><th>Saí.3</th><th>Normais</th><th>Faltas</th><th>Extras</th><th>Observações</th></tr></thead>
       <tbody>
-      ${dailyRows.map((r) => `<tr><td>${r.day}</td><td>${r.dayLabel}</td><td>${[r.ent1, r.sai1, r.ent2, r.sai2, r.ent3, r.sai3].filter((p) => p && p !== "Folga").join(" | ") || "-"}</td><td>${r.hTrabalhadas}</td><td>${r.previsto}</td><td>${minutesToSignedHHMM(hhmmToMinutes(r.extra) - hhmmToMinutes(r.falta))}</td><td>${r.ocorrencias || "Normal"}</td><td>-</td></tr>`).join("")}
-      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.esperado)}</td><td>${minutesToSignedHHMM(totals.saldo)}</td><td>-</td><td>-</td></tr>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.ent1}</td><td>${r.sai1}</td><td>${r.ent2}</td><td>${r.sai2}</td><td>${r.ent3}</td><td>${r.sai3}</td><td>${r.normal}</td><td>${r.falta}</td><td>${r.extra}</td><td>${r.ocorrencias}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.normal)}</td><td>${minutesToHHMM(totals.falta)}</td><td>${minutesToHHMM(totals.extra)}</td><td>-</td></tr>
       </tbody>
     `,
     folha_resumida: `
