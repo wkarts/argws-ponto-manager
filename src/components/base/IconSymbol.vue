@@ -48,6 +48,7 @@ const paths: Record<string, string> = {
   chart: "M3 3v18h18M7 16v-5M12 16V8M17 16v-9",
   dashboard: "M4 4h6v7H4V4Zm10 0h6v4h-6V4Zm0 8h6v8h-6v-8ZM4 15h6v5H4v-5Z",
   idBadge: "M8 4h8M9 4V2h6v2M5 5h14v16H5V5Zm3 11a4 4 0 0 1 8 0M12 12a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z",
+  clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2",
   calendarRange: "M7 2v4M17 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Zm2 9h3M14 13h3M7 17h10",
   route: "M6 19a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm12-8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM9 16h3a3 3 0 0 0 3-3V8",
   workflow: "M4 4h6v5H4V4Zm10 11h6v5h-6v-5ZM10 6h4a3 3 0 0 1 3 3v6M7 9v7a2 2 0 0 0 2 2h5",

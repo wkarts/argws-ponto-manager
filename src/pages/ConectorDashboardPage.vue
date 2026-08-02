@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { formatDateTimeLocal } from "../services/format";
 import {
   baixarAfdConector,
@@ -112,15 +113,11 @@ onMounted(carregar);
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Ponto Conector</h2>
-        <div class="muted-text">Playground operacional para testar conexão, coletar batidas, baixar AFD e acompanhar logs do Ponto Manager Conector por REP.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Ponto Manager Conector" subtitle="Teste de conexão, coleta de batidas, download de AFD e acompanhamento dos logs por REP." icon="connector">
+      <template #actions>
         <button class="primary" :disabled="loading" @click="carregar">Atualizar</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   comboList,
   deleteFeriado,
@@ -269,17 +270,13 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Tabela de feriados</h2>
-        <div class="muted">Cadastro central de feriados e respectivos vínculos de abrangência.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Tabela de feriados" subtitle="Cadastro central de feriados e respectivos vínculos de abrangência." icon="calendarStar">
+      <template #actions>
         <input v-model="search" placeholder="Pesquisar feriado..." @keyup.enter="load" />
         <button class="secondary" @click="load">Buscar</button>
         <button class="secondary" @click="openNew">Novo feriado</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-else-if="info" class="alert success">{{ info }}</div>

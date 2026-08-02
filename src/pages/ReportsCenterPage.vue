@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { apurarPeriodo, gerarFechamentoRelatorio, listCompanies, listEmployees, registerGeneratedReport, type ApuracaoResumo } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -168,12 +169,8 @@ onMounted(loadEmployeesForCompany);
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Central de relatórios</h2>
-        <div class="muted-text">Prévia HTML unificada, com impressão direta, seleção de impressora pelo diálogo do sistema e possibilidade de salvar/exportar o relatório.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Central de relatórios" subtitle="Prévia HTML unificada, impressão pelo diálogo do sistema e exportação do relatório." icon="reports">
+      <template #actions>
         <div class="field min-field">
           <label>Formato</label>
           <select v-model="exportFormat">
@@ -184,8 +181,8 @@ onMounted(loadEmployeesForCompany);
         </div>
         <button class="secondary" @click="downloadCurrent">Salvar / exportar</button>
         <button class="primary" @click="printCurrent">Imprimir / PDF</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

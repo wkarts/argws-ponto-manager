@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { comboList, downloadGeneratedReport, listGeneratedReports, listUsers, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -72,15 +73,11 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Relatórios gerados</h2>
-        <div class="muted-text">Central única para consultar e baixar novamente arquivos gerados pelo sistema.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Relatórios gerados" subtitle="Central única para consultar e baixar novamente os arquivos gerados pelo sistema." icon="archive">
+      <template #actions>
         <button class="secondary" :disabled="loading" @click="load">{{ loading ? 'Atualizando...' : 'Atualizar' }}</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
 

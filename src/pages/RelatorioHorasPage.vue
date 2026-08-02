@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   apurarPeriodo,
   listEmployees,
@@ -411,17 +412,13 @@ onMounted(loadEmployees);
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Relatório consolidado de horas</h2>
-        <div class="muted">Base para fechamento de folha e envio à contabilidade (modo sintético e analítico).</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Relatório consolidado de horas" subtitle="Base para fechamento de folha e envio à contabilidade nos modos sintético e analítico." icon="chartClock">
+      <template #actions>
         <button class="secondary" @click="exportarExcel" :disabled="!result">Exportar Excel</button>
         <button class="secondary" @click="exportarPdf" :disabled="!result">Exportar PDF</button>
         <button class="primary" @click="imprimirRelatorio" :disabled="!result">Imprimir relatório</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="message" class="alert success">{{ message }}</div>

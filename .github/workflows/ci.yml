@@ -161,6 +161,15 @@ jobs:
       - name: Validate sidebar navigation integrity
         run: npm run ci:navigation
 
+      - name: Validate responsive dashboard cards
+        run: npm run ci:dashboard
+
+      - name: Validate canonical page title bars
+        run: npm run ci:titlebars
+
+      - name: Validate time card edition and preview contract
+        run: npm run ci:cartao-view
+
       - name: Typecheck
         run: npm run typecheck
 
