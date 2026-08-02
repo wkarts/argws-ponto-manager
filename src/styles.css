@@ -5864,20 +5864,26 @@ button,
 .cartao-view-tabs {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px;
+  gap: 3px;
+  padding: 3px;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 11px;
   background: color-mix(in srgb, var(--surface-muted-bg) 78%, var(--surface-bg));
   width: fit-content;
   max-width: 100%;
+  flex: 0 0 auto;
 }
 
 .cartao-view-tabs button {
-  min-height: 38px;
+  min-height: 32px;
+  padding: 6px 10px;
   border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .cartao-view-tabs button.active {
@@ -5887,17 +5893,95 @@ button,
   box-shadow: 0 8px 18px rgba(15, 23, 42, .07);
 }
 
+.cartao-page-titlebar.dashboard-command-center {
+  max-height: none !important;
+  overflow: visible !important;
+  flex-wrap: wrap !important;
+}
+
+.cartao-page-titlebar > .dashboard-command-title {
+  flex: 1 1 390px !important;
+}
+
+.cartao-page-titlebar > .actions {
+  flex: 1 1 720px !important;
+  min-width: 0;
+}
+
+.cartao-titlebar-actions {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.cartao-document-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cartao-page-titlebar .titlebar-action {
+  min-height: 32px !important;
+  padding: 6px 10px !important;
+  border-radius: 9px !important;
+  font-size: 12px !important;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.cartao-preview-card.preview-only {
+  position: relative;
+  min-width: 0;
+  min-height: 640px;
+  padding: 0 !important;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--border-color) 80%, var(--primary-soft));
+  background: var(--surface-muted-bg);
+}
+
 .cartao-preview-card.preview-only .report-frame {
   display: block;
   width: 100%;
-  height: 70vh;
+  height: 76vh;
   min-height: 620px !important;
-  border-radius: 10px;
+  border: 0;
+  border-radius: inherit;
+  background: #e9eef5;
 }
 
-.cartao-preview-card.preview-only.expanded .report-frame {
-  height: 82vh;
-  min-height: 720px !important;
+.cartao-preview-state {
+  min-height: 640px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.cartao-preview-state strong {
+  color: var(--text-color);
+}
+
+.cartao-preview-spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border-top-color: var(--primary);
+  border-radius: 999px;
+  animation: cartao-preview-spin .8s linear infinite;
+}
+
+@keyframes cartao-preview-spin {
+  to { transform: rotate(360deg); }
 }
 
 @media (max-width: 900px) {
@@ -5910,23 +5994,50 @@ button,
   }
 
   .cartao-view-tabs {
-    width: 100%;
+    flex: 1 1 240px;
   }
 
   .cartao-view-tabs button {
     flex: 1 1 0;
   }
 
-  .cartao-preview-card.preview-only .report-frame,
-  .cartao-preview-card.preview-only.expanded .report-frame {
-    height: 62vh;
-    min-height: 460px !important;
+  .cartao-titlebar-actions,
+  .cartao-document-actions {
+    justify-content: flex-start;
+  }
+
+  .cartao-preview-card.preview-only,
+  .cartao-preview-state {
+    min-height: 500px;
+  }
+
+  .cartao-preview-card.preview-only .report-frame {
+    height: 68vh;
+    min-height: 500px !important;
   }
 }
 
 @media (max-width: 560px) {
+  .cartao-titlebar-actions,
+  .cartao-document-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
   .cartao-view-tabs {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .cartao-document-actions {
+    grid-column: 1 / -1;
+  }
+
+  .cartao-page-titlebar .titlebar-action {
+    width: 100%;
+    white-space: normal;
   }
 }
