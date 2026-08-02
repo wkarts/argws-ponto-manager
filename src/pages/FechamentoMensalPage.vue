@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { gerarFechamentoRelatorio, listEmployees, listFechamentos, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -60,12 +61,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Fechamento mensal / espelho para assinatura</h2>
-        <div class="muted">Gera o relatório mensal por colaborador, com resumo do período e campos de assinatura do colaborador e do empregador.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Fechamento mensal" subtitle="Geração do espelho mensal por colaborador, com resumo e campos para assinatura do colaborador e do empregador." icon="calendarCheck" />
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { listSyncQueue, markSyncQueueSynced, type SyncQueueItem } from "../services/crud";
 
 const rows = ref<SyncQueueItem[]>([]);
@@ -27,12 +28,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Fila técnica de sincronização</h2>
-        <div class="muted">Monitoramento local das alterações enfileiradas para integração posterior.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Fila técnica de sincronização" subtitle="Monitoramento local das alterações enfileiradas para integração posterior." icon="queue" />
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

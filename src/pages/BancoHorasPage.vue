@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   comboJornadas,
   listEmployees,
@@ -112,12 +113,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Banco de horas</h2>
-        <div class="muted-text">Processamento automático da apuração e ajustes manuais controlados.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Banco de horas" subtitle="Processamento automático da apuração e ajustes manuais controlados." icon="hourBank" />
 
     <div v-if="error" class="alert error">{{ error }}</div>
 

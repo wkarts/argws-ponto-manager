@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import { findMenuItemByRoute } from "../../config/navigation";
 import AppPageTitleBar from "./AppPageTitleBar.vue";
 
 const props = defineProps<{
@@ -14,6 +15,9 @@ const route = useRoute();
 
 function iconNameForRoute(routePath: string): string {
   const normalized = ((routePath || "/").split("?")[0].split("#")[0].replace(/\/+$/, "") || "/");
+  const navigationIcon = findMenuItemByRoute(normalized)?.icon;
+  if (navigationIcon) return navigationIcon;
+
   const icons: Record<string, string> = {
     "/empresas": "building",
     "/departamentos": "department",

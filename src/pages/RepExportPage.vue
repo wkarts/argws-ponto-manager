@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { comboList, exportRepEmpresaTxt, exportRepFuncionariosTxt, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { showSplashError } from "../services/splash";
@@ -65,12 +66,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Exportação para REP</h2>
-        <div class="muted-text">Exportação TXT para REP. A configuração do Ponto Manager Conector agora é individual no cadastro de cada equipamento/REP.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Exportação para REP" subtitle="Exportação TXT para REP, com configuração do Ponto Manager Conector individual por equipamento." icon="fileExport" />
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 

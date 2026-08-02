@@ -1,16 +1,14 @@
 <script setup lang="ts">
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 </script>
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Parâmetros do Ponto Manager Conector</h2>
-        <div class="muted-text">
-          A configuração do conector é individual por REP/equipamento. Cada relógio pode apontar para uma API diferente e usar um token próprio.
-        </div>
-      </div>
-    </div>
+    <AppPageTitleBar
+      title="Parâmetros do Ponto Manager Conector"
+      subtitle="Configuração individual por REP/equipamento, com API e token próprios para cada relógio."
+      icon="connector"
+    />
 
     <div class="card grid page-gap">
       <div>

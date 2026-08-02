@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   cloneJornada,
   comboList,
@@ -210,13 +211,18 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
+    <AppPageTitleBar title="Cadastro de jornadas de trabalho" subtitle="Listagem preservada com manutenção da jornada em modal." icon="route">
+      <template #actions>
+        <button class="secondary" @click="openNewModal">Nova jornada</button>
+      </template>
+    </AppPageTitleBar>
+
+    <div v-if="presetOptions.length" class="card card-tight jornada-presets-toolbar">
       <div>
-        <h2>Cadastro de jornadas de trabalho</h2>
-        <div class="muted-text">Listagem preservada com manutenção da jornada em modal.</div>
+        <strong>Modelos rápidos de jornada</strong>
+        <div class="muted-text">Inicie um cadastro a partir de um modelo operacional e revise os dados antes de salvar.</div>
       </div>
       <div class="actions">
-        <button class="secondary" @click="openNewModal">Nova jornada</button>
         <button v-for="preset in presetOptions" :key="String(preset.codigo)" class="secondary" @click="applyPreset(preset)">Usar {{ preset.descricao }}</button>
       </div>
     </div>

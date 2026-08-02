@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { apurarPeriodo, listEmployees, type ApuracaoResumo, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -54,12 +55,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Apuração</h2>
-        <div class="muted">Consolidação por período usando jornada semanal, tolerâncias, justificativas, atestados e ajustes manuais.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Apuração" subtitle="Consolidação por período usando jornada semanal, tolerâncias, justificativas, atestados e ajustes manuais." icon="calculator" />
 
     <div v-if="error" class="alert error">{{ error }}</div>
 

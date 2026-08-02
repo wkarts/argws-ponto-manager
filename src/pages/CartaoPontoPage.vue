@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   apurarPeriodo,
   comboList,
@@ -104,18 +105,20 @@ function saldoDevedorConsolidado(saldoMinutos: number): number {
 const gridEditor = reactive<Record<string, string>>({});
 const gridSaving = reactive<Record<string, boolean>>({});
 const gridCellRefs = ref<Record<string, HTMLInputElement | null>>({});
+const activeView = ref<"edicao" | "previsualizacao">("edicao");
 const activeSideTab = ref<"marcacoes" | "ocorrencias" | "smart" | "exclusao">("marcacoes");
 const sidePanelCollapsed = ref(false);
 const gridStatus = ref('Pronto para edição inline. Use Enter, setas e Del para operar a grade.');
 
 const hoje = new Date();
+const competenciaAtual = getCompetenciaRange(hoje.getFullYear(), hoje.getMonth() + 1);
 const filtros = reactive({
   funcionarioId: "",
-  modoPeriodo: "intervalo" as "intervalo" | "competencia",
+  modoPeriodo: "competencia" as "intervalo" | "competencia",
   competenciaMes: hoje.getMonth() + 1,
   competenciaAno: hoje.getFullYear(),
-  dataInicial: new Date().toISOString().slice(0, 10),
-  dataFinal: new Date().toISOString().slice(0, 10),
+  dataInicial: competenciaAtual.dataInicial,
+  dataFinal: competenciaAtual.dataFinal,
   modeloRelatorio: "cartao_ponto",
 });
 
@@ -321,6 +324,13 @@ function selectDay(date: string) {
 
 function toggleSidebar() {
   sidePanelCollapsed.value = !sidePanelCollapsed.value;
+}
+
+async function selectView(view: "edicao" | "previsualizacao") {
+  activeView.value = view;
+  if (view === "previsualizacao") {
+    await carregarCartao();
+  }
 }
 
 function resetSelectionMap(target: Record<string, boolean>) {
@@ -1605,6 +1615,12 @@ watch(() => [filtros.modoPeriodo, filtros.competenciaMes, filtros.competenciaAno
   }
 });
 
+watch(() => filtros.modeloRelatorio, () => {
+  if (apuracaoResumo.value) {
+    reportHtml.value = buildCartaoHtml();
+  }
+});
+
 watch(dailyGridRows, (rows) => {
   if (!rows.length) {
     selectedDate.value = filtros.dataInicial;
@@ -1620,6 +1636,7 @@ watch(dailyGridRows, (rows) => {
 }, { immediate: true });
 
 onMounted(async () => {
+  syncPeriodFilters();
   await carregarBase();
   await carregarCartao();
 });
@@ -1627,22 +1644,45 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap cartao-vb6-page">
-    <div class="toolbar cartao-vb6-toolbar">
-      <div>
-        <h2>Cartão de ponto</h2>
-        <div class="muted-text">Visão centralizada no estilo operacional: dias do período expostos em grade, ações rápidas e tratamento na própria tela.</div>
-      </div>
-      <div class="actions compact-toolbar">
+    <AppPageTitleBar title="Cartão de ponto" subtitle="Edição operacional e pré-visualização fiel do documento impresso em modos independentes." icon="timeCard">
+      <template #actions>
         <button class="secondary" :disabled="loading" @click="carregarCartao">{{ loading ? 'Atualizando...' : 'Atualizar' }}</button>
-        <button class="secondary" @click="exportarHtml">Exportar HTML</button>
-        <button class="secondary" @click="exportarExcel">Exportar Excel</button>
-        <button class="secondary" :disabled="printingAllCompetencia" @click="imprimirTodosCompetencia">{{ printingAllCompetencia ? 'Preparando lote...' : 'Imprimir todos da competência' }}</button>
-        <button class="primary" @click="imprimirOuSalvarPdf">Imprimir / Salvar PDF</button>
-      </div>
-    </div>
+        <template v-if="activeView === 'previsualizacao'">
+          <button class="secondary" @click="exportarHtml">Exportar HTML</button>
+          <button class="secondary" @click="exportarExcel">Exportar Excel</button>
+          <button class="secondary" :disabled="printingAllCompetencia || filtros.modoPeriodo !== 'competencia'" @click="imprimirTodosCompetencia">{{ printingAllCompetencia ? 'Preparando lote...' : 'Imprimir competência' }}</button>
+          <button class="primary" @click="imprimirOuSalvarPdf">Imprimir / Salvar PDF</button>
+        </template>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="message" class="alert success">{{ message }}</div>
+
+    <nav class="cartao-view-tabs" role="tablist" aria-label="Modo de visualização do cartão de ponto">
+      <button
+        id="cartao-tab-edicao"
+        type="button"
+        role="tab"
+        :aria-selected="activeView === 'edicao'"
+        aria-controls="cartao-panel-edicao"
+        :class="{ active: activeView === 'edicao' }"
+        @click="selectView('edicao')"
+      >
+        Edição do cartão
+      </button>
+      <button
+        id="cartao-tab-preview"
+        type="button"
+        role="tab"
+        :aria-selected="activeView === 'previsualizacao'"
+        aria-controls="cartao-panel-preview"
+        :class="{ active: activeView === 'previsualizacao' }"
+        @click="selectView('previsualizacao')"
+      >
+        Pré-visualização para impressão
+      </button>
+    </nav>
 
     <div class="card card-tight cartao-filter-card">
       <div class="filter-grid compact cartao-filter-grid">
@@ -1656,8 +1696,8 @@ onMounted(async () => {
         <div class="field">
           <label>Período</label>
           <select v-model="filtros.modoPeriodo">
-            <option value="intervalo">Intervalo</option>
             <option value="competencia">Competência</option>
+            <option value="intervalo">Intervalo de datas</option>
           </select>
         </div>
         <div v-if="filtros.modoPeriodo === 'competencia'" class="field">
@@ -1696,15 +1736,22 @@ onMounted(async () => {
         <span><strong>Colaborador:</strong> {{ funcionarioNomeSelecionado }}</span>
         <span><strong>Dias inconsistentes:</strong> {{ inconsistenciasNoPeriodo }}</span>
         <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
-        <span><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
+        <span v-if="activeView === 'edicao'"><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
       </div>
-      <div class="inline-info-strip subtle">
+      <div v-if="activeView === 'edicao'" class="inline-info-strip subtle">
         <span><strong>Operação inline:</strong> Enter salva e avança, Del remove, setas navegam entre células.</span>
         <span>{{ gridStatus }}</span>
       </div>
     </div>
 
-    <div class="card table-wrap cartao-preview-card" :class="{ expanded: previewExpanded }">
+    <div
+      v-if="activeView === 'previsualizacao'"
+      id="cartao-panel-preview"
+      class="card table-wrap cartao-preview-card preview-only"
+      :class="{ expanded: previewExpanded }"
+      role="tabpanel"
+      aria-labelledby="cartao-tab-preview"
+    >
       <div class="vb6-group-header">
         <div>
           <h3>Pré-visualização fiel à impressão</h3>
@@ -1720,7 +1767,14 @@ onMounted(async () => {
       <iframe class="report-frame" title="Pré-visualização do cartão de ponto" :srcdoc="reportHtml"></iframe>
     </div>
 
-    <div class="cartao-vb6-shell" :class="{ 'sidebar-collapsed': sidePanelCollapsed }">
+    <div
+      v-else
+      id="cartao-panel-edicao"
+      class="cartao-vb6-shell"
+      :class="{ 'sidebar-collapsed': sidePanelCollapsed }"
+      role="tabpanel"
+      aria-labelledby="cartao-tab-edicao"
+    >
       <div class="card cartao-vb6-grid-panel table-wrap">
         <div class="vb6-group-header">
           <h3>Grade diária do cartão</h3>

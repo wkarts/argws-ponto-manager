@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { comboList, deleteOcorrencia, exportOcorrenciaAnexo, listEmployees, listOcorrencias, saveOcorrencia, type ComboOption } from "../services/crud";
 import { RouterLink } from "vue-router";
 import { useSessionStore } from "../stores/session";
@@ -161,15 +162,12 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Tratamento de ponto</h2>
-        <div class="muted">Justificativas, faltas, atestados, abonos e anexos. Para lançar batidas esquecidas ou autorizadas, use também a tela de <RouterLink to="/batidas">batidas</RouterLink>.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Tratamento de ponto" subtitle="Justificativas, faltas, atestados, abonos e anexos associados às marcações." icon="clipboardCheck">
+      <template #actions>
+        <RouterLink class="link-button secondary" to="/batidas">Abrir batidas</RouterLink>
         <button class="secondary" @click="openNewModal">Nova ocorrência</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

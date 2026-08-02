@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { comboList, deleteBatida, exportBatidasCsv, listBatidas, listEmployees, saveBatida, type ComboOption } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
@@ -196,16 +197,12 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2 style="margin: 0;">Batidas</h2>
-        <div class="muted">Registro manual, ajustes autorizados e exportação local.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Batidas" subtitle="Registro manual, ajustes autorizados e exportação local." icon="fingerprint">
+      <template #actions>
         <button class="secondary" @click="openNewModal">Nova batida</button>
         <button class="secondary" @click="exportar">Exportar CSV</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

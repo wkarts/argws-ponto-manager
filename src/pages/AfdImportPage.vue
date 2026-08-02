@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { comboList, importAfdFile, listAfdImports, type ComboOption, type GenericRecord } from "../services/crud";
 import { importarAfdConector } from "../services/conectorService";
 import { useSessionStore } from "../stores/session";
@@ -133,12 +134,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Importação e tratamento de AFD</h2>
-        <div class="muted-text">Importe AFD por arquivo local ou diretamente pela API do Ponto Manager Conector.</div>
-      </div>
-    </div>
+    <AppPageTitleBar title="Importação e tratamento de AFD" subtitle="Importação por arquivo local ou diretamente pela API do Ponto Manager Conector." icon="fileImport" />
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>

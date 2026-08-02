@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import {
   comboJornadas,
   comboList,
@@ -264,16 +265,12 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Cadastro de funcionários</h2>
-        <div class="muted-text">Listagem principal preservada com inclusão e edição em modal.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Cadastro de funcionários" subtitle="Listagem principal preservada com inclusão e edição em modal." icon="idBadge">
+      <template #actions>
         <button class="secondary" @click="openNewModal">Novo cadastro</button>
         <button class="secondary" @click="downloadTemplate">Baixar planilha padrão</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="importMessage" class="alert success">{{ importMessage }}</div>

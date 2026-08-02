@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
+import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
 import { deleteBatida, listBatidas, listEmployees, saveBatida, saveOcorrencia, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -177,16 +178,12 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap">
-    <div class="toolbar">
-      <div>
-        <h2>Tratamento em lote de batidas</h2>
-        <div class="muted-text">Página centralizada para selecionar o colaborador, revisar várias batidas, aplicar justificativa e lançar ajustes de forma prática.</div>
-      </div>
-      <div class="actions">
+    <AppPageTitleBar title="Tratamento em lote de batidas" subtitle="Seleção do colaborador, revisão de várias batidas, aplicação de justificativa e lançamento controlado de ajustes." icon="layersCheck">
+      <template #actions>
         <button class="secondary" @click="addRow">Nova linha</button>
         <button class="primary" @click="salvarLote">Salvar lote</button>
-      </div>
-    </div>
+      </template>
+    </AppPageTitleBar>
 
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
