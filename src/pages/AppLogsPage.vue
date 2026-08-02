@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { clearAppLogs, listAppLogs, type GenericRecord } from "../services/crud";
 import BasePage from "../components/base/BasePage.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { useSessionStore } from "../stores/session";
 import { logAppError, logAppInfo } from "../services/logger";
 import { appConfirm } from "../services/dialog";
@@ -36,6 +37,13 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  filters.level = "";
+  filters.category = "";
+  filters.search = "";
+  await load();
+}
+
 async function clearLogs() {
   if (!(await appConfirm({ title: "Limpar logs", message: "Deseja limpar os logs da aplicação?", danger: true, confirmText: "Limpar" }))) return;
   clearing.value = true;
@@ -63,9 +71,8 @@ onMounted(load);
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <BaseFilterBar description="Filtre os registros por severidade, categoria ou conteúdo." :loading="loading">
+        <div class="field filter-field--status">
           <label>Nível</label>
           <select v-model="filters.level">
             <option value="">Todos</option>
@@ -75,16 +82,19 @@ onMounted(load);
             <option value="error">Error</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--wide">
           <label>Categoria</label>
           <input v-model="filters.category" type="text" placeholder="auth, router, session..." />
         </div>
-        <div class="field span-2">
+        <div class="field filter-field--search">
           <label>Buscar</label>
           <input v-model="filters.search" type="text" placeholder="mensagem, rota ou detalhes" @keyup.enter="load" />
         </div>
-      </div>
-    </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">Aplicar filtros</button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card table-wrap">
       <table>

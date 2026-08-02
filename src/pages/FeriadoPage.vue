@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import {
   comboList,
   deleteFeriado,
@@ -187,6 +188,11 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  search.value = "";
+  await load();
+}
+
 function openNew() {
   resetForm();
   viewMode.value = false;
@@ -272,14 +278,23 @@ onMounted(async () => {
   <div class="grid page-gap">
     <AppPageTitleBar title="Tabela de feriados" subtitle="Cadastro central de feriados e respectivos vínculos de abrangência." icon="calendarStar">
       <template #actions>
-        <input v-model="search" placeholder="Pesquisar feriado..." @keyup.enter="load" />
-        <button class="secondary" @click="load">Buscar</button>
         <button class="secondary" @click="openNew">Novo feriado</button>
       </template>
     </AppPageTitleBar>
 
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-else-if="info" class="alert success">{{ info }}</div>
+
+    <BaseFilterBar description="Localize feriados pelo nome, data ou abrangência.">
+      <div class="field filter-field--search">
+        <label>Buscar</label>
+        <input v-model="search" type="text" placeholder="Pesquisar feriado..." @keyup.enter="load" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" @click="load">Aplicar filtros</button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card grid page-gap">
       <div class="toolbar">

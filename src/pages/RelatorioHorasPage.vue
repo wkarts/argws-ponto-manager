@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import {
   apurarPeriodo,
   listEmployees,
@@ -37,6 +38,19 @@ const filters = reactive({
   visualizacao: "sintetico" as ModoVisualizacao,
   exibirDetalhesTecnicos: false,
 });
+
+function clearFilters() {
+  filters.modoColaborador = "ativos";
+  filters.selectedIds = [];
+  filters.modoPeriodo = "competencia";
+  filters.competenciaAno = hoje.getFullYear();
+  filters.competenciaMes = hoje.getMonth() + 1;
+  filters.dataInicial = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+  filters.dataFinal = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
+  filters.visualizacao = "sintetico";
+  filters.exibirDetalhesTecnicos = false;
+  result.value = null;
+}
 
 const TOLERANCIA_SITUACAO_MINUTOS = 5;
 
@@ -423,9 +437,8 @@ onMounted(loadEmployees);
     <div v-if="error" class="alert error">{{ error }}</div>
     <div v-if="message" class="alert success">{{ message }}</div>
 
-    <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <BaseFilterBar title="Parâmetros do relatório" description="Defina colaboradores, período e nível de detalhamento." collapsible :loading="loading">
+        <div class="field filter-field--wide">
           <label>Colaboradores</label>
           <select v-model="filters.modoColaborador">
             <option value="todos">Todos</option>
@@ -434,14 +447,14 @@ onMounted(loadEmployees);
             <option value="selecionados">Selecionar manualmente</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--status">
           <label>Período</label>
           <select v-model="filters.modoPeriodo">
             <option value="competencia">Competência (mês/ano)</option>
             <option value="intervalo">Intervalo de datas</option>
           </select>
         </div>
-        <div v-if="filters.modoPeriodo === 'competencia'" class="field">
+        <div v-if="filters.modoPeriodo === 'competencia'" class="field filter-field--compact">
           <label>Competência</label>
           <div class="grid columns-2">
             <input v-model.number="filters.competenciaMes" type="number" min="1" max="12" />
@@ -449,35 +462,33 @@ onMounted(loadEmployees);
           </div>
         </div>
         <template v-else>
-          <div class="field"><label>Data inicial</label><input v-model="filters.dataInicial" type="date" /></div>
-          <div class="field"><label>Data final</label><input v-model="filters.dataFinal" type="date" /></div>
+          <div class="field filter-field--date"><label>Data inicial</label><input v-model="filters.dataInicial" type="date" /></div>
+          <div class="field filter-field--date"><label>Data final</label><input v-model="filters.dataFinal" type="date" /></div>
         </template>
-      </div>
-
-      <div v-if="filters.modoColaborador === 'selecionados'" class="field">
-        <label>Seleção manual de colaboradores</label>
-        <select multiple size="8" @change="parseMultiSelect">
-          <option v-for="item in employeeOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-        </select>
-        <small class="muted">Use Ctrl/Cmd + clique para selecionar múltiplos colaboradores.</small>
-      </div>
-
-      <div class="grid columns-3 mobile-columns-1">
-        <div class="field">
+        <div class="field filter-field--status">
           <label>Visualização</label>
           <select v-model="filters.visualizacao">
             <option value="sintetico">Sintético</option>
             <option value="analitico">Analítico</option>
           </select>
         </div>
-        <div class="field">
-          <label><input v-model="filters.exibirDetalhesTecnicos" type="checkbox" /> Exibir detalhes técnicos</label>
+        <div class="filter-field--toggle">
+          <label class="checkbox-inline"><input v-model="filters.exibirDetalhesTecnicos" class="checkbox-input" type="checkbox" /> Exibir detalhes técnicos</label>
         </div>
-        <div class="actions align-end">
-          <button class="primary" @click="gerarRelatorio" :disabled="loading">{{ loading ? "Apurando..." : "Gerar relatório" }}</button>
+      <template #advanced>
+        <div v-if="filters.modoColaborador === 'selecionados'" class="field filter-field--full">
+          <label>Seleção manual de colaboradores</label>
+          <select multiple size="8" @change="parseMultiSelect">
+            <option v-for="item in employeeOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+          </select>
+          <small class="muted">Use Ctrl/Cmd + clique para selecionar múltiplos colaboradores.</small>
         </div>
-      </div>
-    </div>
+      </template>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="gerarRelatorio">{{ loading ? "Apurando..." : "Gerar relatório" }}</button>
+      </template>
+    </BaseFilterBar>
 
     <div v-if="result" class="grid page-gap">
       <div class="kpis">

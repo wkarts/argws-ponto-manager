@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import AppModal from "../components/AppModal.vue";
 import BasePage from "../components/base/BasePage.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import {
   deleteProfile,
@@ -84,6 +85,12 @@ async function load() {
   }
 }
 
+async function clearFilters() {
+  search.value = "";
+  onlyActive.value = true;
+  await load();
+}
+
 async function loadPermissions() {
   await ensureSession();
   permissions.value = await listPermissionCatalog(session.sessionToken!);
@@ -162,19 +169,25 @@ onMounted(async () => {
     <div v-else class="grid page-gap">
       <div v-if="error" class="alert error">{{ error }}</div>
 
+      <BaseFilterBar description="Localize perfis por nome, descrição ou situação." :loading="loading">
+        <div class="field filter-field--search">
+          <label>Buscar</label>
+          <input v-model="search" type="text" placeholder="Nome ou descrição" @keyup.enter="load" />
+        </div>
+        <div class="filter-field--toggle">
+          <AppSwitch v-model="onlyActive" label="Somente ativos" />
+        </div>
+        <template #actions>
+          <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+          <button class="primary" type="button" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Aplicar filtros" }}</button>
+        </template>
+      </BaseFilterBar>
+
       <div class="card grid page-gap">
         <div class="toolbar">
           <div>
             <h3>Perfis cadastrados</h3>
             <div class="muted-text">Cada perfil pode ser reutilizado em vários usuários.</div>
-          </div>
-          <div class="actions align-end">
-            <div class="field min-field">
-              <label>Buscar</label>
-              <input v-model="search" type="text" placeholder="Nome ou descrição" @keyup.enter="load" />
-            </div>
-            <AppSwitch v-model="onlyActive" label="Somente ativos" />
-            <button class="secondary" :disabled="loading" @click="load">{{ loading ? "Carregando..." : "Atualizar" }}</button>
           </div>
         </div>
 

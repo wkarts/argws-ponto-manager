@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { apurarPeriodo, listEmployees, type ApuracaoResumo, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -46,6 +47,13 @@ async function processar() {
   }
 }
 
+function clearFilters() {
+  filters.funcionarioId = "";
+  filters.dataInicial = "";
+  filters.dataFinal = "";
+  result.value = null;
+}
+
 watch(() => session.activeCompanyId, loadCombos);
 
 onMounted(async () => {
@@ -59,30 +67,29 @@ onMounted(async () => {
 
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
-          <label>Funcionário</label>
-          <select v-model="filters.funcionarioId">
-            <option value="">Todos</option>
-            <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Data inicial</label>
-          <input v-model="filters.dataInicial" type="date" />
-        </div>
-        <div class="field">
-          <label>Data final</label>
-          <input v-model="filters.dataFinal" type="date" />
-        </div>
-        <div class="actions align-end">
-          <button class="primary" @click="processar" :disabled="loading">
-            {{ loading ? "Processando..." : "Apurar" }}
-          </button>
-        </div>
+    <BaseFilterBar title="Parâmetros da apuração" description="Selecione o colaborador e o período que participarão do cálculo." :loading="loading">
+      <div class="field filter-field--wide">
+        <label>Funcionário</label>
+        <select v-model="filters.funcionarioId">
+          <option value="">Todos</option>
+          <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
+        </select>
       </div>
-    </div>
+      <div class="field filter-field--date">
+        <label>Data inicial</label>
+        <input v-model="filters.dataInicial" type="date" />
+      </div>
+      <div class="field filter-field--date">
+        <label>Data final</label>
+        <input v-model="filters.dataFinal" type="date" />
+      </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="processar">
+          {{ loading ? "Processando..." : "Apurar" }}
+        </button>
+      </template>
+    </BaseFilterBar>
 
     <div v-if="result" class="grid page-gap">
       <div class="kpis">

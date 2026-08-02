@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { deleteBatida, listBatidas, listEmployees, saveBatida, saveOcorrencia, type GenericRecord } from "../services/crud";
 import { useSessionStore } from "../stores/session";
 
@@ -62,6 +63,16 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+async function clearFilters() {
+  const today = new Date().toISOString().slice(0, 10);
+  selectedEmployeeId.value = employees.value[0]?.id ?? null;
+  dataInicial.value = today;
+  dataFinal.value = today;
+  justificativaId.value = null;
+  observacao.value = "";
+  await load();
 }
 
 async function saveRow(row: GenericRecord) {
@@ -188,33 +199,39 @@ onMounted(async () => {
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card grid page-gap">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <BaseFilterBar title="Seleção do lote" description="Defina o colaborador, o período e a justificativa padrão das marcações." :loading="loading">
+        <div class="field filter-field--wide">
           <label>Colaborador</label>
           <select v-model="selectedEmployeeId">
             <option v-for="item in employees" :key="String(item.id)" :value="Number(item.id)">{{ item.nome }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--date">
           <label>Data inicial</label>
           <input v-model="dataInicial" type="date" />
         </div>
-        <div class="field">
+        <div class="field filter-field--date">
           <label>Data final</label>
           <input v-model="dataFinal" type="date" />
         </div>
-        <div class="field">
+        <div class="field filter-field--compact">
           <label>Justificativa padrão (ID)</label>
           <input v-model="justificativaId" type="number" min="1" />
         </div>
-      </div>
-      <div class="field">
-        <label>Observação geral</label>
-        <textarea v-model="observacao" rows="2" placeholder="Justificativa ou contexto do ajuste em lote" />
-      </div>
-      <div class="muted-text">Colaborador ativo: <strong>{{ currentEmployee?.nome || '-' }}</strong>. Empresa ativa: <strong>{{ session.activeCompanyName }}</strong>.</div>
-    </div>
+      <template #advanced>
+        <div class="field filter-field--full">
+          <label>Observação geral</label>
+          <textarea v-model="observacao" rows="2" placeholder="Justificativa ou contexto do ajuste em lote" />
+        </div>
+      </template>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="load">Atualizar lista</button>
+      </template>
+      <template #summary>
+        <div class="muted-text">Colaborador ativo: <strong>{{ currentEmployee?.nome || '-' }}</strong>. Empresa ativa: <strong>{{ session.activeCompanyName }}</strong>.</div>
+      </template>
+    </BaseFilterBar>
 
     <div class="card">
       <div class="table-wrap">

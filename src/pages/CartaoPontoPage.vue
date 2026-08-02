@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import AppModal from "../components/AppModal.vue";
 import AppSwitch from "../components/AppSwitch.vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import {
   apurarPeriodo,
   comboList,
@@ -121,6 +122,17 @@ const filtros = reactive({
   dataFinal: competenciaAtual.dataFinal,
   modeloRelatorio: "cartao_ponto",
 });
+
+async function clearCartaoFilters() {
+  filtros.funcionarioId = employeeOptions.value.length ? String(employeeOptions.value[0].id) : "";
+  filtros.modoPeriodo = "competencia";
+  filtros.competenciaMes = hoje.getMonth() + 1;
+  filtros.competenciaAno = hoje.getFullYear();
+  filtros.dataInicial = competenciaAtual.dataInicial;
+  filtros.dataFinal = competenciaAtual.dataFinal;
+  filtros.modeloRelatorio = "cartao_ponto";
+  await carregarCartao();
+}
 
 const batidaForm = reactive({
   id: undefined as number | undefined,
@@ -1684,23 +1696,22 @@ onMounted(async () => {
       </button>
     </nav>
 
-    <div class="card card-tight cartao-filter-card">
-      <div class="filter-grid compact cartao-filter-grid">
-        <div class="field">
+    <BaseFilterBar class="cartao-filter-card" title="Filtros do cartão" description="A mesma seleção é preservada nos modos de edição, pré-visualização e impressão." density="compact" :loading="loading">
+        <div class="field filter-field--wide">
           <label>Funcionário</label>
           <select v-model="filtros.funcionarioId">
             <option value="">Todos</option>
             <option v-for="item in employeeOptions" :key="item.id" :value="String(item.id)">{{ item.label }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--status">
           <label>Período</label>
           <select v-model="filtros.modoPeriodo">
             <option value="competencia">Competência</option>
             <option value="intervalo">Intervalo de datas</option>
           </select>
         </div>
-        <div v-if="filtros.modoPeriodo === 'competencia'" class="field">
+        <div v-if="filtros.modoPeriodo === 'competencia'" class="field filter-field--compact">
           <label>Competência</label>
           <div class="inline-grid compact-inline-grid">
             <input v-model.number="filtros.competenciaMes" type="number" min="1" max="12" />
@@ -1708,16 +1719,16 @@ onMounted(async () => {
           </div>
         </div>
         <template v-else>
-          <div class="field">
+          <div class="field filter-field--date">
             <label>Data inicial</label>
             <input v-model="filtros.dataInicial" type="date" />
           </div>
-          <div class="field">
+          <div class="field filter-field--date">
             <label>Data final</label>
             <input v-model="filtros.dataFinal" type="date" />
           </div>
         </template>
-        <div class="field">
+        <div class="field filter-field--wide">
           <label>Modelo do relatório</label>
           <select v-model="filtros.modeloRelatorio">
             <option value="cartao_ponto">0) Cartão de ponto (padrão)</option>
@@ -1727,22 +1738,24 @@ onMounted(async () => {
             <option value="folha_completa">4) Folha completa com resumos</option>
           </select>
         </div>
-        <div class="actions align-end">
-          <button class="primary" :disabled="loading" @click="carregarCartao">Aplicar filtros</button>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearCartaoFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="carregarCartao">Aplicar filtros</button>
+      </template>
+      <template #summary>
+        <div class="inline-info-strip">
+          <span><strong>Visão:</strong> {{ periodoLabel }}</span>
+          <span><strong>Colaborador:</strong> {{ funcionarioNomeSelecionado }}</span>
+          <span><strong>Dias inconsistentes:</strong> {{ inconsistenciasNoPeriodo }}</span>
+          <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
+          <span v-if="activeView === 'edicao'"><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
         </div>
-      </div>
-      <div class="inline-info-strip">
-        <span><strong>Visão:</strong> {{ periodoLabel }}</span>
-        <span><strong>Colaborador:</strong> {{ funcionarioNomeSelecionado }}</span>
-        <span><strong>Dias inconsistentes:</strong> {{ inconsistenciasNoPeriodo }}</span>
-        <span><strong>Dias com ocorrência:</strong> {{ diasComOcorrenciaNoPeriodo }}</span>
-        <span v-if="activeView === 'edicao'"><strong>Dia selecionado:</strong> {{ selectedDayLabel }}</span>
-      </div>
-      <div v-if="activeView === 'edicao'" class="inline-info-strip subtle">
-        <span><strong>Operação inline:</strong> Enter salva e avança, Del remove, setas navegam entre células.</span>
-        <span>{{ gridStatus }}</span>
-      </div>
-    </div>
+        <div v-if="activeView === 'edicao'" class="inline-info-strip subtle">
+          <span><strong>Operação inline:</strong> Enter salva e avança, Del remove, setas navegam entre células.</span>
+          <span>{{ gridStatus }}</span>
+        </div>
+      </template>
+    </BaseFilterBar>
 
     <div
       v-if="activeView === 'previsualizacao'"

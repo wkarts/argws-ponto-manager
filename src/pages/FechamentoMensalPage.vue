@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from "vue";
 import AppPageTitleBar from "../components/base/AppPageTitleBar.vue";
+import BaseFilterBar from "../components/base/BaseFilterBar.vue";
 import { gerarFechamentoRelatorio, listEmployees, listFechamentos, type ComboOption } from "../services/crud";
 import { formatMinutes } from "../services/format";
 import { useSessionStore } from "../stores/session";
@@ -51,6 +52,14 @@ async function gerar() {
   }
 }
 
+async function clearFilters() {
+  const today = new Date();
+  form.funcionarioId = "";
+  form.ano = today.getFullYear();
+  form.mes = today.getMonth() + 1;
+  await load();
+}
+
 watch(() => session.activeCompanyId, async () => { await loadCombos(); await load(); });
 
 onMounted(async () => {
@@ -66,30 +75,29 @@ onMounted(async () => {
     <div v-if="message" class="alert success">{{ message }}</div>
     <div v-if="error" class="alert error">{{ error }}</div>
 
-    <div class="card">
-      <div class="grid columns-4 mobile-columns-1">
-        <div class="field">
+    <BaseFilterBar title="Parâmetros do fechamento" description="Selecione o colaborador e a competência que serão gerados." :loading="loading">
+        <div class="field filter-field--wide">
           <label>Funcionário</label>
           <select v-model="form.funcionarioId">
             <option value="">Selecione</option>
             <option v-for="item in funcionarioOptions" :key="item.id" :value="item.id">{{ item.label }}</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field filter-field--compact">
           <label>Ano</label>
           <input v-model="form.ano" type="number" min="2020" max="2100" />
         </div>
-        <div class="field">
+        <div class="field filter-field--compact">
           <label>Mês</label>
           <input v-model="form.mes" type="number" min="1" max="12" />
         </div>
-        <div class="actions align-end">
-          <button class="primary" @click="gerar" :disabled="loading">
-            {{ loading ? 'Gerando...' : 'Gerar fechamento' }}
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #actions>
+        <button class="secondary" type="button" :disabled="loading" @click="clearFilters">Limpar filtros</button>
+        <button class="primary" type="button" :disabled="loading" @click="gerar">
+          {{ loading ? 'Gerando...' : 'Gerar fechamento' }}
+        </button>
+      </template>
+    </BaseFilterBar>
 
     <div class="card">
       <h3 style="margin-top: 0;">Fechamentos gerados</h3>
