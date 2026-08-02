@@ -4103,6 +4103,376 @@ body, button, input, select, textarea { font-family: var(--app-font-family, Inte
 }
 
 /* ==========================================================
+   Ponto Manager 1.25 — continuidade operacional da 1.23.x
+   ========================================================== */
+
+/* A marca da sidebar e a barra superior compartilham a mesma linha-base. */
+.professional-brand {
+  box-sizing: border-box !important;
+  height: var(--topbar-height) !important;
+  min-height: var(--topbar-height) !important;
+  padding: 9px 14px !important;
+  align-items: center !important;
+}
+.professional-brand .brand-mark {
+  width: 36px !important;
+  height: 36px !important;
+  flex: 0 0 36px !important;
+}
+.professional-topbar {
+  box-sizing: border-box !important;
+  height: var(--topbar-height) !important;
+  min-height: var(--topbar-height) !important;
+}
+
+/* Ícones semânticos recebem área constante, evitando o efeito de pontos repetidos. */
+.professional-menu-links a {
+  min-height: 34px !important;
+}
+.professional-menu-links .menu-link-icon {
+  width: 24px !important;
+  height: 24px !important;
+  flex: 0 0 24px !important;
+  display: grid !important;
+  place-items: center !important;
+  border-radius: 7px !important;
+  color: var(--primary) !important;
+  background: color-mix(in srgb, var(--primary-soft) 72%, transparent) !important;
+}
+.professional-menu-links a:hover .menu-link-icon {
+  background: color-mix(in srgb, var(--primary-soft) 88%, var(--surface-bg)) !important;
+}
+.professional-menu-links a.router-link-active .menu-link-icon {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, .16) !important;
+}
+.professional-menu-group-button {
+  text-transform: uppercase !important;
+  font-weight: 760 !important;
+  letter-spacing: .075em !important;
+}
+
+/* Cartão de ponto: recupera o fluxo horizontal e a densidade da 1.23.4. */
+.cartao-vb6-page {
+  align-items: start;
+  gap: 12px !important;
+}
+.cartao-vb6-toolbar { padding-bottom: 4px; }
+.cartao-filter-card {
+  position: sticky;
+  top: 4px;
+  z-index: 4;
+}
+.cartao-filter-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.cartao-vb6-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(430px, 35%);
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+.cartao-vb6-shell.sidebar-collapsed {
+  grid-template-columns: minmax(0, 1fr) 46px;
+}
+.cartao-vb6-grid-panel {
+  min-height: 500px;
+  min-width: 0;
+  overflow: auto;
+}
+.cartao-vb6-side {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  min-height: 500px;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--surface-bg);
+  box-shadow: var(--shadow-soft);
+}
+.cartao-vb6-side .side-content {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+.cartao-vb6-side .side-panel {
+  margin: 0 !important;
+  max-height: min(68vh, 720px);
+  overflow: auto;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.side-collapse-btn {
+  border: 0 !important;
+  border-right: 1px solid var(--border-color) !important;
+  border-radius: 0 !important;
+  background: var(--surface-muted-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+}
+.side-tabs {
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-muted-bg);
+}
+.side-tab-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 5px !important;
+  border: 0 !important;
+  border-right: 1px solid var(--border-color) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  font-size: 12px !important;
+  font-weight: 750 !important;
+  text-align: center;
+}
+.side-tab-btn:last-child { border-right: 0 !important; }
+.side-tab-btn.active {
+  color: var(--primary) !important;
+  background: color-mix(in srgb, var(--primary-soft) 82%, var(--surface-bg)) !important;
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+.cartao-vb6-side.collapsed {
+  grid-template-columns: 1fr;
+  width: 100%;
+  min-height: 120px;
+}
+.cartao-vb6-side.collapsed .side-content { display: none; }
+.vb6-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.vb6-group-header h3 { margin: 0; font-size: 15px; }
+.vb6-main-grid tbody tr { cursor: pointer; }
+.vb6-main-grid td,
+.vb6-main-grid th { white-space: nowrap; }
+.vb6-main-grid .date-cell { min-width: 132px; }
+.vb6-main-grid thead th,
+.vb6-main-grid tbody td {
+  padding: 4px 5px !important;
+  font-size: 11px !important;
+}
+.vb6-main-grid .obs-cell {
+  min-width: 160px;
+  max-width: 220px;
+  white-space: normal;
+}
+.vb6-main-grid .action-cell { min-width: 128px; }
+.vb6-main-grid .action-cell .actions.compact-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+.vb6-main-grid .action-cell button,
+.action-mini,
+.icon-btn {
+  min-height: 26px !important;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+  border-radius: 7px !important;
+}
+.vb6-selected-row td {
+  background: color-mix(in srgb, var(--primary-soft) 78%, var(--surface-bg)) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 55%, transparent);
+}
+.grid-cell-editable { padding: 2px 4px !important; }
+.grid-time-input {
+  width: 60px !important;
+  min-width: 60px !important;
+  min-height: 28px !important;
+  padding: 3px 4px !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  background: var(--surface-bg) !important;
+  color: var(--text-color) !important;
+  font-size: 11px !important;
+  text-align: center;
+}
+.grid-time-input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+.grid-time-input:disabled {
+  background: var(--surface-muted-bg) !important;
+  color: var(--text-muted) !important;
+  cursor: not-allowed;
+}
+.smart-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.smart-summary-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-muted-bg);
+}
+.smart-summary-grid strong { color: var(--text-muted); font-size: 12px; }
+.smart-summary-grid span { color: var(--text-color); font-size: 20px; font-weight: 750; }
+
+.cartao-preview-card {
+  padding: 10px !important;
+  overflow: hidden;
+}
+.cartao-preview-card .report-frame {
+  display: block;
+  min-height: 260px !important;
+  height: 260px;
+  border-radius: 8px;
+  transition: height .18s ease;
+}
+.cartao-preview-card.expanded .report-frame {
+  min-height: 70vh !important;
+  height: 70vh;
+}
+.official-punch-badge,
+.inactive-punch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 760;
+}
+.official-punch-badge {
+  color: #075985;
+  background: #e0f2fe;
+}
+.inactive-punch-badge {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.dashboard-operational-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.dashboard-operation-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px !important;
+  color: var(--text-color);
+  text-decoration: none;
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.dashboard-operation-card:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--border-color));
+  box-shadow: 0 16px 36px rgba(15, 23, 42, .09);
+}
+.dashboard-operation-card > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+.dashboard-operation-card > header > strong { font-size: 13px; }
+.dashboard-operation-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.dashboard-operation-card > div {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.dashboard-operation-card > div > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--surface-muted-bg);
+}
+.dashboard-operation-card small {
+  min-height: 28px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  line-height: 1.2;
+}
+.dashboard-operation-card > div strong {
+  font-size: 19px;
+  line-height: 1;
+}
+.operational-bars-chart span > strong {
+  align-self: start;
+  margin-top: 6px;
+  color: #ffffff;
+  font-size: 10px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .28);
+}
+.dashboard-integrity-summary {
+  min-height: 188px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: center;
+}
+.dashboard-integrity-summary a {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 13px;
+  background: var(--surface-muted-bg);
+  color: var(--text-color);
+  text-decoration: none;
+}
+.dashboard-integrity-summary a:hover {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border-color));
+}
+.dashboard-integrity-summary span { color: var(--text-muted); font-size: 11px; }
+.dashboard-integrity-summary strong { font-size: 24px; }
+
+@media (max-width: 1380px) {
+  .dashboard-operational-grid { grid-template-columns: 1fr 1fr; }
+  .dashboard-operation-card:last-child { grid-column: 1 / -1; }
+  .cartao-vb6-shell { grid-template-columns: 1fr; }
+  .cartao-vb6-shell.sidebar-collapsed { grid-template-columns: 1fr; }
+  .cartao-vb6-side {
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 400px;
+  }
+}
+@media (max-width: 1180px) {
+  .cartao-filter-card { position: static; }
+}
+@media (max-width: 720px) {
+  .dashboard-operational-grid { grid-template-columns: 1fr; }
+  .dashboard-operation-card:last-child { grid-column: auto; }
+  .dashboard-integrity-summary { grid-template-columns: 1fr; }
+  .professional-brand {
+    height: var(--topbar-height) !important;
+    min-height: var(--topbar-height) !important;
+  }
+  .vb6-group-header { flex-direction: column; align-items: stretch; }
+  .smart-summary-grid { grid-template-columns: 1fr 1fr; }
+  .cartao-preview-card .report-frame { height: 220px; min-height: 220px !important; }
+}
+
+/* ==========================================================
    Visual Core v10 — harmonização real da topbar e titlebar
    ========================================================== */
 .professional-topbar {

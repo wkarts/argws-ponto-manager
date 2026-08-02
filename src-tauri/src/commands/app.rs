@@ -91,7 +91,14 @@ fn html_with_external_print_script(html: &str) -> String {
 pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, Value>, String> {
     let db_path = state.db_path()?;
     let data_dir = state.data_dir()?;
-    let conn = open_connection(&db_path)?;
+    app_bootstrap_from_paths(&db_path, &data_dir)
+}
+
+pub(crate) fn app_bootstrap_from_paths(
+    db_path: &std::path::Path,
+    data_dir: &std::path::Path,
+) -> Result<BTreeMap<String, Value>, String> {
+    let conn = open_connection(db_path)?;
 
     let mut payload = BTreeMap::new();
     payload.insert(
@@ -104,7 +111,7 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
     );
     payload.insert(
         "exports_dir".to_string(),
-        Value::String(export_dir_for(&data_dir).to_string_lossy().to_string()),
+        Value::String(export_dir_for(data_dir).to_string_lossy().to_string()),
     );
     payload.insert(
         "empresas".to_string(),
@@ -169,6 +176,135 @@ pub fn app_bootstrap(state: State<'_, SharedState>) -> Result<BTreeMap<String, V
             .unwrap_or(0),
         ),
     );
+
+    for (key, sql) in [
+        (
+            "funcionarios_ativos",
+            "SELECT COUNT(*) FROM funcionarios WHERE ativo = 1",
+        ),
+        (
+            "funcionarios_inativos",
+            "SELECT COUNT(*) FROM funcionarios WHERE ativo = 0",
+        ),
+        (
+            "funcionarios_ferias_hoje",
+            "SELECT COUNT(DISTINCT funcionario_id)
+               FROM ferias_colaboradores
+              WHERE ativo = 1
+                AND status IN ('ativo', 'programado')
+                AND date('now', 'localtime') BETWEEN data_inicial AND data_final",
+        ),
+        (
+            "batidas_hoje",
+            "SELECT COUNT(*) FROM batidas
+              WHERE COALESCE(ativo, 1) = 1
+                AND data_referencia = date('now', 'localtime')",
+        ),
+        (
+            "batidas_pendentes_validacao",
+            "SELECT COUNT(*) FROM batidas
+              WHERE COALESCE(ativo, 1) = 1
+                AND manual_ajuste = 1
+                AND validado = 0",
+        ),
+        (
+            "batidas_duplicadas_ocultas",
+            "SELECT COUNT(*) FROM batidas
+              WHERE COALESCE(ativo, 1) = 0
+                AND status = 'duplicidade'",
+        ),
+        (
+            "inconsistencias_hoje",
+            "SELECT COUNT(*)
+               FROM (
+                    SELECT funcionario_id
+                      FROM batidas
+                     WHERE COALESCE(ativo, 1) = 1
+                       AND data_referencia = date('now', 'localtime')
+                     GROUP BY funcionario_id
+                    HAVING COUNT(*) % 2 <> 0
+               )",
+        ),
+        (
+            "afd_importacoes_hoje",
+            "SELECT COUNT(*) FROM afd_importacoes
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+        (
+            "afd_processadas_hoje",
+            "SELECT COALESCE(SUM(total_processadas), 0) FROM afd_importacoes
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+        (
+            "afd_descartadas_hoje",
+            "SELECT COALESCE(SUM(total_descartadas), 0) FROM afd_importacoes
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+        (
+            "conector_coletas_hoje",
+            "SELECT COUNT(*) FROM conector_coletas_log
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+        (
+            "conector_importadas_hoje",
+            "SELECT COALESCE(SUM(total_importadas), 0) FROM conector_coletas_log
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+        (
+            "conector_duplicadas_hoje",
+            "SELECT COALESCE(SUM(total_duplicadas), 0) FROM conector_coletas_log
+              WHERE substr(created_at, 1, 10) = date('now', 'localtime')",
+        ),
+    ] {
+        payload.insert(
+            key.to_string(),
+            Value::from(
+                conn.query_row(sql, [], |row| row.get::<_, i64>(0))
+                    .unwrap_or(0),
+            ),
+        );
+    }
+
+    for (key, sql) in [
+        (
+            "ultima_importacao_afd",
+            "SELECT MAX(created_at) FROM afd_importacoes",
+        ),
+        (
+            "ultima_coleta_conector",
+            "SELECT MAX(created_at) FROM conector_coletas_log",
+        ),
+    ] {
+        let value = conn
+            .query_row(sql, [], |row| row.get::<_, Option<String>>(0))
+            .unwrap_or(None);
+        payload.insert(
+            key.to_string(),
+            value.map(Value::String).unwrap_or(Value::Null),
+        );
+    }
+
+    let mut batidas_por_dia = Vec::new();
+    if let Ok(mut statement) = conn.prepare(
+        "SELECT data_referencia, COUNT(*)
+           FROM batidas
+          WHERE COALESCE(ativo, 1) = 1
+            AND data_referencia >= date('now', 'localtime', '-6 days')
+            AND data_referencia <= date('now', 'localtime')
+          GROUP BY data_referencia
+          ORDER BY data_referencia",
+    ) {
+        if let Ok(rows) = statement.query_map([], |row| {
+            Ok(json!({
+                "data": row.get::<_, String>(0)?,
+                "total": row.get::<_, i64>(1)?,
+            }))
+        }) {
+            batidas_por_dia.extend(rows.filter_map(Result::ok));
+        }
+    }
+    payload.insert("batidas_por_dia".to_string(), Value::Array(batidas_por_dia));
+
     payload.insert(
         "database_status".to_string(),
         Value::String("ok".to_string()),

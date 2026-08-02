@@ -118,57 +118,7 @@ const WORKSPACE_TABS_ENABLED_KEY = storageKey("workspace-tabs-enabled");
 
 
 function iconNameForRoute(routePath: string): string {
-  const normalized = canonicalTabKey(routePath);
-  const icons: Record<string, string> = {
-    "/": "home",
-    "/empresas": "building",
-    "/funcionarios": "users",
-    "/departamentos": "department",
-    "/funcoes": "briefcase",
-    "/centros-custo": "target",
-    "/horarios": "clock",
-    "/escalas": "calendar",
-    "/jornadas": "calendar",
-    "/jornada-contextos": "settings",
-    "/feriados": "calendar",
-    "/ferias": "calendar",
-    "/equipamentos": "activity",
-    "/eventos": "clipboard",
-    "/justificativas": "file",
-    "/afd": "file",
-    "/batidas": "clock",
-    "/batidas-lote": "clipboard",
-    "/cartao-ponto": "file",
-    "/apuracao": "activity",
-    "/tratamentos": "settings",
-    "/banco-horas": "clock",
-    "/fechamentos": "calendar",
-    "/relatorios": "file",
-    "/relatorios/horas": "clock",
-    "/relatorios-gerados": "clipboard",
-    "/rep": "file",
-    "/conector-dashboard": "plug",
-    "/sync-queue": "sync",
-    "/usuarios": "users",
-    "/perfis": "shield",
-    "/logs": "clipboard",
-    "/sistema": "settings",
-    "/banco-dados": "database",
-    "/sistema/banco": "database",
-    "/licenciamento": "key",
-    "/runtime": "activity",
-    "/diagnosticos": "activity",
-    "/api-interna": "api",
-    "/documentacao/scalar": "docs",
-    "/webhooks": "webhook",
-    "/websocket": "websocket",
-    "/integracoes": "plug",
-    "/sincronizacao": "sync",
-    "/ficha-tecnica": "file",
-    "/sobre": "info",
-    "/documentacao/guia": "book",
-  };
-  return icons[normalized] || "circle";
+  return findMenuItemByRoute(canonicalTabKey(routePath))?.icon || "circle";
 }
 
 
@@ -207,19 +157,21 @@ function updateViewportMode() {
 
 const savedMenuState = readMenuState();
 const groupState = reactive<Record<MenuSection, boolean>>({
-  dashboard: savedMenuState?.dashboard ?? true,
-  cadastro: savedMenuState?.cadastro ?? true,
-  sistema: savedMenuState?.sistema ?? true,
-  ferramentas: savedMenuState?.ferramentas ?? false,
+  inicio: savedMenuState?.inicio ?? savedMenuState?.dashboard ?? true,
+  cadastros: savedMenuState?.cadastros ?? savedMenuState?.cadastro ?? true,
+  operacao: savedMenuState?.operacao ?? savedMenuState?.ferramentas ?? true,
+  relatorios_integracao: savedMenuState?.relatorios_integracao ?? true,
   documentacao: savedMenuState?.documentacao ?? false,
+  sistema: savedMenuState?.sistema ?? true,
 });
 
 const sections: { key: MenuSection; title: string; subtitle: string }[] = [
-  { key: "dashboard", title: "Dashboard", subtitle: "visão geral" },
-  { key: "cadastro", title: "Cadastro", subtitle: "dados base" },
-  { key: "sistema", title: "Sistema", subtitle: "segurança e parâmetros" },
-  { key: "ferramentas", title: "Ferramentas", subtitle: "runtime e integrações" },
+  { key: "inicio", title: "Início", subtitle: "visão geral" },
+  { key: "cadastros", title: "Cadastros", subtitle: "dados base" },
+  { key: "operacao", title: "Operação", subtitle: "rotinas de ponto" },
+  { key: "relatorios_integracao", title: "Relatórios e integração", subtitle: "saídas e comunicação" },
   { key: "documentacao", title: "Documentação", subtitle: "apoio ao usuário" },
+  { key: "sistema", title: "Sistema", subtitle: "segurança e parâmetros" },
 ];
 
 const menuBySection = computed(() => {

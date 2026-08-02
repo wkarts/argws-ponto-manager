@@ -407,12 +407,19 @@ pub fn migrate(db_path: &Path) -> Result<(), String> {
             origem TEXT NOT NULL DEFAULT 'manual',
             observacao TEXT,
             tipo TEXT NOT NULL DEFAULT 'entrada',
+            ativo INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'ativa',
+            duplicada_de_id INTEGER,
+            inativada_em TEXT,
+            inativada_motivo TEXT,
+            reativada_em TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             FOREIGN KEY (funcionario_id) REFERENCES funcionarios(id),
             FOREIGN KEY (equipamento_id) REFERENCES equipamentos(id),
             FOREIGN KEY (afd_importacao_id) REFERENCES afd_importacoes(id),
-            FOREIGN KEY (justificativa_id) REFERENCES justificativas(id)
+            FOREIGN KEY (justificativa_id) REFERENCES justificativas(id),
+            FOREIGN KEY (duplicada_de_id) REFERENCES batidas(id)
         );
 
         CREATE TABLE IF NOT EXISTS batidas_ignoradas_afd (
@@ -840,6 +847,12 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
         ("batidas", "justificativa_id", "INTEGER"),
         ("batidas", "manual_ajuste", "INTEGER NOT NULL DEFAULT 0"),
         ("batidas", "validado", "INTEGER NOT NULL DEFAULT 1"),
+        ("batidas", "ativo", "INTEGER NOT NULL DEFAULT 1"),
+        ("batidas", "status", "TEXT NOT NULL DEFAULT 'ativa'"),
+        ("batidas", "duplicada_de_id", "INTEGER"),
+        ("batidas", "inativada_em", "TEXT"),
+        ("batidas", "inativada_motivo", "TEXT"),
+        ("batidas", "reativada_em", "TEXT"),
         (
             "equipamentos",
             "usar_conector",
@@ -885,6 +898,54 @@ fn migrate_existing_schema(conn: &rusqlite::Connection) -> Result<(), String> {
            SET celular = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(celular, ''), '(', ''), ')', ''), '-', ''), ' ', ''), '.', '');
         UPDATE funcionarios
            SET cep = REPLACE(REPLACE(REPLACE(COALESCE(cep, ''), '.', ''), '-', ''), ' ', '');
+
+        UPDATE batidas
+           SET ativo = 1
+         WHERE ativo IS NULL;
+        UPDATE batidas
+           SET status = 'ativa'
+         WHERE status IS NULL OR TRIM(status) = '';
+
+        UPDATE batidas
+           SET ativo = 0,
+               status = 'duplicidade',
+               duplicada_de_id = (
+                   SELECT MIN(principal.id)
+                     FROM batidas principal
+                    WHERE principal.funcionario_id = batidas.funcionario_id
+                      AND principal.data_referencia = batidas.data_referencia
+                      AND principal.hora = batidas.hora
+                      AND principal.id < batidas.id
+                      AND (
+                          LOWER(COALESCE(principal.origem, '')) LIKE '%afd%'
+                          OR LOWER(COALESCE(principal.origem, '')) LIKE '%conector%'
+                          OR LOWER(COALESCE(principal.origem, '')) LIKE '%rep%'
+                      )
+               ),
+               inativada_em = COALESCE(inativada_em, updated_at, created_at),
+               inativada_motivo = COALESCE(
+                   inativada_motivo,
+                   'Migração: duplicidade oficial histórica detectada.'
+               )
+         WHERE COALESCE(ativo, 1) = 1
+           AND (
+               LOWER(COALESCE(origem, '')) LIKE '%afd%'
+               OR LOWER(COALESCE(origem, '')) LIKE '%conector%'
+               OR LOWER(COALESCE(origem, '')) LIKE '%rep%'
+           )
+           AND EXISTS (
+               SELECT 1
+                 FROM batidas principal
+                WHERE principal.funcionario_id = batidas.funcionario_id
+                  AND principal.data_referencia = batidas.data_referencia
+                  AND principal.hora = batidas.hora
+                  AND principal.id < batidas.id
+                  AND (
+                      LOWER(COALESCE(principal.origem, '')) LIKE '%afd%'
+                      OR LOWER(COALESCE(principal.origem, '')) LIKE '%conector%'
+                      OR LOWER(COALESCE(principal.origem, '')) LIKE '%rep%'
+                  )
+           );
         "#,
     )
     .map_err(|err| format!("Falha ao normalizar dados existentes: {err}"))?;
@@ -958,6 +1019,9 @@ fn ensure_indexes(conn: &rusqlite::Connection) -> Result<(), String> {
         CREATE INDEX IF NOT EXISTS idx_batidas_funcionario_data ON batidas(funcionario_id, data_referencia);
         CREATE INDEX IF NOT EXISTS idx_batidas_nsr ON batidas(funcionario_id, nsr);
         CREATE INDEX IF NOT EXISTS idx_batidas_justificativa ON batidas(justificativa_id);
+        CREATE INDEX IF NOT EXISTS idx_batidas_ativo_data ON batidas(ativo, data_referencia);
+        CREATE INDEX IF NOT EXISTS idx_batidas_status ON batidas(status, ativo);
+        CREATE INDEX IF NOT EXISTS idx_batidas_duplicada_de ON batidas(duplicada_de_id);
         CREATE INDEX IF NOT EXISTS idx_batidas_ignoradas_funcionario_data ON batidas_ignoradas_afd(funcionario_id, data_referencia, hora);
         CREATE INDEX IF NOT EXISTS idx_batidas_ignoradas_nsr ON batidas_ignoradas_afd(funcionario_id, nsr);
         CREATE UNIQUE INDEX IF NOT EXISTS ux_batidas_ignoradas_assinatura ON batidas_ignoradas_afd(funcionario_id, data_referencia, hora, COALESCE(nsr, ''));

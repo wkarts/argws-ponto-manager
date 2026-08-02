@@ -8,6 +8,7 @@ use crate::{
     app_state::SharedState,
     db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
     models::{AfdImportRequest, AfdImportResponse},
+    punch_integrity::{marcar_duplicidade, origem_oficial},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -375,14 +376,25 @@ pub fn afd_import_file(
                 &mark.nsr,
             )?;
 
-            let duplicate: Option<i64> = if ignorada_por_ajuste {
+            let duplicate: Option<(i64, String)> = if ignorada_por_ajuste {
                 None
             } else {
-                conn
-                .query_row(
-                    "SELECT id FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 AND hora = ?3 AND COALESCE(nsr, '') = COALESCE(?4, '') LIMIT 1",
-                    params![funcionario_id, data_referencia, hora, mark.nsr],
-                    |row| row.get(0),
+                conn.query_row(
+                    "SELECT id, COALESCE(origem, '')
+                       FROM batidas
+                      WHERE funcionario_id = ?1
+                        AND data_referencia = ?2
+                        AND hora = ?3
+                        AND COALESCE(ativo, 1) = 1
+                      ORDER BY CASE
+                          WHEN LOWER(COALESCE(origem, '')) LIKE '%afd%'
+                            OR LOWER(COALESCE(origem, '')) LIKE '%conector%'
+                            OR LOWER(COALESCE(origem, '')) LIKE '%rep%'
+                          THEN 0 ELSE 1
+                      END, id ASC
+                      LIMIT 1",
+                    params![funcionario_id, data_referencia, hora],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()
                 .map_err(|err| format!("Falha ao validar duplicidade da marcação AFD: {err}"))?
@@ -392,7 +404,18 @@ pub fn afd_import_file(
                 && duplicate.is_none()
             {
                 conn.query_row(
-                    "SELECT id, data_referencia || 'T' || hora FROM batidas WHERE funcionario_id = ?1 AND data_referencia = ?2 ORDER BY ABS((CAST(substr(hora,1,2) AS INTEGER)*60 + CAST(substr(hora,4,2) AS INTEGER)) - (CAST(substr(?3,1,2) AS INTEGER)*60 + CAST(substr(?3,4,2) AS INTEGER))) ASC LIMIT 1",
+                    "SELECT id, data_referencia || 'T' || hora
+                       FROM batidas
+                      WHERE funcionario_id = ?1
+                        AND data_referencia = ?2
+                        AND COALESCE(ativo, 1) = 1
+                        AND (
+                            LOWER(COALESCE(origem, '')) LIKE '%afd%'
+                            OR LOWER(COALESCE(origem, '')) LIKE '%conector%'
+                            OR LOWER(COALESCE(origem, '')) LIKE '%rep%'
+                        )
+                      ORDER BY ABS((CAST(substr(hora,1,2) AS INTEGER)*60 + CAST(substr(hora,4,2) AS INTEGER)) - (CAST(substr(?3,1,2) AS INTEGER)*60 + CAST(substr(?3,4,2) AS INTEGER))) ASC
+                      LIMIT 1",
                     params![funcionario_id, data_referencia, hora],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 ).optional().map_err(|err| format!("Falha ao validar proximidade da marcação AFD: {err}"))?
@@ -417,12 +440,15 @@ pub fn afd_import_file(
                     "Marcação ignorada porque foi removida/alterada manualmente em tratamento anterior.".to_string(),
                     None,
                 )
-            } else if let Some(existing_id) = duplicate {
+            } else if let Some((existing_id, _)) = duplicate
+                .as_ref()
+                .filter(|(_, origin)| origem_oficial(origin))
+            {
                 total_descartadas += 1;
                 (
                     "duplicada".to_string(),
-                    "Marcação já existente no banco local.".to_string(),
-                    Some(existing_id),
+                    "Marcação oficial já existente; a primeira importação foi preservada como principal.".to_string(),
+                    Some(*existing_id),
                 )
             } else if is_too_close {
                 total_descartadas += 1;
@@ -451,11 +477,22 @@ pub fn afd_import_file(
                     ],
                 )
                 .map_err(|err| format!("Falha ao inserir batida importada do AFD: {err}"))?;
+                let imported_id = conn.last_insert_rowid();
+                if let Some((manual_id, manual_origin)) = duplicate.as_ref() {
+                    if !origem_oficial(manual_origin) {
+                        marcar_duplicidade(
+                            &conn,
+                            *manual_id,
+                            imported_id,
+                            "Marcação manual ocultada porque uma marcação oficial AFD idêntica foi importada.",
+                        )?;
+                    }
+                }
                 total_processadas += 1;
                 (
                     "importada".to_string(),
                     "Marcação importada com sucesso.".to_string(),
-                    Some(conn.last_insert_rowid()),
+                    Some(imported_id),
                 )
             }
         } else {

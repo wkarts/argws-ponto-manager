@@ -188,6 +188,22 @@ export async function deleteBatida(id: number): Promise<boolean> {
   return invokeCommand<boolean>("batida_delete", { id });
 }
 
+export async function markBatidaDuplicate(
+  id: number,
+  batidaPrincipalId: number,
+  motivo?: string,
+): Promise<boolean> {
+  return invokeCommand<boolean>("batida_marcar_duplicidade", {
+    id,
+    batidaPrincipalId,
+    motivo: motivo || null,
+  });
+}
+
+export async function reactivateBatida(id: number, motivo?: string): Promise<boolean> {
+  return invokeCommand<boolean>("batida_reativar", { id, motivo: motivo || null });
+}
+
 export async function exportBatidasCsv(filters: Record<string, unknown>): Promise<string> {
   return invokeCommand<string>("exportar_batidas_csv", { filters });
 }

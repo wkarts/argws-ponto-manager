@@ -7,6 +7,9 @@ use crate::{
     app_state::SharedState,
     db::{enqueue_sync, open_connection, row_to_json_map, write_audit},
     models::PunchFilters,
+    punch_integrity::{
+        carregar_snapshot, marcar_duplicidade, origem_oficial, reativar_duplicidade,
+    },
 };
 
 fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
@@ -66,6 +69,29 @@ fn parse_bool(payload: &Map<String, Value>, field: &str, default: bool) -> i64 {
             }
         }
     }
+}
+
+fn carregar_origem(conn: &rusqlite::Connection, id: i64) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT origem FROM batidas WHERE id = ?1 LIMIT 1",
+        [id],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|err| format!("Falha ao verificar origem da batida: {err}"))
+}
+
+fn impedir_alteracao_oficial(conn: &rusqlite::Connection, id: i64) -> Result<(), String> {
+    if carregar_origem(conn, id)?
+        .as_deref()
+        .is_some_and(origem_oficial)
+    {
+        return Err(
+            "Marcações oficiais AFD/REP/Connector são imutáveis. Se houver repetição, marque a batida como duplicidade para preservar a rastreabilidade."
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 fn registrar_batida_ignorada_por_ajuste(
@@ -134,7 +160,19 @@ pub fn batidas_list(
                 b.nsr,
                 b.origem,
                 b.observacao,
-                b.tipo
+                b.tipo,
+                COALESCE(b.ativo, 1) AS ativo,
+                COALESCE(b.status, 'ativa') AS status,
+                b.duplicada_de_id,
+                b.inativada_em,
+                b.inativada_motivo,
+                b.reativada_em,
+                CASE
+                    WHEN LOWER(COALESCE(b.origem, '')) LIKE '%afd%'
+                      OR LOWER(COALESCE(b.origem, '')) LIKE '%conector%'
+                      OR LOWER(COALESCE(b.origem, '')) LIKE '%rep%'
+                    THEN 1 ELSE 0
+                END AS origem_protegida
          FROM batidas b
          INNER JOIN funcionarios f ON f.id = b.funcionario_id
          LEFT JOIN equipamentos e ON e.id = b.equipamento_id
@@ -143,6 +181,10 @@ pub fn batidas_list(
     );
 
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
+
+    if !filters.incluir_inativas {
+        sql.push_str(" AND COALESCE(b.ativo, 1) = 1");
+    }
 
     if let Some(empresa_id) = filters.empresa_id {
         sql.push_str(" AND f.empresa_id = ?");
@@ -243,6 +285,8 @@ pub fn batida_save(
     ];
 
     let record_id = if let Some(existing_id) = id {
+        impedir_alteracao_oficial(&conn, existing_id)?;
+
         let assinatura_alterada: bool = conn
             .query_row(
                 "SELECT COUNT(*) FROM batidas
@@ -314,7 +358,19 @@ pub fn batida_save(
                     b.nsr,
                     b.origem,
                     b.observacao,
-                    b.tipo
+                    b.tipo,
+                    COALESCE(b.ativo, 1) AS ativo,
+                    COALESCE(b.status, 'ativa') AS status,
+                    b.duplicada_de_id,
+                    b.inativada_em,
+                    b.inativada_motivo,
+                    b.reativada_em,
+                    CASE
+                        WHEN LOWER(COALESCE(b.origem, '')) LIKE '%afd%'
+                          OR LOWER(COALESCE(b.origem, '')) LIKE '%conector%'
+                          OR LOWER(COALESCE(b.origem, '')) LIKE '%rep%'
+                        THEN 1 ELSE 0
+                    END AS origem_protegida
              FROM batidas b
              INNER JOIN funcionarios f ON f.id = b.funcionario_id
              LEFT JOIN equipamentos e ON e.id = b.equipamento_id
@@ -355,6 +411,8 @@ pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, Str
         .transaction()
         .map_err(|err| format!("Falha ao iniciar transação de exclusão de batida: {err}"))?;
 
+    impedir_alteracao_oficial(&tx, id)?;
+
     registrar_batida_ignorada_por_ajuste(&tx, id, "exclusao_manual")?;
 
     tx.execute(
@@ -377,4 +435,73 @@ pub fn batida_delete(state: State<'_, SharedState>, id: i64) -> Result<bool, Str
         .map_err(|err| format!("Falha ao concluir exclusão de batida: {err}"))?;
 
     Ok(affected > 0)
+}
+
+#[tauri::command]
+pub fn batida_marcar_duplicidade(
+    state: State<'_, SharedState>,
+    id: i64,
+    batida_principal_id: i64,
+    motivo: Option<String>,
+) -> Result<bool, String> {
+    let db_path = state.db_path()?;
+    let mut conn = open_connection(&db_path)?;
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Falha ao iniciar tratamento da duplicidade: {err}"))?;
+    let justificativa = motivo
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Duplicidade confirmada pelo usuário.");
+
+    let changed = marcar_duplicidade(&tx, id, batida_principal_id, justificativa)?;
+    if changed {
+        let payload = json!({
+            "id": id,
+            "batida_principal_id": batida_principal_id,
+            "motivo": justificativa,
+            "exclusao_fisica": false,
+        });
+        write_audit(&tx, "batidas", "mark_duplicate", Some(id), &payload)?;
+        enqueue_sync(&tx, "batidas", "mark_duplicate", Some(id), &payload)?;
+    }
+    tx.commit()
+        .map_err(|err| format!("Falha ao concluir tratamento da duplicidade: {err}"))?;
+    Ok(changed)
+}
+
+#[tauri::command]
+pub fn batida_reativar(
+    state: State<'_, SharedState>,
+    id: i64,
+    motivo: Option<String>,
+) -> Result<bool, String> {
+    let db_path = state.db_path()?;
+    let mut conn = open_connection(&db_path)?;
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("Falha ao iniciar reativação da batida: {err}"))?;
+
+    let before = carregar_snapshot(&tx, id)?
+        .ok_or_else(|| "Batida selecionada para reativação não encontrada.".to_string())?;
+    let justificativa = motivo
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Reativação confirmada pelo usuário.");
+    let changed = reativar_duplicidade(&tx, id, justificativa)?;
+    if changed {
+        let payload = json!({
+            "id": id,
+            "funcionario_id": before.funcionario_id,
+            "data_referencia": before.data_referencia,
+            "motivo": justificativa,
+        });
+        write_audit(&tx, "batidas", "reactivate", Some(id), &payload)?;
+        enqueue_sync(&tx, "batidas", "reactivate", Some(id), &payload)?;
+    }
+    tx.commit()
+        .map_err(|err| format!("Falha ao concluir reativação da batida: {err}"))?;
+    Ok(changed)
 }

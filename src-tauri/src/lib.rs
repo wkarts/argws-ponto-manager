@@ -5,6 +5,7 @@ mod legacy_data;
 mod migrations;
 mod models;
 mod net_bind;
+mod punch_integrity;
 mod runtime_config;
 mod security;
 mod services;
@@ -180,6 +181,8 @@ pub fn run() {
             commands::punches::batidas_list,
             commands::punches::batida_save,
             commands::punches::batida_delete,
+            commands::punches::batida_marcar_duplicidade,
+            commands::punches::batida_reativar,
             commands::reports::apurar_periodo,
             commands::reports::exportar_batidas_csv,
             commands::reports::report_generated_register,
