@@ -4158,10 +4158,20 @@ body, button, input, select, textarea { font-family: var(--app-font-family, Inte
   gap: 12px !important;
 }
 .cartao-vb6-toolbar { padding-bottom: 4px; }
-.cartao-filter-card {
+.cartao-sticky-header {
   position: sticky;
-  top: 4px;
-  z-index: 4;
+  top: 0;
+  z-index: 14;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding-bottom: 4px;
+  background: linear-gradient(180deg, var(--page-bg) 0%, var(--page-bg) 94%, transparent 100%);
+}
+.cartao-filter-card {
+  position: relative;
+  top: auto;
+  z-index: auto;
 }
 .cartao-filter-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .cartao-vb6-shell {
@@ -4178,6 +4188,20 @@ body, button, input, select, textarea { font-family: var(--app-font-family, Inte
   min-height: 500px;
   min-width: 0;
   overflow: auto;
+}
+.cartao-vb6-grid-panel > .vb6-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 4px 0 8px;
+  background: var(--surface-bg);
+}
+.cartao-vb6-grid-panel > .vb6-main-grid thead th {
+  position: sticky;
+  top: 42px;
+  z-index: 2;
+  background: var(--surface-muted-bg);
 }
 .cartao-vb6-side {
   display: grid;
@@ -4456,7 +4480,25 @@ body, button, input, select, textarea { font-family: var(--app-font-family, Inte
     min-height: 400px;
   }
 }
+@media (min-width: 1381px) and (min-height: 760px) {
+  .cartao-vb6-shell {
+    height: clamp(500px, 66vh, 720px);
+    overflow: hidden;
+  }
+  .cartao-vb6-grid-panel,
+  .cartao-vb6-side {
+    height: 100%;
+    min-height: 0;
+  }
+  .cartao-vb6-side .side-panel {
+    max-height: none;
+  }
+}
 @media (max-width: 1180px) {
+  .cartao-sticky-header {
+    position: static;
+    padding-bottom: 0;
+  }
   .cartao-filter-card { position: static; }
 }
 @media (max-width: 720px) {
