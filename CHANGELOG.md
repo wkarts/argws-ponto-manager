@@ -1,3 +1,10 @@
+## [1.26.1](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.0...v1.26.1) (2026-08-02)
+
+
+### Bug Fixes
+
+* **ui:** padroniza barras de filtros responsivas ([2e03ac4](https://github.com/wkarts/argws-ponto-manager/commit/2e03ac40fed76b48750bd05ff818e31094ae2e2e))
+
 # [1.26.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.25.0...v1.26.0) (2026-08-02)
 
 
