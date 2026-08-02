@@ -8,6 +8,7 @@ mod net_bind;
 mod runtime_config;
 mod security;
 mod services;
+mod storage_contract;
 mod timecalc;
 #[allow(dead_code)]
 mod core;

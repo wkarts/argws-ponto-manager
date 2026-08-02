@@ -5,8 +5,25 @@ use tempfile::TempDir;
 
 #[path = "../../../src-tauri/src/bootstrap.rs"]
 mod bootstrap;
+#[path = "../../../src-tauri/src/db.rs"]
+mod db;
 #[path = "../../../src-tauri/src/legacy_data.rs"]
 mod legacy_data;
+#[path = "../../../src-tauri/src/migrations.rs"]
+mod migrations;
+#[path = "../../../src-tauri/src/storage_contract.rs"]
+mod storage_contract;
+#[path = "../../../src-tauri/src/app_state.rs"]
+mod app_state;
+
+mod security {
+    pub fn hash_password(password: &str) -> Result<String, String> {
+        if password.is_empty() {
+            return Err("Senha de teste vazia.".to_string());
+        }
+        Ok(format!("$migration-harness${password}"))
+    }
+}
 
 fn create_legacy_database(path: &Path) -> Result<(), String> {
     let conn = Connection::open(path).map_err(|error| error.to_string())?;
@@ -29,6 +46,22 @@ fn scalar_count(path: &Path, table: &str) -> Result<i64, String> {
     Connection::open(path)
         .and_then(|conn| conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row.get(0)))
         .map_err(|error| error.to_string())
+}
+
+fn table_has_column(path: &Path, table: &str, column: &str) -> Result<bool, String> {
+    let conn = Connection::open(path).map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(&format!("PRAGMA table_info({table})"))
+        .map_err(|error| error.to_string())?;
+    let columns = statement
+        .query_map([], |row| row.get::<_, String>(1))
+        .map_err(|error| error.to_string())?;
+    for item in columns {
+        if item.map_err(|error| error.to_string())? == column {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn create_legacy_credential_database(
@@ -128,11 +161,35 @@ fn write_legacy_migration_marker(
 
 fn test_new_install() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
-    let target = temp.path().join("ponto-manager.db");
+    let data_dir = temp.path().join(storage_contract::CURRENT_LOCAL_DATA_DIR);
+    let target = storage_contract::sqlite_database_path(&data_dir);
     env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", temp.path().join("inexistente.db"));
-    let recovery = legacy_data::prepare(temp.path(), &target)?;
-    if recovery.is_some() || target.exists() {
-        return Err("Instalação nova não deveria criar cópia legada.".to_string());
+    env::set_var(
+        "ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE",
+        data_dir.join(".bootstrap-admin.local"),
+    );
+    let state = app_state::SharedState::new();
+    state.init_with_data_dir(data_dir.clone())?;
+
+    if state.db_path()? != target || state.data_dir()? != data_dir || !target.is_file() {
+        return Err("Instalação nova não criou o SQLite no caminho canônico.".to_string());
+    }
+    if data_dir
+        .join(storage_contract::LEGACY_SQLITE_DATABASE_FILE_NAME)
+        .exists()
+    {
+        return Err("Instalação nova criou o arquivo legado em vez do padrão 1.24.x.".to_string());
+    }
+    if scalar_count(&target, "usuarios")? < 1 || scalar_count(&target, "empresas")? < 1 {
+        return Err("Seeds iniciais não foram aplicados na instalação nova.".to_string());
+    }
+    if !table_has_column(&target, "ferias_colaboradores", "status")?
+        || !table_has_column(&target, "ferias_colaboradores", "ativo")?
+        || !data_dir
+            .join(format!("schema-backup-{}.ok", env!("CARGO_PKG_VERSION")))
+            .is_file()
+    {
+        return Err("Migrations atuais não foram concluídas no SQLite canônico.".to_string());
     }
     Ok(())
 }
@@ -141,7 +198,7 @@ fn test_upgrade_repeat_and_completed_start() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
     let legacy = temp.path().join("pontos.db");
     let data_dir = temp.path().join("novo");
-    let target = data_dir.join("ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(&data_dir);
     create_legacy_database(&legacy)?;
     env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy);
 
@@ -165,7 +222,7 @@ fn test_corrupt_legacy() -> Result<(), String> {
     let legacy = temp.path().join("pontos.db");
     fs::write(&legacy, b"sqlite corrompido").map_err(|error| error.to_string())?;
     env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy);
-    let target = temp.path().join("novo/ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(&temp.path().join("novo"));
     if legacy_data::prepare(target.parent().unwrap_or(temp.path()), &target).is_ok() {
         return Err("Banco legado corrompido foi aceito.".to_string());
     }
@@ -194,7 +251,7 @@ fn test_failed_migration_rollback() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
     let legacy = temp.path().join("pontos.db");
     let data_dir = temp.path().join("novo");
-    let target = data_dir.join("ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(&data_dir);
     create_legacy_database(&legacy)?;
     env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy);
     let recovery = legacy_data::prepare(&data_dir, &target)?;
@@ -210,7 +267,7 @@ fn test_failed_migration_rollback() -> Result<(), String> {
 
 fn test_existing_database_rollback() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
-    let target = temp.path().join("ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(temp.path());
     create_legacy_database(&target)?;
     env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", temp.path().join("inexistente.db"));
     let recovery = legacy_data::prepare(temp.path(), &target)?;
@@ -226,7 +283,7 @@ fn test_existing_database_rollback() -> Result<(), String> {
 
 fn test_bootstrap_credential_lifecycle() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
-    let db_path = temp.path().join("ponto-manager.db");
+    let db_path = storage_contract::sqlite_database_path(temp.path());
     let credential_file = temp.path().join(".bootstrap-admin.local");
     env::set_var("ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE", &credential_file);
     let first = bootstrap::load_or_create(&db_path)?;
@@ -258,7 +315,7 @@ fn test_rotated_legacy_credential_is_restored() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
     let legacy = temp.path().join("pontos.db");
     let data_dir = temp.path().join("novo");
-    let target = data_dir.join("ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(&data_dir);
     fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
     create_legacy_credential_database(&legacy, "hash-legado-preservado", 0)?;
     create_affected_target_database(&target, "hash-bootstrap-rotacionado", None)?;
@@ -310,7 +367,7 @@ fn test_used_target_credential_is_not_overwritten() -> Result<(), String> {
     let temp = TempDir::new().map_err(|error| error.to_string())?;
     let legacy = temp.path().join("pontos.db");
     let data_dir = temp.path().join("novo");
-    let target = data_dir.join("ponto-manager.db");
+    let target = storage_contract::sqlite_database_path(&data_dir);
     fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
     create_legacy_credential_database(&legacy, "hash-legado-antigo", 0)?;
     create_affected_target_database(
@@ -338,6 +395,157 @@ fn test_used_target_credential_is_not_overwritten() -> Result<(), String> {
     Ok(())
 }
 
+fn create_seeded_database(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        env::set_var(
+            "ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE",
+            parent.join(".bootstrap-admin.local"),
+        );
+    }
+    migrations::migrate(path)
+}
+
+fn admin_hash(path: &Path) -> Result<String, String> {
+    Connection::open(path)
+        .and_then(|conn| {
+            conn.query_row(
+                "SELECT senha_hash FROM usuarios WHERE LOWER(login) = 'admin' LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn test_unused_124_bootstrap_is_replaced_by_legacy_database() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let current_dir = temp.path().join(storage_contract::CURRENT_LOCAL_DATA_DIR);
+    let current_db = storage_contract::sqlite_database_path(&current_dir);
+    let legacy_dir = temp.path().join("pontos_desktop_tauri");
+    let legacy_db = legacy_dir.join("pontos.db");
+
+    env::set_var(
+        "ARGWS_PONTO_MANAGER_LEGACY_DB_PATH",
+        temp.path().join("legado-ainda-inexistente.db"),
+    );
+    let initial_state = app_state::SharedState::new();
+    initial_state.init_with_data_dir(current_dir.clone())?;
+    if !current_db.is_file() {
+        return Err("Bootstrap 1.24.x de teste não foi criado.".to_string());
+    }
+
+    create_seeded_database(&legacy_db)?;
+    Connection::open(&legacy_db)
+        .and_then(|conn| {
+            conn.execute(
+                "UPDATE usuarios
+                    SET senha_hash = 'hash-legado-preservado',
+                        senha_provisoria = 0,
+                        ultimo_login_em = '2026-07-31T12:00:00Z'
+                  WHERE LOWER(login) = 'admin'",
+                [],
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy_db);
+
+    let migrated_state = app_state::SharedState::new();
+    migrated_state.init_with_data_dir(current_dir.clone())?;
+    if admin_hash(&current_db)? != "hash-legado-preservado" {
+        return Err("Base bootstrap 1.24.x não foi substituída pelo banco legado.".to_string());
+    }
+    if admin_hash(&legacy_db)? != "hash-legado-preservado" {
+        return Err("Credencial do banco legado original foi modificada.".to_string());
+    }
+    if !current_dir
+        .join("legacy-database-migration-v1.json")
+        .is_file()
+        || current_dir.join(".bootstrap-admin.local").exists()
+    {
+        return Err(
+            "Migração não registrou conclusão ou manteve bootstrap obsoleto.".to_string(),
+        );
+    }
+    Ok(())
+}
+
+fn test_used_124_database_is_never_overwritten() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let current_dir = temp.path().join(storage_contract::CURRENT_LOCAL_DATA_DIR);
+    let current_db = storage_contract::sqlite_database_path(&current_dir);
+    let legacy_dir = temp.path().join("pontos_desktop_tauri");
+    let legacy_db = legacy_dir.join("pontos.db");
+
+    env::set_var(
+        "ARGWS_PONTO_MANAGER_LEGACY_DB_PATH",
+        temp.path().join("legado-ainda-inexistente.db"),
+    );
+    let initial_state = app_state::SharedState::new();
+    initial_state.init_with_data_dir(current_dir.clone())?;
+    Connection::open(&current_db)
+        .and_then(|conn| {
+            conn.execute(
+                "UPDATE usuarios
+                    SET senha_hash = 'hash-novo-em-uso',
+                        senha_provisoria = 0,
+                        ultimo_login_em = '2026-08-01T12:00:00Z'
+                  WHERE LOWER(login) = 'admin'",
+                [],
+            )
+        })
+        .map_err(|error| error.to_string())?;
+
+    create_seeded_database(&legacy_db)?;
+    Connection::open(&legacy_db)
+        .and_then(|conn| {
+            conn.execute(
+                "UPDATE usuarios SET senha_hash = 'hash-legado' WHERE LOWER(login) = 'admin'",
+                [],
+            )
+        })
+        .map_err(|error| error.to_string())?;
+    env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy_db);
+
+    let retained_state = app_state::SharedState::new();
+    retained_state.init_with_data_dir(current_dir.clone())?;
+    if admin_hash(&current_db)? != "hash-novo-em-uso"
+        || current_dir
+            .join("legacy-database-migration-v1.json")
+            .exists()
+    {
+        return Err("Base 1.24.x já utilizada foi sobrescrita pelo legado.".to_string());
+    }
+    Ok(())
+}
+
+fn test_pre_124_database_is_migrated_to_current_contract() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let legacy_dir = temp.path().join("pontos_desktop_tauri");
+    let legacy_db = legacy_dir.join("pontos.db");
+    let current_dir = temp.path().join(storage_contract::CURRENT_LOCAL_DATA_DIR);
+    let current_db = storage_contract::sqlite_database_path(&current_dir);
+    fs::create_dir_all(&legacy_dir).map_err(|error| error.to_string())?;
+    create_legacy_database(&legacy_db)?;
+
+    let known_candidates = storage_contract::known_legacy_database_candidates(temp.path());
+    if !known_candidates.contains(&legacy_db) {
+        return Err(
+            "Contrato de migração não contempla o caminho anterior à 1.24.".to_string(),
+        );
+    }
+
+    env::set_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH", &legacy_db);
+    let recovery = legacy_data::prepare(&current_dir, &current_db)?
+        .ok_or_else(|| "Base anterior à 1.24 não foi detectada.".to_string())?;
+    legacy_data::finalize(&current_dir, &current_db, Some(&recovery))?;
+    if scalar_count(&current_db, "batidas")? != 1 || scalar_count(&legacy_db, "batidas")? != 1
+    {
+        return Err("Migração pré-1.24 não preservou origem e contagens.".to_string());
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     test_new_install()?;
     test_upgrade_repeat_and_completed_start()?;
@@ -348,8 +556,11 @@ fn main() -> Result<(), String> {
     test_bootstrap_credential_lifecycle()?;
     test_rotated_legacy_credential_is_restored()?;
     test_used_target_credential_is_not_overwritten()?;
+    test_unused_124_bootstrap_is_replaced_by_legacy_database()?;
+    test_used_124_database_is_never_overwritten()?;
+    test_pre_124_database_is_migrated_to_current_contract()?;
     env::remove_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH");
     env::remove_var("ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE");
-    println!("9 cenários de migração/segurança aprovados.");
+    println!("12 cenários de migração/segurança aprovados.");
     Ok(())
 }

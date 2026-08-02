@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{bootstrap, legacy_data, migrations};
+use crate::{bootstrap, legacy_data, migrations, storage_contract};
 
 #[derive(Debug, Clone)]
 pub struct AppContext {
@@ -39,8 +39,11 @@ impl SharedState {
         std::fs::create_dir_all(&data_dir)
             .map_err(|err| format!("Falha ao criar diretório de dados: {err}"))?;
 
-        let db_path = data_dir.join("ponto-manager.db");
+        let db_path = storage_contract::sqlite_database_path(&data_dir);
         let recovery = legacy_data::prepare(&data_dir, &db_path)?;
+        let migrated_from_legacy = recovery
+            .as_ref()
+            .is_some_and(legacy_data::DatabaseRecovery::copied_from_legacy);
         let mut legacy_credential_restored = false;
         if let Err(error) = legacy_data::restore_rotated_legacy_credential(&data_dir, &db_path)
             .and_then(|restored| {
@@ -59,10 +62,10 @@ impl SharedState {
                 ),
             });
         }
-        if legacy_credential_restored {
+        if migrated_from_legacy || legacy_credential_restored {
             if let Err(error) = bootstrap::remove_after_password_change(&db_path) {
                 eprintln!(
-                    "Aviso: a credencial legada foi preservada, mas o arquivo bootstrap obsoleto não pôde ser removido: {error}"
+                    "Aviso: os dados e a credencial legados foram preservados, mas o arquivo bootstrap obsoleto não pôde ser removido: {error}"
                 );
             }
         }
@@ -156,5 +159,5 @@ fn runtime_app_local_data_dir() -> String {
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "argws-ponto-manager".to_string())
+        .unwrap_or_else(|| storage_contract::CURRENT_LOCAL_DATA_DIR.to_string())
 }

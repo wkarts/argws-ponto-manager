@@ -1,6 +1,6 @@
 # Validação da migração
 
-Data: 2026-08-01. Base: `main` em `60d448ee9f846667d03829907d8a2ef70c2dca77`.
+Data: 2026-08-01. Base: `main` em `cc6aa0c7208eda156d8817cec42ad460dfb0486a` (`1.24.3`).
 
 ## Executado e aprovado
 
@@ -18,7 +18,7 @@ Data: 2026-08-01. Base: `main` em `60d448ee9f846667d03829907d8a2ef70c2dca77`.
 - matriz GitHub Actions de features SQLite, MySQL, PostgreSQL e MySQL+PostgreSQL;
 - validação do título exato da Pull Request;
 - validação sintática dos scripts Bash e Node.js de entrega;
-- harness Rust com sete cenários: instalação nova, atualização/repetição/reinício, banco corrompido, falha de cópia/espaço/permissão, falha de migration, rollback de destino existente e lifecycle/permissão do bootstrap.
+- harness Rust com doze cenários, incluindo instalação nova completa, atualização/repetição/reinício, banco corrompido, falha de cópia, rollback, credenciais, migração pré-1.24, substituição segura de bootstrap 1.24.x não utilizado e proteção de destino 1.24.x já utilizado.
 
 ## Limitações do ambiente local contornadas pelo runner
 
