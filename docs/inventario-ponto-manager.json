@@ -123,6 +123,8 @@
       "banco_horas_processar_periodo",
       "banco_horas_salvar_ajuste",
       "batida_delete",
+      "batida_marcar_duplicidade",
+      "batida_reativar",
       "batida_save",
       "batidas_list",
       "combo_list",

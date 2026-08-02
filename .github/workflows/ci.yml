@@ -158,6 +158,9 @@ jobs:
       - name: Validate version synchronization
         run: npm run ci:version
 
+      - name: Validate sidebar navigation integrity
+        run: npm run ci:navigation
+
       - name: Typecheck
         run: npm run typecheck
 

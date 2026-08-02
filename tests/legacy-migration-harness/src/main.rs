@@ -11,6 +11,8 @@ mod db;
 mod legacy_data;
 #[path = "../../../src-tauri/src/migrations.rs"]
 mod migrations;
+#[path = "../../../src-tauri/src/punch_integrity.rs"]
+mod punch_integrity;
 #[path = "../../../src-tauri/src/storage_contract.rs"]
 mod storage_contract;
 #[path = "../../../src-tauri/src/app_state.rs"]
@@ -185,6 +187,9 @@ fn test_new_install() -> Result<(), String> {
     }
     if !table_has_column(&target, "ferias_colaboradores", "status")?
         || !table_has_column(&target, "ferias_colaboradores", "ativo")?
+        || !table_has_column(&target, "batidas", "status")?
+        || !table_has_column(&target, "batidas", "duplicada_de_id")?
+        || !table_has_column(&target, "batidas", "inativada_motivo")?
         || !data_dir
             .join(format!("schema-backup-{}.ok", env!("CARGO_PKG_VERSION")))
             .is_file()
@@ -546,6 +551,89 @@ fn test_pre_124_database_is_migrated_to_current_contract() -> Result<(), String>
     Ok(())
 }
 
+fn test_punch_duplicate_lifecycle_preserves_official_history() -> Result<(), String> {
+    let temp = TempDir::new().map_err(|error| error.to_string())?;
+    let db_path = storage_contract::sqlite_database_path(temp.path());
+    create_seeded_database(&db_path)?;
+    let conn = Connection::open(&db_path).map_err(|error| error.to_string())?;
+    let employee_id = conn
+        .query_row("SELECT id FROM funcionarios ORDER BY id LIMIT 1", [], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|error| error.to_string())?;
+    let timestamp = "2026-08-01T08:00:00Z";
+    for (hour, origin) in [
+        ("08:00", "cartao_inline"),
+        ("08:00", "afd_671"),
+        ("09:00", "afd_671"),
+        ("09:00", "conector"),
+    ] {
+        conn.execute(
+            "INSERT INTO batidas (
+                funcionario_id, data_referencia, hora, origem, tipo, created_at, updated_at
+             ) VALUES (?1, '2026-08-01', ?2, ?3, 'marcacao', ?4, ?4)",
+            params![employee_id, hour, origin, timestamp],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    let manual_id = conn
+        .query_row(
+            "SELECT id FROM batidas WHERE hora = '08:00' AND origem = 'cartao_inline'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let official_id = conn
+        .query_row(
+            "SELECT id FROM batidas WHERE hora = '08:00' AND origem = 'afd_671'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    punch_integrity::marcar_duplicidade(
+        &conn,
+        manual_id,
+        official_id,
+        "Teste de prioridade oficial",
+    )?;
+    let hidden: (i64, String, i64) = conn
+        .query_row(
+            "SELECT ativo, status, duplicada_de_id FROM batidas WHERE id = ?1",
+            [manual_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|error| error.to_string())?;
+    if hidden != (0, "duplicidade".to_string(), official_id)
+        || scalar_count(&db_path, "batidas")? != 4
+    {
+        return Err("Duplicidade não preservou o registro e a principal oficial.".to_string());
+    }
+    punch_integrity::reativar_duplicidade(&conn, manual_id, "Conferência de teste")?;
+
+    drop(conn);
+    migrations::migrate(&db_path)?;
+    let conn = Connection::open(&db_path).map_err(|error| error.to_string())?;
+    let active_at_nine = conn
+        .query_row(
+            "SELECT COUNT(*) FROM batidas WHERE hora = '09:00' AND ativo = 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let hidden_at_nine = conn
+        .query_row(
+            "SELECT COUNT(*) FROM batidas WHERE hora = '09:00' AND status = 'duplicidade' AND ativo = 0",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if active_at_nine != 1 || hidden_at_nine != 1 || scalar_count(&db_path, "batidas")? != 4 {
+        return Err("Migração não consolidou duplicidades oficiais históricas.".to_string());
+    }
+    Ok(())
+}
+
 fn main() -> Result<(), String> {
     test_new_install()?;
     test_upgrade_repeat_and_completed_start()?;
@@ -559,8 +647,9 @@ fn main() -> Result<(), String> {
     test_unused_124_bootstrap_is_replaced_by_legacy_database()?;
     test_used_124_database_is_never_overwritten()?;
     test_pre_124_database_is_migrated_to_current_contract()?;
+    test_punch_duplicate_lifecycle_preserves_official_history()?;
     env::remove_var("ARGWS_PONTO_MANAGER_LEGACY_DB_PATH");
     env::remove_var("ARGWS_PONTO_MANAGER_BOOTSTRAP_FILE");
-    println!("12 cenários de migração/segurança aprovados.");
+    println!("13 cenários de migração/segurança e integridade AFD aprovados.");
     Ok(())
 }
