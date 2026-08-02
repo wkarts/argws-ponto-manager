@@ -27,6 +27,10 @@ import { logAppError, logAppInfo } from "../services/logger";
 import { printHtmlExternally } from "../services/print";
 import { showSplashError, showSplashInfo, showSplashSuccess } from "../services/splash";
 import { useSessionStore } from "../stores/session";
+import cartaoLandscapeCss from "../print/cartao-report-landscape.css?raw";
+import cartaoLandscapeCssUrl from "../print/cartao-report-landscape.css?url";
+import cartaoPortraitCss from "../print/cartao-report-portrait.css?raw";
+import cartaoPortraitCssUrl from "../print/cartao-report-portrait.css?url";
 
 const session = useSessionStore();
 const loading = ref(false);
@@ -1153,43 +1157,11 @@ function isCartaoModeloPaisagem(modelo = filtros.modeloRelatorio): boolean {
 }
 
 function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
-  const isLandscape = isCartaoModeloPaisagem(modelo);
-  const isClassicCard = modelo === "cartao_ponto";
-  const margin = "6mm";
-  const orientation = isLandscape ? "landscape" : "portrait";
-  const bodyFontSize = isClassicCard ? "12px" : isLandscape ? "8.5px" : "9px";
-  const tableFontSize = isClassicCard ? "12px" : isLandscape ? "7.4px" : "8.2px";
-  const cellPadding = isClassicCard ? "4px 6px" : isLandscape ? "1.6px 2.4px" : "2px 3px";
-  const titleSize = isClassicCard ? "24px" : isLandscape ? "14px" : "15px";
-  const signatureMargin = isClassicCard ? "32px" : isLandscape ? "10px" : "12px";
-  const bodyMargin = isClassicCard ? "14px" : "0";
-  const headBorderWidth = isClassicCard ? "2px" : "1px";
-  const headPadding = isClassicCard ? "6px" : "3px";
-  const metaFontSize = isClassicCard ? "12px" : isLandscape ? "8px" : "8.5px";
-  const tableMargin = isClassicCard ? "10px" : "4px";
-  const tableLayout = isClassicCard ? "auto" : "fixed";
-  const lineHeight = isClassicCard ? "normal" : "1.12";
-  const logoWidth = isClassicCard ? "180px" : isLandscape ? "112px" : "120px";
+  return isCartaoModeloPaisagem(modelo) ? cartaoLandscapeCss : cartaoPortraitCss;
+}
 
-  return `
-      @page{size:A4 ${orientation};margin:${margin}}
-      html,body{width:100%;background:#fff}
-      body{font-family:Consolas,monospace;margin:${bodyMargin};color:#111;font-size:${bodyFontSize}}
-      .head{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;border-bottom:${headBorderWidth} solid #333;padding-bottom:${headPadding}}
-      h1{margin:0;font-size:${titleSize};line-height:1.1}
-      .meta{font-size:${metaFontSize};line-height:${isClassicCard ? "normal" : "1.15"}}
-      table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:${tableMargin};table-layout:${tableLayout}}
-      th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:${isClassicCard ? "normal" : "break-word"};line-height:${lineHeight}}
-      thead th{background:#ececec}
-      tr{break-inside:avoid;page-break-inside:avoid}
-      .tot{font-weight:700;background:#f5f5f5}
-      .sign{margin-top:${signatureMargin};display:grid;grid-template-columns:1fr 1fr;gap:${isClassicCard ? "24px" : "18px"};text-align:center}
-      .line{border-top:1px solid #333;padding-top:${isClassicCard ? "4px" : "3px"}}
-      .summary-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:5px}
-      .summary-box{border:1px solid #666;padding:3px;text-align:center}
-      .legend{font-size:${isLandscape ? "7px" : "7.5px"};margin-top:4px}
-      svg{max-width:${logoWidth};height:auto}
-    `;
+function cartaoPrintStylesheetUrl(modelo = filtros.modeloRelatorio): string {
+  return isCartaoModeloPaisagem(modelo) ? cartaoLandscapeCssUrl : cartaoPortraitCssUrl;
 }
 
 function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName: string, dataInicial: string, dataFinal: string): string {
@@ -1252,6 +1224,7 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
   const isLandscape = filtros.modeloRelatorio === "folha_completa";
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
+    <link rel="stylesheet" href="${cartaoPrintStylesheetUrl(filtros.modeloRelatorio)}">
     <style>${cartaoPrintCss(filtros.modeloRelatorio)}</style></head>
     <body>
       <div class="head">
@@ -1300,6 +1273,7 @@ function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
     .join("");
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
+    <link rel="stylesheet" href="${cartaoPrintStylesheetUrl(filtros.modeloRelatorio)}">
     <style>
       ${cartaoPrintCss(filtros.modeloRelatorio)}
       .card-page{page-break-after:always;break-after:page}
