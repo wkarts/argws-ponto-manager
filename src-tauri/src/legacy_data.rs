@@ -59,9 +59,7 @@ pub fn prepare(data_dir: &Path, target_db: &Path) -> Result<Option<DatabaseRecov
 
     if target_db.is_file() {
         validate_integrity(target_db)?;
-        if !data_dir.join(MIGRATION_MARKER).is_file()
-            && target_is_unused_bootstrap(target_db)?
-        {
+        if !data_dir.join(MIGRATION_MARKER).is_file() && target_is_unused_bootstrap(target_db)? {
             if let Some(legacy_db) = resolve_legacy_database(target_db)? {
                 return replace_unused_target_with_legacy(data_dir, target_db, &legacy_db)
                     .map(Some);
@@ -259,7 +257,9 @@ fn append_configured_legacy_database(
     if configured_path.is_file() {
         candidates.push(configured_path);
     } else {
-        candidates.extend(storage_contract::legacy_database_candidates_in(&configured_path));
+        candidates.extend(storage_contract::legacy_database_candidates_in(
+            &configured_path,
+        ));
     }
     Ok(())
 }
@@ -440,12 +440,7 @@ fn target_is_unused_bootstrap(target_db: &Path) -> Result<bool, String> {
     }
 
     if !has_only_expected_demo_row(&target, "empresas", "nome", "Empresa Demo Ltda")?
-        || !has_only_expected_demo_row(
-            &target,
-            "funcionarios",
-            "nome",
-            "Funcionário Demo",
-        )?
+        || !has_only_expected_demo_row(&target, "funcionarios", "nome", "Funcionário Demo")?
     {
         return Ok(false);
     }
