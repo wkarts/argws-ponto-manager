@@ -1,3 +1,10 @@
+## [1.26.6](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.5...v1.26.6) (2026-08-02)
+
+
+### Bug Fixes
+
+* **cartao:** restaura CSS da preview da versao 1.23.4 ([7fbec3d](https://github.com/wkarts/argws-ponto-manager/commit/7fbec3daf642a8a1f8cd9f057d8d48e605c5978a))
+
 ## [1.26.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.4...v1.26.5) (2026-08-02)
 
 
