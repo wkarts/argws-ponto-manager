@@ -65,8 +65,12 @@ const requirements = [
     "A impressão em lote deve separar colaboradores sem paginar manualmente as linhas do cartão.",
   ],
   [
-    /<iframe[\s\S]*?:srcdoc="reportHtml"[\s\S]*?sandbox[\s\S]*?referrerpolicy="no-referrer"/,
-    "O HTML real do relatório deve ser isolado com sandbox dentro da prévia.",
+    /<iframe[\s\S]*?:srcdoc="reportHtml"[\s\S]*?sandbox="allow-same-origin"[\s\S]*?referrerpolicy="no-referrer"/,
+    "O iframe deve preservar a origem necessária ao CSS no WebView2 sem liberar scripts.",
+  ],
+  [
+    /<style>\$\{cartaoPrintCss\(filtros\.modeloRelatorio\)\}<\/style>/,
+    "O documento real deve incorporar o CSS clássico compartilhado pela prévia e pela impressão.",
   ],
   [
     /<div class="cartao-sticky-header">[\s\S]*?<AppPageTitleBar[\s\S]*?<BaseFilterBar/,
@@ -98,6 +102,10 @@ if (source.includes("<th>Marcações do dia</th><th>Total trabalhado</th><th>Jor
   throw new Error("O modelo padrão não pode voltar ao cabeçalho sintético introduzido na versão 1.23.0.");
 }
 
+if (/sandbox=""|sandbox="[^"]*allow-scripts/.test(source)) {
+  throw new Error("A prévia não pode usar origem opaca nem liberar scripts no iframe do relatório.");
+}
+
 const styleRequirements = [
   [/\.cartao-sticky-header\s*\{[\s\S]*?position:\s*sticky[\s\S]*?top:\s*0/, "O cabeçalho do cartão deve permanecer fixo em telas amplas."],
   [/\.cartao-vb6-grid-panel\s*\{[\s\S]*?overflow:\s*auto/, "A rolagem deve permanecer concentrada na grade operacional."],
@@ -117,4 +125,4 @@ if (/v-if="activeView/.test(documentActions)) {
   throw new Error("As ações do documento não podem desaparecer ao alternar entre edição e pré-visualização.");
 }
 
-console.log("Cartão de ponto validado: layout clássico restaurado, modos na Title Bar, cabeçalho fixo, edição rolável e relatório sincronizado.");
+console.log("Cartão de ponto validado: contrato de CSS clássico compatível com WebView2, iframe sem scripts, modos na Title Bar e relatório sincronizado.");
