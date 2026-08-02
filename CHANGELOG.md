@@ -1,3 +1,10 @@
+## [1.26.5](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.4...v1.26.5) (2026-08-02)
+
+
+### Bug Fixes
+
+* **cartao:** aplica CSS classico na preview do WebView2 ([cbfe446](https://github.com/wkarts/argws-ponto-manager/commit/cbfe44621b59e509aa62132c8d2ea7ed472f6308))
+
 ## [1.26.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.26.3...v1.26.4) (2026-08-02)
 
 
