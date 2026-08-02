@@ -1,6 +1,6 @@
 [package]
 name = "argws_ponto_manager"
-version = "1.24.4"
+version = "1.25.0"
 description = "Sistema corporativo de gestão, tratamento, apuração e controle de ponto"
 authors = ["Wallace Kleiton"]
 edition = "2021"

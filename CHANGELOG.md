@@ -1,3 +1,15 @@
+# [1.25.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.4...v1.25.0) (2026-08-02)
+
+
+### Bug Fixes
+
+* **afd:** elimina warning no fluxo de duplicidade ([59ba93b](https://github.com/wkarts/argws-ponto-manager/commit/59ba93b27b670cfe59e72499b9eb16a381aebe40))
+
+
+### Features
+
+* **ponto:** profissionaliza cartão e integridade AFD ([9f3bf14](https://github.com/wkarts/argws-ponto-manager/commit/9f3bf147b46b7511cc4d235ba0f6d3a32aa22720))
+
 ## [1.24.4](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.3...v1.24.4) (2026-08-02)
 
 
