@@ -1,3 +1,15 @@
+# [1.26.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.25.0...v1.26.0) (2026-08-02)
+
+
+### Bug Fixes
+
+* **ui:** harmoniza cards e ícone de horários ([38cb2f9](https://github.com/wkarts/argws-ponto-manager/commit/38cb2f9f35db4d3f744a2704f76a230cbf1de197))
+
+
+### Features
+
+* **ui:** padroniza titlebars e separa prévia do cartão ([15dfc1f](https://github.com/wkarts/argws-ponto-manager/commit/15dfc1fc4749cf8e980238ea5211f9d5d82519da))
+
 # [1.25.0](https://github.com/wkarts/argws-ponto-manager/compare/v1.24.4...v1.25.0) (2026-08-02)
 
 
