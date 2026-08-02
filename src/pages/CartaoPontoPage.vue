@@ -173,7 +173,6 @@ const periodoLabel = computed(() => {
   }
   return `${filtros.dataInicial}..${filtros.dataFinal}`;
 });
-const previewOrientation = computed(() => isCartaoModeloPaisagem(filtros.modeloRelatorio) ? "landscape" : "portrait");
 
 function getCompetenciaRange(ano: number, mes: number) {
   const inicio = new Date(ano, mes - 1, 1);
@@ -1157,8 +1156,6 @@ function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
   const isLandscape = isCartaoModeloPaisagem(modelo);
   const margin = "6mm";
   const orientation = isLandscape ? "landscape" : "portrait";
-  const pageWidth = isLandscape ? "297mm" : "210mm";
-  const pageHeight = isLandscape ? "210mm" : "297mm";
   const bodyFontSize = isLandscape ? "8.5px" : "9px";
   const tableFontSize = isLandscape ? "7.4px" : "8.2px";
   const cellPadding = isLandscape ? "1.6px 2.4px" : "2px 3px";
@@ -1167,14 +1164,11 @@ function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
 
   return `
       @page{size:A4 ${orientation};margin:${margin}}
-      *,*::before,*::after{box-sizing:border-box}
-      html,body{min-height:100%}
+      html,body{width:100%;background:#fff}
       body{font-family:Consolas,monospace;margin:0;color:#111;font-size:${bodyFontSize}}
-      .report-page{position:relative;background:#fff}
       .head{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:end;border-bottom:1px solid #333;padding-bottom:3px}
       h1{margin:0;font-size:${titleSize};line-height:1.1}
       .meta{font-size:${isLandscape ? "8px" : "8.5px"};line-height:1.15}
-      .page-number{align-self:start;text-align:right;white-space:nowrap}
       table{width:100%;border-collapse:collapse;font-size:${tableFontSize};margin-top:4px;table-layout:fixed}
       th,td{border:1px solid #808080;padding:${cellPadding};text-align:left;vertical-align:top;word-break:break-word;line-height:1.12}
       thead th{background:#ececec}
@@ -1186,29 +1180,6 @@ function cartaoPrintCss(modelo = filtros.modeloRelatorio): string {
       .summary-box{border:1px solid #666;padding:3px;text-align:center}
       .legend{font-size:${isLandscape ? "7px" : "7.5px"};margin-top:4px}
       svg{max-width:${isLandscape ? "112px" : "120px"};height:auto}
-      @media screen{
-        html{background:#e9eef5}
-        body{display:flex;flex-direction:column;align-items:center;gap:24px;padding:24px;background:#e9eef5;overflow:auto}
-        .report-page{width:${pageWidth};min-height:${pageHeight};padding:${margin};flex:0 0 auto;box-shadow:0 18px 48px rgba(15,23,42,.18);border:1px solid #d8dee8}
-      }
-      @media print{
-        html,body{min-height:0;background:#fff}
-        body{display:block;padding:0;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        .report-page{width:auto;min-height:0;margin:0;padding:0;border:0;box-shadow:none;break-after:page;page-break-after:always}
-        .report-page:last-child{break-after:auto;page-break-after:auto}
-      }
-      ${isLandscape ? `
-        @media screen and (max-width:1200px){.report-page{zoom:.82}}
-        @media screen and (max-width:900px){.report-page{zoom:.72}}
-        @media screen and (max-width:720px){.report-page{zoom:.55}}
-        @media screen and (max-width:560px){.report-page{zoom:.42}}
-        @media screen and (max-width:420px){.report-page{zoom:.31}}
-      ` : `
-        @media screen and (max-width:840px){.report-page{zoom:.90}}
-        @media screen and (max-width:720px){.report-page{zoom:.80}}
-        @media screen and (max-width:560px){.report-page{zoom:.62}}
-        @media screen and (max-width:420px){.report-page{zoom:.45}}
-      `}
     `;
 }
 
@@ -1221,33 +1192,43 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
   const { rows: dailyRows, totals } = buildDailyRows(summary, initial, final);
 
   const logoSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='180' height='44' viewBox='0 0 420 100'><rect width='100' height='100' rx='18' fill='#1d4ed8'/><path d='M50 24v28l18-14' stroke='#fff' stroke-width='8' stroke-linecap='round'/><circle cx='50' cy='50' r='32' fill='none' stroke='rgba(255,255,255,.35)' stroke-width='8'/><text x='122' y='45' font-family='Segoe UI, Arial' font-size='28' font-weight='700' fill='#1f2937'>Ponto Manager</text><text x='122' y='74' font-family='Segoe UI, Arial' font-size='14' fill='#64748b'>jornada • rep • banco de horas</text></svg>`;
-  function buildTableForModel(rows: DailyReportRow[], includeTotals: boolean): string {
-    const totalsRowByModel: Record<string, string> = {
-      cartao_ponto: `<tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.esperado)}</td><td>${minutesToSignedHHMM(totals.saldo)}</td><td>-</td><td>-</td></tr>`,
-      folha_resumida: `<tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>`,
-      folha_interjornada: `<tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>`,
-      folha_com_he: `<tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>`,
-      folha_completa: `<tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>`,
-    };
-    const tableByModel: Record<string, string> = {
-      cartao_ponto: `
-        <thead><tr><th>Data</th><th>Dia semana</th><th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th><th>Ocorrência</th><th>Observação</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr><td>${r.day}</td><td>${r.dayLabel}</td><td>${[r.ent1, r.sai1, r.ent2, r.sai2, r.ent3, r.sai3].filter((p) => p && p !== "Folga").join(" | ") || "-"}</td><td>${r.hTrabalhadas}</td><td>${r.previsto}</td><td>${minutesToSignedHHMM(hhmmToMinutes(r.extra) - hhmmToMinutes(r.falta))}</td><td>${r.ocorrencias || "Normal"}</td><td>-</td></tr>`).join("")}${includeTotals ? totalsRowByModel.cartao_ponto : ""}</tbody>`,
-      folha_resumida: `
-        <thead><tr><th>Data</th><th>Previsto</th><th>Realizado</th><th>H. trab.</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.realizado}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}${includeTotals ? totalsRowByModel.folha_resumida : ""}</tbody>`,
-      folha_interjornada: `
-        <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. trab.</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}${includeTotals ? totalsRowByModel.folha_interjornada : ""}</tbody>`,
-      folha_com_he: `
-        <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}${includeTotals ? totalsRowByModel.folha_com_he : ""}</tbody>`,
-      folha_completa: `
-        <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
-        <tbody>${rows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}${includeTotals ? totalsRowByModel.folha_completa : ""}</tbody>`,
-    };
-    return tableByModel[filtros.modeloRelatorio] || tableByModel.folha_resumida;
-  }
+  const tableByModel: Record<string, string> = {
+    cartao_ponto: `
+      <thead><tr><th>Data</th><th>Dia semana</th><th>Marcações do dia</th><th>Total trabalhado</th><th>Jornada esperada</th><th>Saldo do dia</th><th>Ocorrência</th><th>Observação</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day}</td><td>${r.dayLabel}</td><td>${[r.ent1, r.sai1, r.ent2, r.sai2, r.ent3, r.sai3].filter((p) => p && p !== "Folga").join(" | ") || "-"}</td><td>${r.hTrabalhadas}</td><td>${r.previsto}</td><td>${minutesToSignedHHMM(hhmmToMinutes(r.extra) - hhmmToMinutes(r.falta))}</td><td>${r.ocorrencias || "Normal"}</td><td>-</td></tr>`).join("")}
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.esperado)}</td><td>${minutesToSignedHHMM(totals.saldo)}</td><td>-</td><td>-</td></tr>
+      </tbody>
+    `,
+    folha_resumida: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Realizado</th><th>H. trab.</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.realizado}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="3">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>
+      </tbody>
+    `,
+    folha_interjornada: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. trab.</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTrabalhadas}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="7">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td></tr>
+      </tbody>
+    `,
+    folha_com_he: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      </tbody>
+    `,
+    folha_completa: `
+      <thead><tr><th>Data</th><th>Previsto</th><th>Inter-jornada</th><th>Realizado</th><th>Intra-jornada</th><th>H. diurnas</th><th>H. noturnas</th><th>H. totais</th><th>HE diurnas</th><th>HE noturnas</th><th>HE total</th><th>H. trab.</th><th>Atraso</th></tr></thead>
+      <tbody>
+      ${dailyRows.map((r) => `<tr><td>${r.day} - ${r.dayLabel}</td><td>${r.previsto}</td><td>${r.interJornada}</td><td>${r.realizado}</td><td>${r.intraJornada}</td><td>${r.hDiurnas}</td><td>${r.hNoturnas}</td><td>${r.hTotais}</td><td>${r.heDiurnas}</td><td>${r.heNoturnas}</td><td>${r.heTotal}</td><td>${r.hTrabalhadas}</td><td>${r.atraso}</td></tr>`).join("")}
+      <tr class="tot"><td colspan="11">TOTAIS</td><td>${minutesToHHMM(totals.trabalhado)}</td><td>${minutesToHHMM(totals.atraso)}</td></tr>
+      </tbody>
+    `,
+  };
 
   const summaryByModel = filtros.modeloRelatorio === "folha_completa" ? `
     <div class="summary-grid">
@@ -1259,45 +1240,29 @@ function buildCartaoHtmlFromSummary(summary: ApuracaoResumo | null, employeeName
     </div>
   ` : "";
 
-  const rowsPerPageByModel: Record<string, number> = {
-    cartao_ponto: 31,
-    folha_resumida: 31,
-    folha_interjornada: 30,
-    folha_com_he: 27,
-    folha_completa: 25,
-  };
-  const rowsPerPage = rowsPerPageByModel[filtros.modeloRelatorio] || 31;
-  const pageRows = dailyRows.length
-    ? Array.from({ length: Math.ceil(dailyRows.length / rowsPerPage) }, (_, index) => dailyRows.slice(index * rowsPerPage, (index + 1) * rowsPerPage))
-    : [[] as DailyReportRow[]];
-  const modelLabel = filtros.modeloRelatorio.replace(/_/g, " ").toUpperCase();
-  const emittedAt = new Date().toLocaleDateString("pt-BR");
-  const pagesHtml = pageRows.map((rows, pageIndex) => {
-    const isLastPage = pageIndex === pageRows.length - 1;
-    return `
-      <main class="report-page report-page--${isCartaoModeloPaisagem(filtros.modeloRelatorio) ? "landscape" : "portrait"}" data-page="${pageIndex + 1}" data-page-count="${pageRows.length}">
-        <div class="head">
-          <div>
-            <div>${logoSvg}</div>
-            <h1>CARTÃO PONTO — ${modelLabel}</h1>
-            <div class="meta">Período: ${dataInicial.split("-").reverse().join("/")} até ${dataFinal.split("-").reverse().join("/")}</div>
-            <div class="meta">Competência/visão: ${periodoLabel.value}</div>
-            <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
-            <div class="meta">Colaborador: ${employeeName}</div>
-          </div>
-          <div class="meta page-number">Emitido em ${emittedAt}<br>Página ${pageIndex + 1} de ${pageRows.length}</div>
-        </div>
-        <table>${buildTableForModel(rows, isLastPage)}</table>
-        ${isLastPage ? summaryByModel : ""}
-        ${isLastPage
-          ? `<p class="legend"><strong>Legenda:</strong> Total H.E. acumuladas e total horas faltantes são demonstrados pelo saldo líquido consolidado do período, sem exibir crédito e débito simultaneamente para o mesmo colaborador.</p><div class="sign"><div class="line">${employeeName}</div><div class="line">${empresaResponsavel.value}</div></div>`
-          : `<p class="legend page-continuation">Continua na página seguinte.</p>`}
-      </main>`;
-  }).join("");
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartão de ponto</title>
     <style>${cartaoPrintCss(filtros.modeloRelatorio)}</style></head>
-    <body>${pagesHtml}</body></html>`;
+    <body>
+      <div class="head">
+        <div>
+          <div>${logoSvg}</div>
+          <h1>CARTÃO PONTO — ${filtros.modeloRelatorio.replace(/_/g, " " ).toUpperCase()}</h1>
+          <div class="meta">Período: ${dataInicial.split("-").reverse().join("/")} até ${dataFinal.split("-").reverse().join("/")}</div>
+          <div class="meta">Competência/visão: ${periodoLabel.value}</div>
+          <div class="meta">Empresa: ${session.activeCompanyName || "-"}</div>
+          <div class="meta">Colaborador: ${employeeName}</div>
+        </div>
+        <div class="meta">Emitido em ${new Date().toLocaleDateString("pt-BR")}</div>
+      </div>
+      <table>
+        ${tableByModel[filtros.modeloRelatorio] || tableByModel.folha_resumida}
+      </table>
+      ${summaryByModel}
+      <p class="legend"><strong>Legenda:</strong> Total H.E. acumuladas e total horas faltantes são demonstrados pelo saldo líquido consolidado do período, sem exibir crédito e débito simultaneamente para o mesmo colaborador.</p>
+      <div class="sign"><div class="line">${employeeName}</div><div class="line">${empresaResponsavel.value}</div></div>
+    </body></html>`;
 }
 
 function buildCartaoHtml(): string {
@@ -1320,15 +1285,16 @@ function extractPrintableBody(html: string): string {
 }
 
 function buildAllCardsHtml(cards: { employeeName: string; html: string }[]) {
+  const isLandscape = filtros.modeloRelatorio === "folha_completa";
   const content = cards
-    .map((card) => `<section class="card-document" data-employee="${card.employeeName}">${extractPrintableBody(card.html)}</section>`)
+    .map((card) => `<section class="card-page" data-employee="${card.employeeName}">${extractPrintableBody(card.html)}</section>`)
     .join("");
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Cartões da competência</title>
     <style>
       ${cartaoPrintCss(filtros.modeloRelatorio)}
-      .card-document{display:contents}
-      .card-document:not(:last-child) .report-page:last-child{break-after:page;page-break-after:always}
+      .card-page{page-break-after:always;break-after:page}
+      .card-page:last-child{page-break-after:auto;break-after:auto}
     </style></head><body>${content}</body></html>`;
 }
 
@@ -1689,6 +1655,7 @@ onMounted(async () => {
 
 <template>
   <div class="grid page-gap cartao-vb6-page">
+    <div class="cartao-sticky-header">
     <AppPageTitleBar class="cartao-page-titlebar" title="Cartão de ponto" subtitle="Edição operacional e pré-visualização fiel do documento impresso em modos independentes." icon="timeCard">
       <template #actions>
         <div class="cartao-titlebar-actions">
@@ -1728,9 +1695,6 @@ onMounted(async () => {
         </div>
       </template>
     </AppPageTitleBar>
-
-    <div v-if="error" class="alert error">{{ error }}</div>
-    <div v-if="message" class="alert success">{{ message }}</div>
 
     <BaseFilterBar class="cartao-filter-card" title="Filtros do cartão" description="A mesma seleção é preservada nos modos de edição, pré-visualização e impressão." density="compact" :loading="loading">
         <div class="field filter-field--wide">
@@ -1792,12 +1756,15 @@ onMounted(async () => {
         </div>
       </template>
     </BaseFilterBar>
+    </div>
+
+    <div v-if="error" class="alert error">{{ error }}</div>
+    <div v-if="message" class="alert success">{{ message }}</div>
 
     <div
       v-if="activeView === 'previsualizacao'"
       id="cartao-panel-preview"
       class="card cartao-preview-card preview-only"
-      :data-orientation="previewOrientation"
       role="tabpanel"
       aria-labelledby="cartao-tab-preview"
     >
