@@ -1786,7 +1786,7 @@ onMounted(async () => {
         class="report-frame"
         title="Pré-visualização do cartão de ponto"
         :srcdoc="reportHtml"
-        sandbox=""
+        sandbox="allow-same-origin"
         referrerpolicy="no-referrer"
       ></iframe>
       <div v-else class="cartao-preview-state" role="status">
